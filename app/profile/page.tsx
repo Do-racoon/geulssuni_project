@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { requireAuth } from "@/lib/auth-server"
 import UserProfile from "@/components/auth/user-profile"
 
 export const metadata: Metadata = {
@@ -7,10 +6,7 @@ export const metadata: Metadata = {
   description: "Manage your Geulssuni profile and account settings",
 }
 
-export default async function ProfilePage() {
-  // This will redirect to login if not authenticated
-  await requireAuth()
-
+export default function ProfilePage() {
   return (
     <main className="min-h-screen bg-white">
       <div className="container mx-auto py-24 px-4">

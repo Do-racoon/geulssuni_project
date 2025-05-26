@@ -13,6 +13,7 @@ interface User {
   role: "student" | "instructor" | "admin"
   dateJoined: string
   status: "active" | "pending" | "inactive"
+  password_hash?: string
 }
 
 // Sample data - in a real app, this would come from an API
@@ -285,6 +286,9 @@ export default function UserManagement() {
                       ))}
                   </div>
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Password
+                </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
@@ -333,6 +337,9 @@ export default function UserManagement() {
                     >
                       {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
                     </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900 font-mono">••••••••</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <button onClick={() => handleEditUser(user)} className="text-gray-600 hover:text-gray-900 mr-3">

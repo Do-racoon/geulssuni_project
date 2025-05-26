@@ -6,6 +6,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Eye, EyeOff } from "lucide-react"
 import { auth } from "@/lib/auth"
+import { supabase } from "@/lib/supabase"
 
 export default function AdminLoginForm() {
   const router = useRouter()
@@ -28,11 +29,11 @@ export default function AdminLoginForm() {
       }
 
       if (data?.user) {
-        // Check if user is admin
-        const isAdmin = await auth.isAdmin()
+        // Check if user is admin - DB에서 직접 확인
+        const { data: userData } = await supabase.from("users").select("role").eq("id", data.user.id).single()
 
-        if (!isAdmin) {
-          throw new Error("You do not have permission to access the admin area.")
+        if (userData?.role !== "admin") {
+          throw new Error("관리자 권한이 없습니다.")
         }
 
         // Set admin cookie

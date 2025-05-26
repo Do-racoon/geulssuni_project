@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import bcrypt from "bcryptjs"
 
 export async function POST(request: Request) {
   try {
@@ -33,11 +34,14 @@ export async function POST(request: Request) {
       })
     }
 
+    // Hash the password for storage in our database
+    const hashedPassword = await bcrypt.hash(password, 12)
+
     // Create user with Supabase Auth
     const { data, error } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true, // This is the key - it marks the email as confirmed
+      email_confirm: true,
       user_metadata: {
         name,
         role,
@@ -46,13 +50,14 @@ export async function POST(request: Request) {
 
     if (error) throw error
 
-    // Create user in our users table
+    // Create user in our users table with hashed password
     const { error: insertError } = await supabaseAdmin.from("users").insert([
       {
         id: data.user.id,
         email,
         name,
         role,
+        password_hash: hashedPassword,
         is_active: true,
         email_verified: true,
       },
@@ -64,6 +69,10 @@ export async function POST(request: Request) {
       success: true,
       message: "User created successfully with confirmed email",
       userId: data.user.id,
+      credentials: {
+        email,
+        password, // 응답에 평문 비밀번호 포함 (개발용)
+      },
     })
   } catch (error) {
     console.error("Error creating user:", error)

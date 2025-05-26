@@ -1,101 +1,157 @@
 "use client"
 
-import { useState } from "react"
-import { Search, Plus, Edit, Trash2, ChevronDown, ChevronUp, Filter } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Search, Plus, Edit, Trash2, ChevronDown, ChevronUp, Filter, Pin, PinOff } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
-// Sample data - in a real app, this would come from an API
-const boardPosts = [
-  {
-    id: "post-1",
-    title: "Design Principles for Minimalist Layouts",
-    category: "design",
-    author: "Thomas Noir",
-    createdAt: "2023-05-15",
-    comments: 12,
-    likes: 48,
-    isPinned: true,
-    status: "published",
-  },
-  {
-    id: "post-2",
-    title: "The Art of Black and White Photography",
-    category: "photography",
-    author: "Alexandra Reeves",
-    createdAt: "2023-05-10",
-    comments: 8,
-    likes: 36,
-    isPinned: false,
-    status: "published",
-  },
-  {
-    id: "post-3",
-    title: "Typography Trends for 2023",
-    category: "design",
-    author: "Elise Laurent",
-    createdAt: "2023-05-05",
-    comments: 15,
-    likes: 52,
-    isPinned: false,
-    status: "published",
-  },
-  {
-    id: "post-4",
-    title: "Creative Writing Exercises for Beginners",
-    category: "writing",
-    author: "Marcus Chen",
-    createdAt: "2023-04-28",
-    comments: 6,
-    likes: 24,
-    isPinned: false,
-    status: "published",
-  },
-  {
-    id: "post-5",
-    title: "Discussion: Future of Digital Art",
-    category: "discussion",
-    author: "John Doe",
-    createdAt: "2023-04-20",
-    comments: 32,
-    likes: 67,
-    isPinned: false,
-    status: "published",
-  },
-  {
-    id: "post-6",
-    title: "Draft: Upcoming Photography Workshop",
-    category: "photography",
-    author: "Admin",
-    createdAt: "2023-05-18",
-    comments: 0,
-    likes: 0,
-    isPinned: false,
-    status: "draft",
-  },
-]
+interface FreeBoardPost {
+  id: string
+  title: string
+  content: string
+  author_id: string
+  author_name: string
+  created_at: string
+  updated_at: string
+  is_published: boolean
+  is_pinned: boolean
+  category: string
+  comments_count: number
+  likes_count: number
+}
 
 interface FreeBoardManagementProps {
   onAddPost: () => void
   onEditPost: (postId: string) => void
+  currentUserId: string
+  userRole: string
 }
 
-export default function FreeBoardManagement({ onAddPost, onEditPost }: FreeBoardManagementProps) {
+export default function FreeBoardManagement({
+  onAddPost,
+  onEditPost,
+  currentUserId,
+  userRole,
+}: FreeBoardManagementProps) {
+  const [posts, setPosts] = useState<FreeBoardPost[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
-  const [sortField, setSortField] = useState<keyof (typeof boardPosts)[0]>("createdAt")
+  const [sortField, setSortField] = useState<keyof FreeBoardPost>("created_at")
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
   const [filterCategory, setFilterCategory] = useState<string>("all")
   const [filterStatus, setFilterStatus] = useState<string>("all")
   const [showFilters, setShowFilters] = useState(false)
+  const { toast } = useToast()
+
+  const isAdmin = userRole === "admin"
+
+  useEffect(() => {
+    fetchPosts()
+  }, [])
+
+  const fetchPosts = async () => {
+    try {
+      setLoading(true)
+      const response = await fetch("/api/board-posts?type=free")
+      if (response.ok) {
+        const data = await response.json()
+        setPosts(data)
+      }
+    } catch (error) {
+      toast({
+        title: "오류",
+        description: "게시글을 불러오는데 실패했습니다.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const togglePin = async (postId: string, currentPinned: boolean) => {
+    if (!isAdmin) return
+
+    try {
+      const response = await fetch(`/api/board-posts/${postId}/pin`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ is_pinned: !currentPinned }),
+      })
+
+      if (response.ok) {
+        setPosts(posts.map((post) => (post.id === postId ? { ...post, is_pinned: !currentPinned } : post)))
+        toast({
+          title: "성공",
+          description: `게시글이 ${!currentPinned ? "고정" : "고정 해제"}되었습니다.`,
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "오류",
+        description: "게시글 고정 상태 변경에 실패했습니다.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleDeletePost = async (postId: string, authorId: string) => {
+    const canDelete = isAdmin || currentUserId === authorId
+    if (!canDelete) {
+      toast({
+        title: "권한 없음",
+        description: "이 게시글을 삭제할 권한이 없습니다.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!confirm("정말로 이 게시글을 삭제하시겠습니까?")) return
+
+    try {
+      const response = await fetch(`/api/board-posts/${postId}`, {
+        method: "DELETE",
+      })
+
+      if (response.ok) {
+        setPosts(posts.filter((post) => post.id !== postId))
+        toast({
+          title: "성공",
+          description: "게시글이 삭제되었습니다.",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "오류",
+        description: "게시글 삭제에 실패했습니다.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const canEditPost = (authorId: string) => {
+    return isAdmin || currentUserId === authorId
+  }
+
+  const canDeletePost = (authorId: string) => {
+    return isAdmin || currentUserId === authorId
+  }
 
   // Filter and sort posts
-  const filteredPosts = boardPosts
+  const filteredPosts = posts
     .filter((post) => {
       const matchesSearch = post.title.toLowerCase().includes(searchTerm.toLowerCase())
       const matchesCategory = filterCategory === "all" || post.category === filterCategory
-      const matchesStatus = filterStatus === "all" || post.status === filterStatus
+      const matchesStatus =
+        filterStatus === "all" || (filterStatus === "published" ? post.is_published : !post.is_published)
 
       return matchesSearch && matchesCategory && matchesStatus
     })
     .sort((a, b) => {
+      // 고정된 게시글을 항상 위에 표시
+      if (a.is_pinned && !b.is_pinned) return -1
+      if (!a.is_pinned && b.is_pinned) return 1
+
       const fieldA = a[sortField]
       const fieldB = b[sortField]
 
@@ -104,7 +160,7 @@ export default function FreeBoardManagement({ onAddPost, onEditPost }: FreeBoard
       return 0
     })
 
-  const handleSort = (field: keyof (typeof boardPosts)[0]) => {
+  const handleSort = (field: keyof FreeBoardPost) => {
     if (sortField === field) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc")
     } else {
@@ -113,11 +169,8 @@ export default function FreeBoardManagement({ onAddPost, onEditPost }: FreeBoard
     }
   }
 
-  const handleDeletePost = (postId: string) => {
-    // In a real app, this would call an API to delete the post
-    if (confirm("Are you sure you want to delete this post? This action cannot be undone.")) {
-      console.log(`Delete post with ID: ${postId}`)
-    }
+  if (loading) {
+    return <div className="text-center py-8">게시글을 불러오는 중...</div>
   }
 
   return (
@@ -127,7 +180,7 @@ export default function FreeBoardManagement({ onAddPost, onEditPost }: FreeBoard
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
           <input
             type="text"
-            placeholder="Search posts..."
+            placeholder="게시글 검색..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10 pr-4 py-2 border border-gray-300 rounded-md w-full focus:outline-none focus:ring-1 focus:ring-black"
@@ -140,7 +193,7 @@ export default function FreeBoardManagement({ onAddPost, onEditPost }: FreeBoard
             className="flex items-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-md"
           >
             <Filter className="h-4 w-4" />
-            <span>Filter</span>
+            <span>필터</span>
           </button>
 
           <button
@@ -148,53 +201,55 @@ export default function FreeBoardManagement({ onAddPost, onEditPost }: FreeBoard
             className="flex items-center gap-1 px-3 py-2 bg-black text-white hover:bg-gray-800 rounded-md"
           >
             <Plus className="h-4 w-4" />
-            <span>New Post</span>
+            <span>새 게시글</span>
           </button>
         </div>
       </div>
 
       <div className="bg-white shadow rounded-lg overflow-hidden">
         {showFilters && (
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border-b border-gray-200">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border-b border-gray-200">
             <div>
-              <label className="block text-sm text-gray-600 mb-1">Category</label>
+              <label className="block text-sm text-gray-600 mb-1">카테고리</label>
               <select
                 value={filterCategory}
                 onChange={(e) => setFilterCategory(e.target.value)}
                 className="w-full p-2 border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-black"
               >
-                <option value="all">All Categories</option>
-                <option value="design">Design</option>
-                <option value="photography">Photography</option>
-                <option value="writing">Writing</option>
-                <option value="discussion">Discussion</option>
+                <option value="all">모든 카테고리</option>
+                <option value="design">디자인</option>
+                <option value="photography">사진</option>
+                <option value="writing">글쓰기</option>
+                <option value="discussion">토론</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-sm text-gray-600 mb-1">Status</label>
+              <label className="block text-sm text-gray-600 mb-1">상태</label>
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
                 className="w-full p-2 border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-black"
               >
-                <option value="all">All Statuses</option>
-                <option value="published">Published</option>
-                <option value="draft">Draft</option>
+                <option value="all">모든 상태</option>
+                <option value="published">게시됨</option>
+                <option value="draft">임시저장</option>
               </select>
             </div>
           </div>
         )}
+
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 text-left">
+                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">고정</th>
                 <th
                   className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
                   onClick={() => handleSort("title")}
                 >
                   <div className="flex items-center">
-                    Title
+                    제목
                     {sortField === "title" &&
                       (sortDirection === "asc" ? (
                         <ChevronUp className="h-4 w-4 ml-1" />
@@ -205,11 +260,11 @@ export default function FreeBoardManagement({ onAddPost, onEditPost }: FreeBoard
                 </th>
                 <th
                   className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                  onClick={() => handleSort("category")}
+                  onClick={() => handleSort("author_name")}
                 >
                   <div className="flex items-center">
-                    Category
-                    {sortField === "category" &&
+                    작성자
+                    {sortField === "author_name" &&
                       (sortDirection === "asc" ? (
                         <ChevronUp className="h-4 w-4 ml-1" />
                       ) : (
@@ -219,11 +274,11 @@ export default function FreeBoardManagement({ onAddPost, onEditPost }: FreeBoard
                 </th>
                 <th
                   className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                  onClick={() => handleSort("author")}
+                  onClick={() => handleSort("created_at")}
                 >
                   <div className="flex items-center">
-                    Author
-                    {sortField === "author" &&
+                    작성일
+                    {sortField === "created_at" &&
                       (sortDirection === "asc" ? (
                         <ChevronUp className="h-4 w-4 ml-1" />
                       ) : (
@@ -231,79 +286,73 @@ export default function FreeBoardManagement({ onAddPost, onEditPost }: FreeBoard
                       ))}
                   </div>
                 </th>
-                <th
-                  className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                  onClick={() => handleSort("createdAt")}
-                >
-                  <div className="flex items-center">
-                    Date
-                    {sortField === "createdAt" &&
-                      (sortDirection === "asc" ? (
-                        <ChevronUp className="h-4 w-4 ml-1" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4 ml-1" />
-                      ))}
-                  </div>
-                </th>
-                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Stats</th>
-                <th
-                  className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                  onClick={() => handleSort("status")}
-                >
-                  <div className="flex items-center">
-                    Status
-                    {sortField === "status" &&
-                      (sortDirection === "asc" ? (
-                        <ChevronUp className="h-4 w-4 ml-1" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4 ml-1" />
-                      ))}
-                  </div>
-                </th>
+                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">통계</th>
+                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">상태</th>
                 <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-right">
-                  Actions
+                  작업
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {filteredPosts.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-50">
+              {filteredPosts.map((post) => (
+                <tr key={post.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
+                    {isAdmin && (
+                      <button
+                        onClick={() => togglePin(post.id, post.is_pinned)}
+                        className={`p-1 rounded ${
+                          post.is_pinned ? "text-yellow-600 hover:text-yellow-800" : "text-gray-400 hover:text-gray-600"
+                        }`}
+                        title={post.is_pinned ? "고정 해제" : "상단 고정"}
+                      >
+                        {post.is_pinned ? <Pin className="h-4 w-4" /> : <PinOff className="h-4 w-4" />}
+                      </button>
+                    )}
+                  </td>
+                  <td className="px-6 py-4">
                     <div className="text-sm font-medium flex items-center">
-                      {item.isPinned && (
-                        <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded mr-2">Pinned</span>
+                      {post.is_pinned && (
+                        <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded mr-2">고정</span>
                       )}
-                      {item.title}
+                      {post.title}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-500">{item.category}</div>
+                    <div className="text-sm text-gray-500">{post.author_name}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-500">{item.author}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-500">{new Date(item.createdAt).toLocaleDateString()}</div>
+                    <div className="text-sm text-gray-500">{new Date(post.created_at).toLocaleDateString()}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-500">
-                      <span className="mr-3">💬 {item.comments}</span>
-                      <span>❤️ {item.likes}</span>
+                      <span className="mr-3">💬 {post.comments_count}</span>
+                      <span>❤️ {post.likes_count}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                      {item.status}
+                    <span
+                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        post.is_published ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
+                      }`}
+                    >
+                      {post.is_published ? "게시됨" : "임시저장"}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center space-x-2 justify-end">
-                      <button onClick={() => onEditPost(item.id)} className="text-gray-600 hover:text-gray-900">
-                        <Edit className="h-4 w-4" />
-                      </button>
-                      <button onClick={() => handleDeletePost(item.id)} className="text-red-600 hover:text-red-900">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {canEditPost(post.author_id) && (
+                        <button onClick={() => onEditPost(post.id)} className="text-gray-600 hover:text-gray-900">
+                          <Edit className="h-4 w-4" />
+                        </button>
+                      )}
+                      {canDeletePost(post.author_id) && (
+                        <button
+                          onClick={() => handleDeletePost(post.id, post.author_id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -311,14 +360,15 @@ export default function FreeBoardManagement({ onAddPost, onEditPost }: FreeBoard
             </tbody>
           </table>
         </div>
+
         {filteredPosts.length === 0 && (
           <div className="text-center py-8">
-            <p className="text-gray-500">No posts found matching your criteria.</p>
+            <p className="text-gray-500">조건에 맞는 게시글이 없습니다.</p>
           </div>
         )}
 
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 text-sm text-gray-500">
-          Showing {filteredPosts.length} of {boardPosts.length} posts
+          총 {filteredPosts.length}개의 게시글
         </div>
       </div>
     </div>

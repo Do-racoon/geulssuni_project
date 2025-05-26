@@ -3,98 +3,162 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import Image from "next/image"
 import { useRouter } from "next/navigation"
-import { Camera, Save } from "lucide-react"
-import { auth } from "@/lib/auth"
-import type { User } from "@supabase/supabase-js"
+import { Eye, EyeOff, Save, User, Mail, Shield, Users } from "lucide-react"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { useToast } from "@/hooks/use-toast"
+
+interface UserData {
+  id: string
+  email: string
+  name: string
+  nickname: string | null
+  role: string
+  class_name: string | null
+  is_active: boolean
+  email_verified: boolean
+  created_at: string
+  updated_at: string
+}
 
 export default function UserProfile() {
   const router = useRouter()
-  const [user, setUser] = useState<User | null>(null)
-  const [userData, setUserData] = useState<any>(null)
+  const { toast } = useToast()
+  const [user, setUser] = useState<any>(null)
+  const [userData, setUserData] = useState<UserData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isEditing, setIsEditing] = useState(false)
-  const [formData, setFormData] = useState({
-    name: "",
-    nickname: "",
-    email: "",
-    className: "",
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
   })
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false)
+
+  const supabase = createClientComponentClient()
 
   useEffect(() => {
     async function loadUser() {
       try {
         setIsLoading(true)
-        const currentUser = await auth.getUser()
 
-        if (!currentUser) {
+        // Get current user from auth
+        const {
+          data: { user: authUser },
+          error: authError,
+        } = await supabase.auth.getUser()
+
+        if (authError || !authUser) {
           router.push("/login")
           return
         }
 
-        setUser(currentUser)
+        setUser(authUser)
 
-        // Get user metadata
-        const metadata = currentUser.user_metadata || {}
-        setUserData(metadata)
+        // Get user data from database
+        const { data: dbUser, error: dbError } = await supabase.from("users").select("*").eq("id", authUser.id).single()
 
-        // Set form data
-        setFormData({
-          name: metadata.name || "",
-          nickname: metadata.nickname || "",
-          email: currentUser.email || "",
-          className: metadata.className || "",
-        })
+        if (dbError) {
+          console.error("Error fetching user data:", dbError)
+          toast({
+            title: "오류",
+            description: "사용자 정보를 불러오는데 실패했습니다.",
+            variant: "destructive",
+          })
+          return
+        }
+
+        setUserData(dbUser)
       } catch (error) {
         console.error("Error loading user:", error)
+        toast({
+          title: "오류",
+          description: "사용자 정보를 불러오는데 실패했습니다.",
+          variant: "destructive",
+        })
       } finally {
         setIsLoading(false)
       }
     }
 
     loadUser()
-  }, [router])
+  }, [router, supabase, toast])
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
-    setFormData({
-      ...formData,
+    setPasswordForm((prev) => ({
+      ...prev,
       [name]: value,
-    })
+    }))
   }
 
-  const handleSave = async () => {
+  const handlePasswordUpdate = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast({
+        title: "오류",
+        description: "새 비밀번호가 일치하지 않습니다.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (passwordForm.newPassword.length < 6) {
+      toast({
+        title: "오류",
+        description: "비밀번호는 최소 6자 이상이어야 합니다.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsUpdatingPassword(true)
+
     try {
-      // Update user metadata
-      const { error } = await auth.updateUser({
-        name: formData.name,
-        nickname: formData.nickname,
-        className: formData.className,
+      // Update password in Supabase Auth
+      const { error } = await supabase.auth.updateUser({
+        password: passwordForm.newPassword,
       })
 
       if (error) {
-        throw new Error(error.message)
+        throw error
       }
 
-      // Update local state
-      setUserData({
-        ...userData,
-        name: formData.name,
-        nickname: formData.nickname,
-        className: formData.className,
+      toast({
+        title: "성공",
+        description: "비밀번호가 성공적으로 변경되었습니다.",
       })
 
-      setIsEditing(false)
-    } catch (error) {
-      console.error("Error updating profile:", error)
-      alert("Failed to update profile. Please try again.")
+      // Reset form
+      setPasswordForm({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      })
+      setIsChangingPassword(false)
+    } catch (error: any) {
+      console.error("Error updating password:", error)
+      toast({
+        title: "오류",
+        description: error.message || "비밀번호 변경에 실패했습니다.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUpdatingPassword(false)
     }
   }
 
   const handleLogout = async () => {
     try {
-      await auth.signOut()
+      await supabase.auth.signOut()
       router.push("/login")
       router.refresh()
     } catch (error) {
@@ -102,17 +166,16 @@ export default function UserProfile() {
     }
   }
 
-  const handleDeleteAccount = async () => {
-    if (confirm("Are you sure you want to delete your account? This action cannot be undone.")) {
-      try {
-        // In a real app, you would call an API to delete the user account
-        // For now, we'll just sign out
-        await auth.signOut()
-        router.push("/login")
-        router.refresh()
-      } catch (error) {
-        console.error("Error deleting account:", error)
-      }
+  const getRoleDisplayName = (role: string) => {
+    switch (role) {
+      case "admin":
+        return "관리자"
+      case "teacher":
+        return "선생님"
+      case "student":
+        return "학생"
+      default:
+        return "사용자"
     }
   }
 
@@ -127,138 +190,163 @@ export default function UserProfile() {
   if (!user || !userData) {
     return (
       <div className="text-center py-8">
-        <p>Please log in to view your profile.</p>
-        <button onClick={() => router.push("/login")} className="mt-4 px-4 py-2 bg-black text-white">
-          Go to Login
-        </button>
+        <p>사용자 정보를 불러올 수 없습니다.</p>
+        <Button onClick={() => router.push("/login")} className="mt-4">
+          로그인 페이지로 이동
+        </Button>
       </div>
     )
   }
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <div className="bg-white border border-gray-200 p-8">
-        <div className="flex flex-col md:flex-row gap-8">
-          <div className="md:w-1/3">
-            <div className="relative w-48 h-48 mx-auto">
-              <Image
-                src={userData.avatar_url || "/placeholder.svg?height=200&width=200"}
-                alt={userData.name || "User"}
-                fill
-                className="object-cover"
-              />
-              <button className="absolute bottom-2 right-2 p-2 bg-black text-white rounded-full">
-                <Camera className="h-5 w-5" />
-              </button>
+    <div className="max-w-4xl mx-auto space-y-6">
+      {/* 사용자 정보 카드 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <User className="h-5 w-5" />
+            회원 정보
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label className="flex items-center gap-2">
+                <Mail className="h-4 w-4" />
+                이메일
+              </Label>
+              <Input value={userData.email} disabled className="bg-gray-50" />
             </div>
 
-            <div className="mt-6 text-center">
-              <div className="text-xl font-light">{userData.name || "User"}</div>
-              <div className="text-sm text-gray-500 mt-1">
-                {userData.role ? userData.role.charAt(0).toUpperCase() + userData.role.slice(1) : "User"}
-              </div>
+            <div>
+              <Label>이름</Label>
+              <Input value={userData.name} disabled className="bg-gray-50" />
             </div>
 
-            <div className="mt-8 space-y-2">
-              <button
-                onClick={handleLogout}
-                className="w-full py-2 px-4 border border-gray-200 text-sm text-center hover:bg-gray-50 transition-colors"
-              >
-                Logout
-              </button>
-              <button
-                onClick={handleDeleteAccount}
-                className="w-full py-2 px-4 border border-red-200 text-red-500 text-sm text-center hover:bg-red-50 transition-colors"
-              >
-                Delete Account
-              </button>
+            <div>
+              <Label className="flex items-center gap-2">
+                <Shield className="h-4 w-4" />
+                역할
+              </Label>
+              <Input value={getRoleDisplayName(userData.role)} disabled className="bg-gray-50" />
+            </div>
+
+            <div>
+              <Label className="flex items-center gap-2">
+                <Users className="h-4 w-4" />반
+              </Label>
+              <Input value={userData.class_name || "미설정"} disabled className="bg-gray-50" />
             </div>
           </div>
 
-          <div className="md:w-2/3">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-light">Account Information</h2>
-              {!isEditing ? (
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="text-sm underline hover:text-gray-600 transition-colors"
-                >
-                  Edit
-                </button>
-              ) : (
-                <button
-                  onClick={handleSave}
-                  className="flex items-center text-sm bg-black text-white px-4 py-2 hover:bg-gray-800 transition-colors"
-                >
-                  <Save className="h-4 w-4 mr-2" />
-                  Save Changes
-                </button>
-              )}
-            </div>
+          <div className="text-sm text-gray-500 pt-4 border-t">
+            <p>가입일: {new Date(userData.created_at).toLocaleDateString("ko-KR")}</p>
+            <p>최종 수정일: {new Date(userData.updated_at).toLocaleDateString("ko-KR")}</p>
+          </div>
+        </CardContent>
+      </Card>
 
-            <div className="space-y-6">
+      {/* 비밀번호 변경 카드 */}
+      <Card>
+        <CardHeader>
+          <CardTitle>비밀번호 변경</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!isChangingPassword ? (
+            <Button onClick={() => setIsChangingPassword(true)}>비밀번호 변경</Button>
+          ) : (
+            <form onSubmit={handlePasswordUpdate} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    className="w-full border border-gray-200 p-3 focus:outline-none focus:ring-1 focus:ring-black"
+                <Label htmlFor="newPassword">새 비밀번호</Label>
+                <div className="relative">
+                  <Input
+                    type={showNewPassword ? "text" : "password"}
+                    id="newPassword"
+                    name="newPassword"
+                    value={passwordForm.newPassword}
+                    onChange={handlePasswordChange}
+                    placeholder="새 비밀번호를 입력하세요"
+                    required
+                    minLength={6}
                   />
-                ) : (
-                  <div className="p-3 border border-gray-100 bg-gray-50">{userData.name || "Not set"}</div>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nickname</label>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    name="nickname"
-                    value={formData.nickname}
-                    onChange={handleChange}
-                    className="w-full border border-gray-200 p-3 focus:outline-none focus:ring-1 focus:ring-black"
-                  />
-                ) : (
-                  <div className="p-3 border border-gray-100 bg-gray-50">{userData.nickname || "Not set"}</div>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <div className="p-3 border border-gray-100 bg-gray-50">{user.email}</div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                <div className="p-3 border border-gray-100 bg-gray-50">
-                  {userData.role ? userData.role.charAt(0).toUpperCase() + userData.role.slice(1) : "User"}
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                  >
+                    {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
               </div>
 
-              {userData.role === "student" && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      name="className"
-                      value={formData.className}
-                      onChange={handleChange}
-                      className="w-full border border-gray-200 p-3 focus:outline-none focus:ring-1 focus:ring-black"
-                    />
+              <div>
+                <Label htmlFor="confirmPassword">새 비밀번호 확인</Label>
+                <div className="relative">
+                  <Input
+                    type={showConfirmPassword ? "text" : "password"}
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    value={passwordForm.confirmPassword}
+                    onChange={handlePasswordChange}
+                    placeholder="새 비밀번호를 다시 입력하세요"
+                    required
+                    minLength={6}
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button type="submit" disabled={isUpdatingPassword}>
+                  {isUpdatingPassword ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                      변경 중...
+                    </>
                   ) : (
-                    <div className="p-3 border border-gray-100 bg-gray-50">{userData.className || "Not set"}</div>
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      비밀번호 변경
+                    </>
                   )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsChangingPassword(false)
+                    setPasswordForm({
+                      currentPassword: "",
+                      newPassword: "",
+                      confirmPassword: "",
+                    })
+                  }}
+                >
+                  취소
+                </Button>
+              </div>
+            </form>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 계정 관리 카드 */}
+      <Card>
+        <CardHeader>
+          <CardTitle>계정 관리</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Button onClick={handleLogout} variant="outline" className="w-full">
+            로그아웃
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   )
 }

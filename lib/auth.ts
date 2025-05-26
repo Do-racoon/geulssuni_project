@@ -129,8 +129,20 @@ export const auth = {
 
   // Check if user is admin
   isAdmin: async (): Promise<boolean> => {
-    const role = await auth.getUserRole()
-    return role === "admin"
+    const supabaseClient = getSupabaseClient()
+    const { data: user } = await supabaseClient.auth.getUser()
+
+    if (!user.user) return false
+
+    try {
+      // DB에서 직접 역할 확인
+      const { data: userData } = await supabaseClient.from("users").select("role").eq("id", user.user.id).single()
+
+      return userData?.role === "admin"
+    } catch (error) {
+      console.error("Error checking admin status:", error)
+      return false
+    }
   },
 
   // Update user data

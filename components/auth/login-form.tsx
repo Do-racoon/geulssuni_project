@@ -47,6 +47,9 @@ export default function LoginForm() {
       }
 
       if (data?.user) {
+        // 성공 메시지 표시
+        setSuccessMessage("로그인 성공! 잠시 후 이동합니다...")
+
         // Check if user is admin
         const { data: userData } = await supabase.from("users").select("role").eq("id", data.user.id).single()
 
@@ -57,21 +60,16 @@ export default function LoginForm() {
           localStorage.setItem("userRole", userData.role)
         }
 
-        // Redirect based on role and login context
+        // 기존 코드에서 setTimeout 제거하고 즉시 리다이렉션
         if (isAdmin) {
-          // If admin login from admin page or admin requested
           if (isAdminLogin) {
-            router.push("/admin")
+            window.location.href = "/admin"
           } else {
-            // Admin login from main site
-            router.push("/profile")
+            window.location.href = "/profile"
           }
         } else {
-          // Regular user - always to profile
-          router.push("/profile")
+          window.location.href = "/profile"
         }
-
-        router.refresh()
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Invalid email or password")
