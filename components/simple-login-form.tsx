@@ -30,6 +30,15 @@ export default function SimpleLoginForm() {
       if (error) {
         console.error("Login error details:", error)
 
+        // Handle email logins disabled error
+        if (error.message === "Email logins are disabled") {
+          setError(
+            "Email authentication is disabled in Supabase. Please enable it in your Supabase dashboard under Authentication > Settings > Auth Providers.",
+          )
+          setLoading(false)
+          return
+        }
+
         // If email not confirmed error, try to create the user with confirmed email
         if (error.message === "Email not confirmed") {
           setMessage("Email not confirmed. Trying to create user with confirmed email...")
@@ -192,12 +201,26 @@ export default function SimpleLoginForm() {
       </div>
 
       <div className="mt-4 p-3 bg-gray-50 rounded text-sm">
-        <h3 className="font-semibold mb-2">Instructions:</h3>
-        <ol className="list-decimal list-inside space-y-1">
-          <li>Click "Create Admin User" first</li>
-          <li>Wait for the success message</li>
-          <li>If auto-login doesn't work, click "Login" to sign in</li>
-        </ol>
+        <h3 className="font-semibold mb-2">Setup Instructions:</h3>
+        <div className="space-y-3">
+          <div>
+            <h4 className="font-medium text-red-600">⚠️ If you see "Email logins are disabled":</h4>
+            <ol className="list-decimal list-inside space-y-1 mt-1 text-xs">
+              <li>Go to your Supabase Dashboard</li>
+              <li>Navigate to Authentication → Settings</li>
+              <li>Under "Auth Providers", enable "Email"</li>
+              <li>Save the settings and try again</li>
+            </ol>
+          </div>
+          <div>
+            <h4 className="font-medium">Normal Setup:</h4>
+            <ol className="list-decimal list-inside space-y-1 text-xs">
+              <li>Click "Create Admin User" first</li>
+              <li>Wait for the success message</li>
+              <li>If auto-login doesn't work, click "Login" to sign in</li>
+            </ol>
+          </div>
+        </div>
         <p className="mt-2 text-xs text-gray-600">
           This page uses the Supabase Admin API to create a user with confirmed email.
         </p>
