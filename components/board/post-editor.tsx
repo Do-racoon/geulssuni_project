@@ -4,7 +4,7 @@ import Link from "next/link"
 import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ImageIcon, Smile } from "lucide-react"
+import { Smile, Loader2 } from "lucide-react"
 import EmojiPicker from "./emoji-picker"
 import RichTextEditor from "@/components/rich-text-editor"
 
@@ -13,24 +13,53 @@ export default function PostEditor() {
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
   const [richContent, setRichContent] = useState("")
-  const [category, setCategory] = useState<"general" | "sharing" | "open">("general")
+  const [category, setCategory] = useState<"general" | "sharing" | "open" | "tech" | "design">("general")
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
-  const [imageUrl, setImageUrl] = useState("")
   const [useRichEditor, setUseRichEditor] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState("")
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setIsSubmitting(true)
+    setError("")
 
-    // In a real app, this would be an API call to create the post
-    console.log({
-      title,
-      content: useRichEditor ? richContent : content,
-      category,
-      imageUrl,
-    })
+    try {
+      // 임시 사용자 ID (실제로는 로그인된 사용자 ID를 사용해야 함)
+      const authorId = "c3d4e5f6-a7b8-6c7d-0e1f-2a3b4c5d6e7f"
 
-    // Redirect to the board page
-    router.push("/board")
+      const postData = {
+        title,
+        content: useRichEditor ? richContent : content,
+        category,
+        type: "free", // Changed from "general" to "free"
+        author_id: authorId,
+      }
+
+      const response = await fetch("/api/board-posts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(postData),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "게시글 저장에 실패했습니다")
+      }
+
+      const newPost = await response.json()
+      console.log("새 게시글 저장됨:", newPost)
+
+      // 성공 시 게시판으로 리다이렉트
+      router.push("/board")
+    } catch (error) {
+      console.error("게시글 저장 오류:", error)
+      setError(error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const insertEmoji = (emoji: string) => {
@@ -43,45 +72,50 @@ export default function PostEditor() {
   }
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div className="mb-6">
-        <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
-          Category
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">{error}</div>}
+
+      <div className="space-y-2">
+        <label htmlFor="category" className="block text-sm font-medium text-gray-700">
+          카테고리 <span className="text-red-500">*</span>
         </label>
         <select
           id="category"
           value={category}
-          onChange={(e) => setCategory(e.target.value as "general" | "sharing" | "open")}
-          className="w-full border border-gray-200 p-2 focus:outline-none focus:ring-1 focus:ring-black"
+          onChange={(e) => setCategory(e.target.value as "general" | "sharing" | "open" | "tech" | "design")}
+          className="w-full border border-gray-200 p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+          required
         >
-          <option value="general">General</option>
-          <option value="sharing">Sharing</option>
-          <option value="open">Open Topics</option>
+          <option value="general">일반</option>
+          <option value="sharing">공유</option>
+          <option value="open">자유주제</option>
+          <option value="tech">기술</option>
+          <option value="design">디자인</option>
         </select>
       </div>
 
-      <div className="mb-6">
-        <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
-          Title
+      <div className="space-y-2">
+        <label htmlFor="title" className="block text-sm font-medium text-gray-700">
+          제목 <span className="text-red-500">*</span>
         </label>
         <input
           type="text"
           id="title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="w-full border border-gray-200 p-3 focus:outline-none focus:ring-1 focus:ring-black"
-          placeholder="Enter post title"
+          className="w-full border border-gray-200 p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+          placeholder="게시글 제목을 입력하세요"
           required
         />
       </div>
 
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-1">
+      <div className="space-y-2">
+        <div className="flex justify-between items-center">
           <label htmlFor="content" className="block text-sm font-medium text-gray-700">
-            Content
+            내용 <span className="text-red-500">*</span>
           </label>
-          <div className="flex items-center">
-            <label className="text-sm text-gray-600 mr-2">Use rich editor</label>
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-600">리치 에디터 사용</span>
             <input
               type="checkbox"
               checked={useRichEditor}
@@ -92,18 +126,18 @@ export default function PostEditor() {
         </div>
 
         {useRichEditor ? (
-          <div className="mb-2">
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
             <RichTextEditor initialContent={richContent} onChange={setRichContent} />
           </div>
         ) : (
-          <div className="border border-gray-200 mb-2">
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
             <div className="flex items-center border-b border-gray-200 p-2 bg-gray-50">
               <div className="relative ml-auto">
                 <button
                   type="button"
                   onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                   className="p-1 hover:bg-gray-200 rounded"
-                  title="Emoji"
+                  title="이모지"
                 >
                   <Smile className="h-4 w-4" />
                 </button>
@@ -114,49 +148,37 @@ export default function PostEditor() {
               id="content"
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              className="w-full p-3 min-h-[200px] focus:outline-none"
-              placeholder="Write your post content here... Markdown is supported."
+              className="w-full p-3 min-h-[200px] focus:outline-none resize-none"
+              placeholder="게시글 내용을 입력하세요..."
               required={!useRichEditor}
-            ></textarea>
+            />
           </div>
         )}
         <p className="text-xs text-gray-500">
-          {useRichEditor ? "Rich text formatting is supported." : "Markdown formatting is supported."}
+          {useRichEditor ? "리치 텍스트 포맷팅을 사용할 수 있습니다." : "마크다운 포맷팅을 지원합니다."}
         </p>
       </div>
 
-      <div className="mb-8">
-        <label htmlFor="image" className="block text-sm font-medium text-gray-700 mb-1">
-          Image (optional)
-        </label>
-        <div className="flex items-center">
-          <input
-            type="text"
-            id="image"
-            value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
-            className="flex-grow border border-gray-200 p-3 focus:outline-none focus:ring-1 focus:ring-black"
-            placeholder="Enter image URL"
-          />
-          <button
-            type="button"
-            className="ml-2 flex items-center px-4 py-3 border border-gray-200 bg-gray-50 hover:bg-gray-100"
-          >
-            <ImageIcon className="h-4 w-4 mr-2" />
-            Upload
-          </button>
-        </div>
-      </div>
-
-      <div className="flex justify-end">
+      <div className="flex justify-end space-x-3 pt-4">
         <Link
           href="/board"
-          className="px-6 py-2 border border-gray-200 text-gray-700 mr-2 hover:bg-gray-50 transition-colors"
+          className="px-6 py-3 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
         >
-          Cancel
+          취소
         </Link>
-        <button type="submit" className="px-6 py-2 bg-black text-white hover:bg-gray-800 transition-colors">
-          Publish Post
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="flex items-center px-6 py-3 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              게시 중...
+            </>
+          ) : (
+            "게시글 등록"
+          )}
         </button>
       </div>
     </form>

@@ -4,7 +4,8 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { X } from "lucide-react"
-import { faqData } from "@/data/faq-data"
+import { getFAQ, updateFAQ } from "@/lib/api/faqs"
+import { toast } from "@/hooks/use-toast"
 
 interface EditFaqModalProps {
   faqId: string
@@ -18,30 +19,53 @@ export default function EditFaqModal({ faqId, onClose }: EditFaqModalProps) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // In a real app, this would fetch the FAQ from an API
-    const faq = faqData.find((f) => f.id === faqId)
-
-    if (faq) {
-      setQuestion(faq.question)
-      setAnswer(faq.answer)
-      setCategory(faq.category)
+    const loadFAQ = async () => {
+      try {
+        const faq = await getFAQ(faqId)
+        setQuestion(faq.question)
+        setAnswer(faq.answer)
+        setCategory(faq.category)
+      } catch (error) {
+        console.error("Error loading FAQ:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load FAQ",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
     }
 
-    setLoading(false)
+    loadFAQ()
   }, [faqId])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // In a real app, this would call an API to update the FAQ
-    console.log({
-      id: faqId,
-      question,
-      answer,
-      category,
-    })
+    try {
+      await updateFAQ(faqId, {
+        question,
+        answer,
+        category,
+      })
 
-    onClose()
+      toast({
+        title: "FAQ updated",
+        description: "The FAQ has been updated successfully.",
+      })
+
+      onClose()
+      // 부모 컴포넌트에서 데이터 새로고침하도록 이벤트 발생
+      window.dispatchEvent(new CustomEvent("faq-updated"))
+    } catch (error) {
+      console.error("Error updating FAQ:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update FAQ",
+        variant: "destructive",
+      })
+    }
   }
 
   if (loading) {

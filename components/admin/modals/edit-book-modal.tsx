@@ -2,11 +2,12 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { X, Upload } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
 import RichTextEditor from "@/components/rich-text-editor"
+import { getInstructors } from "@/lib/api/instructors"
 
 interface Book {
   id: string
@@ -30,12 +31,25 @@ interface EditBookModalProps {
 }
 
 export default function EditBookModal({ book, onClose, onSave }: EditBookModalProps) {
+  const [instructors, setInstructors] = useState<any[]>([])
   const [formData, setFormData] = useState<Book>({
     ...book,
     content: book.content || "<p>Book content goes here...</p>",
   })
   const [isLoading, setIsLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<"details" | "content">("details")
+
+  useEffect(() => {
+    const loadInstructors = async () => {
+      try {
+        const data = await getInstructors()
+        setInstructors(data)
+      } catch (error) {
+        console.error("Error loading instructors:", error)
+      }
+    }
+    loadInstructors()
+  }, [])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -75,18 +89,51 @@ export default function EditBookModal({ book, onClose, onSave }: EditBookModalPr
     }
   }
 
-  // Simulate image upload
-  const handleImageUpload = () => {
-    // In a real app, this would open a file picker and upload the image
-    const newImageUrl = "/placeholder.svg?height=400&width=300&text=New+Cover"
-    setFormData({
-      ...formData,
-      image: newImageUrl,
-    })
-    toast({
-      title: "Image uploaded",
-      description: "The cover image has been updated.",
-    })
+  // Handle image upload
+  const handleImageUpload = async () => {
+    const input = document.createElement("input")
+    input.type = "file"
+    input.accept = "image/*"
+
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+
+      try {
+        const formDataUpload = new FormData()
+        formDataUpload.append("file", file)
+
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          body: formDataUpload,
+        })
+
+        if (!response.ok) {
+          throw new Error("Upload failed")
+        }
+
+        const { url } = await response.json()
+
+        setFormData((prev) => ({
+          ...prev,
+          image: url,
+        }))
+
+        toast({
+          title: "Image uploaded",
+          description: "The cover image has been updated.",
+        })
+      } catch (error) {
+        console.error("Error uploading image:", error)
+        toast({
+          title: "Upload failed",
+          description: "Failed to upload image. Please try again.",
+          variant: "destructive",
+        })
+      }
+    }
+
+    input.click()
   }
 
   return (
@@ -127,12 +174,16 @@ export default function EditBookModal({ book, onClose, onSave }: EditBookModalPr
                 <div className="md:col-span-1">
                   <div className="flex flex-col items-center space-y-4">
                     <div className="w-full aspect-[3/4] bg-gray-100 relative rounded-md overflow-hidden flex items-center justify-center">
-                      <Image
-                        src={formData.image || "/placeholder.svg"}
-                        alt="Book cover"
-                        fill
-                        className="object-cover"
-                      />
+                      {formData.image ? (
+                        <Image
+                          src={formData.image || "/placeholder.svg"}
+                          alt="Book cover"
+                          fill
+                          className="object-cover"
+                        />
+                      ) : (
+                        <div className="text-gray-400 text-sm">No cover image</div>
+                      )}
                     </div>
                     <button
                       type="button"
@@ -166,15 +217,21 @@ export default function EditBookModal({ book, onClose, onSave }: EditBookModalPr
                       <label htmlFor="author" className="block text-sm font-medium text-gray-700 mb-1">
                         Author
                       </label>
-                      <input
-                        type="text"
+                      <select
                         id="author"
                         name="author"
                         value={formData.author}
                         onChange={handleChange}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-black"
                         required
-                      />
+                      >
+                        <option value="">Select an author</option>
+                        {instructors.map((instructor) => (
+                          <option key={instructor.id} value={instructor.name}>
+                            {instructor.name} - {instructor.profession}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
                     <div>
@@ -188,11 +245,9 @@ export default function EditBookModal({ book, onClose, onSave }: EditBookModalPr
                         onChange={handleChange}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-black"
                       >
-                        <option value="Design">Design</option>
-                        <option value="Typography">Typography</option>
-                        <option value="Photography">Photography</option>
-                        <option value="Fashion">Fashion</option>
-                        <option value="Branding">Branding</option>
+                        <option value="작법서">작법서</option>
+                        <option value="에세이">에세이</option>
+                        <option value="소설">소설</option>
                       </select>
                     </div>
                   </div>

@@ -62,8 +62,8 @@ export default function UserProfile() {
 
         setUser(authUser)
 
-        // Get user data from database
-        const { data: dbUser, error: dbError } = await supabase.from("users").select("*").eq("id", authUser.id).single()
+        // Get user data from database by email instead of ID
+        const { data: dbUsers, error: dbError } = await supabase.from("users").select("*").eq("email", authUser.email)
 
         if (dbError) {
           console.error("Error fetching user data:", dbError)
@@ -75,7 +75,27 @@ export default function UserProfile() {
           return
         }
 
-        setUserData(dbUser)
+        if (!dbUsers || dbUsers.length === 0) {
+          // 사용자가 DB에 없는 경우 기본 정보로 표시
+          setUserData({
+            id: authUser.id,
+            email: authUser.email || "",
+            name: authUser.user_metadata?.name || "사용자",
+            nickname: null,
+            role: "user",
+            class_name: null,
+            is_active: true,
+            email_verified: authUser.email_confirmed_at ? true : false,
+            created_at: authUser.created_at || new Date().toISOString(),
+            updated_at: authUser.updated_at || new Date().toISOString(),
+          })
+        } else if (dbUsers.length === 1) {
+          setUserData(dbUsers[0])
+        } else {
+          // 여러 사용자가 있는 경우 첫 번째 사용자 사용
+          console.warn("Multiple users found with same email, using first one")
+          setUserData(dbUsers[0])
+        }
       } catch (error) {
         console.error("Error loading user:", error)
         toast({
@@ -170,9 +190,9 @@ export default function UserProfile() {
     switch (role) {
       case "admin":
         return "관리자"
-      case "teacher":
-        return "선생님"
-      case "student":
+      case "instructor":
+        return "강사"
+      case "user":
         return "학생"
       default:
         return "사용자"
@@ -199,7 +219,7 @@ export default function UserProfile() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6 p-6">
       {/* 사용자 정보 카드 */}
       <Card>
         <CardHeader>

@@ -1,83 +1,67 @@
 "use client"
 
-import { useState } from "react"
-import { motion } from "framer-motion"
-import BookCard from "./book-card"
-import { type Book, books } from "@/data/books"
+import type { Book } from "@/lib/api/books"
+import Image from "next/image"
+import Link from "next/link"
+import { Eye } from "lucide-react"
 
-type Category = "all" | "writing-guides" | "essays" | "novels"
+interface BookGridProps {
+  books: Book[]
+}
 
-export default function BookGrid() {
-  const [category, setCategory] = useState<Category>("all")
-  const [filteredBooks, setFilteredBooks] = useState<Book[]>(books)
-
-  const handleCategoryChange = (newCategory: Category) => {
-    setCategory(newCategory)
-
-    if (newCategory === "all") {
-      setFilteredBooks(books)
-    } else {
-      setFilteredBooks(books.filter((book) => book.category === newCategory))
-    }
-  }
-
+export default function BookGrid({ books }: BookGridProps) {
   return (
-    <div>
-      <div className="flex justify-center mb-12">
-        <div className="inline-flex border border-black">
-          <button
-            className={`px-6 py-2 text-sm uppercase tracking-wider transition-colors ${
-              category === "all" ? "bg-black text-white" : "bg-white text-black"
-            }`}
-            onClick={() => handleCategoryChange("all")}
-          >
-            All
-          </button>
-          <button
-            className={`px-6 py-2 text-sm uppercase tracking-wider transition-colors ${
-              category === "writing-guides" ? "bg-black text-white" : "bg-white text-black"
-            }`}
-            onClick={() => handleCategoryChange("writing-guides")}
-          >
-            Writing Guides
-          </button>
-          <button
-            className={`px-6 py-2 text-sm uppercase tracking-wider transition-colors ${
-              category === "essays" ? "bg-black text-white" : "bg-white text-black"
-            }`}
-            onClick={() => handleCategoryChange("essays")}
-          >
-            Essays
-          </button>
-          <button
-            className={`px-6 py-2 text-sm uppercase tracking-wider transition-colors ${
-              category === "novels" ? "bg-black text-white" : "bg-white text-black"
-            }`}
-            onClick={() => handleCategoryChange("novels")}
-          >
-            Novels
-          </button>
-        </div>
-      </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+      {books.map((book) => (
+        <Link key={book.id} href={`/books/${book.id}`} className="group block">
+          <div className="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300">
+            {/* Book Cover */}
+            <div className="aspect-[3/4] relative overflow-hidden bg-gray-100">
+              {book.cover_url ? (
+                <Image
+                  src={book.cover_url || "/placeholder.svg"}
+                  alt={book.title}
+                  fill
+                  className="object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                  <div className="text-center p-4">
+                    <div className="text-2xl font-light text-gray-400 mb-2">📚</div>
+                    <div className="text-sm text-gray-500 font-medium">{book.title}</div>
+                  </div>
+                </div>
+              )}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
-        {filteredBooks.map((book, index) => (
-          <motion.div
-            key={book.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: index * 0.05 }}
-          >
-            <BookCard book={book} />
-          </motion.div>
-        ))}
-      </div>
+              {/* Views Badge */}
+              {book.views > 0 && (
+                <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                  <Eye className="w-3 h-3" />
+                  {book.views.toLocaleString()}
+                </div>
+              )}
+            </div>
 
-      {filteredBooks.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-gray-500">No books found in this category.</p>
-        </div>
-      )}
+            {/* Book Info */}
+            <div className="p-4">
+              <h3 className="font-medium text-gray-900 mb-1 line-clamp-2 group-hover:text-black transition-colors">
+                {book.title}
+              </h3>
+              <p className="text-sm text-gray-600 mb-2">{book.author}</p>
+
+              {book.category && (
+                <span className="inline-block bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded-full">
+                  {book.category}
+                </span>
+              )}
+
+              {book.description && <p className="text-sm text-gray-500 mt-2 line-clamp-2">{book.description}</p>}
+
+              {book.pages && <p className="text-xs text-gray-400 mt-2">{book.pages} pages</p>}
+            </div>
+          </div>
+        </Link>
+      ))}
     </div>
   )
 }

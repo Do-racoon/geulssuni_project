@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Search, Plus, Edit, Trash2, ChevronDown, ChevronUp, Filter } from "lucide-react"
-import { faqData } from "@/data/faq-data"
 import AddFaqModal from "../modals/add-faq-modal"
 import EditFaqModal from "../modals/edit-faq-modal"
+import { getFAQs, deleteFAQ, type FAQ } from "@/lib/api/faqs"
+import { toast } from "@/hooks/use-toast"
 
 export default function FaqManagement() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -14,9 +15,43 @@ export default function FaqManagement() {
   const [showFilters, setShowFilters] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingFaqId, setEditingFaqId] = useState<string | null>(null)
+  const [faqList, setFaqList] = useState<FAQ[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    loadFAQs()
+
+    // 모달에서 데이터 업데이트 시 새로고침
+    const handleFAQUpdate = () => {
+      loadFAQs()
+    }
+
+    window.addEventListener("faq-updated", handleFAQUpdate)
+
+    return () => {
+      window.removeEventListener("faq-updated", handleFAQUpdate)
+    }
+  }, [])
+
+  const loadFAQs = async () => {
+    try {
+      setIsLoading(true)
+      const data = await getFAQs()
+      setFaqList(data)
+    } catch (error) {
+      console.error("Error loading FAQs:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load FAQs",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   // Filter and sort FAQs
-  const filteredFaqs = faqData
+  const filteredFaqs = faqList
     .filter((faq) => {
       const matchesSearch =
         faq.question.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -43,10 +78,26 @@ export default function FaqManagement() {
     }
   }
 
-  const handleDeleteFaq = (faqId: string) => {
-    // In a real app, this would call an API to delete the FAQ
+  const handleDeleteFaq = async (faqId: string) => {
     if (confirm("Are you sure you want to delete this FAQ? This action cannot be undone.")) {
-      console.log(`Delete FAQ with ID: ${faqId}`)
+      try {
+        setIsLoading(true)
+        await deleteFAQ(faqId)
+        await loadFAQs()
+        toast({
+          title: "FAQ deleted",
+          description: "The FAQ has been deleted successfully.",
+        })
+      } catch (error) {
+        console.error("Error deleting FAQ:", error)
+        toast({
+          title: "Error",
+          description: "Failed to delete FAQ",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
     }
   }
 
@@ -59,7 +110,7 @@ export default function FaqManagement() {
   }
 
   // Get unique categories for filter
-  const categories = [...new Set(faqData.map((faq) => faq.category))]
+  const categories = [...new Set(faqList.map((faq) => faq.category))]
 
   return (
     <div>
@@ -203,7 +254,7 @@ export default function FaqManagement() {
         )}
 
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 text-sm text-gray-500">
-          Showing {filteredFaqs.length} of {faqData.length} FAQs
+          Showing {filteredFaqs.length} of {faqList.length} FAQs
         </div>
       </div>
 

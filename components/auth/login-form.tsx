@@ -47,33 +47,31 @@ export default function LoginForm() {
       }
 
       if (data?.user) {
-        // 성공 메시지 표시
-        setSuccessMessage("로그인 성공! 잠시 후 이동합니다...")
+        // 병렬로 사용자 역할 조회와 리다이렉션 준비
+        const [userRoleResult] = await Promise.all([
+          supabase.from("users").select("role").eq("id", data.user.id).single(),
+        ])
 
-        // Check if user is admin
-        const { data: userData } = await supabase.from("users").select("role").eq("id", data.user.id).single()
-
-        const isAdmin = userData?.role === "admin"
+        const isAdmin = userRoleResult.data?.role === "admin"
 
         // Store role in localStorage for client-side checks
-        if (userData?.role && typeof window !== "undefined") {
-          localStorage.setItem("userRole", userData.role)
+        if (userRoleResult.data?.role && typeof window !== "undefined") {
+          localStorage.setItem("userRole", userRoleResult.data.role)
         }
 
-        // 기존 코드에서 setTimeout 제거하고 즉시 리다이렉션
+        // 즉시 리다이렉션 (성공 메시지 없이)
         if (isAdmin) {
           if (isAdminLogin) {
-            window.location.href = "/admin"
+            router.push("/admin")
           } else {
-            window.location.href = "/profile"
+            router.push("/profile")
           }
         } else {
-          window.location.href = "/profile"
+          router.push("/profile")
         }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Invalid email or password")
-    } finally {
       setIsLoading(false)
     }
   }
@@ -102,6 +100,7 @@ export default function LoginForm() {
             className="w-full border border-gray-200 p-3 focus:outline-none focus:ring-1 focus:ring-black"
             placeholder="Enter your email"
             required
+            autoComplete="email"
           />
         </div>
 
@@ -118,6 +117,7 @@ export default function LoginForm() {
               className="w-full border border-gray-200 p-3 focus:outline-none focus:ring-1 focus:ring-black"
               placeholder="Enter your password"
               required
+              autoComplete="current-password"
             />
             <button
               type="button"

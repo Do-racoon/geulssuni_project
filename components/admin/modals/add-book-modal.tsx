@@ -135,11 +135,9 @@ export default function AddBookModal({ onClose }: AddBookModalProps) {
                         onChange={(e) => setCategory(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-black"
                       >
-                        <option value="Design">Design</option>
-                        <option value="Typography">Typography</option>
-                        <option value="Photography">Photography</option>
-                        <option value="Fashion">Fashion</option>
-                        <option value="Branding">Branding</option>
+                        <option value="작법서">작법서</option>
+                        <option value="에세이">에세이</option>
+                        <option value="소설">소설</option>
                       </select>
                     </div>
                   </div>

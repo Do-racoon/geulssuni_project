@@ -1,20 +1,30 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { Search } from "lucide-react"
 import FaqCategory from "./faq-category"
-import { faqData } from "@/data/faq-data"
 import NoResults from "./no-results"
 
-export default function FaqSection() {
+interface FAQ {
+  id: string
+  question: string
+  answer: string
+  category: string
+  order_index?: number
+}
+
+interface FaqSectionProps {
+  faqs: FAQ[]
+}
+
+export default function FaqSection({ faqs }: FaqSectionProps) {
   const [activeCategory, setActiveCategory] = useState<"all" | "payment" | "author" | "technical" | "general">("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [showNoResults, setShowNoResults] = useState(false)
 
   // Filter FAQs based on category and search query
-  const filteredFaqs = faqData.filter((faq) => {
+  const filteredFaqs = faqs.filter((faq) => {
     const matchesCategory = activeCategory === "all" || faq.category === activeCategory
     const matchesSearch =
       searchQuery === "" ||
@@ -34,6 +44,15 @@ export default function FaqSection() {
         document.getElementById("no-results")?.scrollIntoView({ behavior: "smooth" })
       }, 100)
     }
+  }
+
+  if (!faqs || faqs.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-gray-500 mb-4">아직 등록된 FAQ가 없습니다.</p>
+        <p className="text-sm text-gray-400">관리자가 FAQ를 추가하면 여기에 표시됩니다.</p>
+      </div>
+    )
   }
 
   return (

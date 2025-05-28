@@ -1,53 +1,39 @@
-"use client"
-
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import type { Metadata } from "next"
+import Link from "next/link"
+import { ArrowLeft } from "lucide-react"
 import AssignmentEditor from "@/components/board/assignment-editor"
-import { toast } from "sonner"
+
+export const metadata: Metadata = {
+  title: "과제 등록 | 과제게시판",
+  description: "과제게시판에 새 과제를 등록합니다",
+}
 
 export default function CreateAssignmentPage() {
-  const router = useRouter()
-  const [isSubmitting, setIsSubmitting] = useState(false)
-
-  const handleSubmit = async (formData: FormData) => {
-    setIsSubmitting(true)
-
-    try {
-      // Simulate API call to create assignment
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      // In a real implementation, you would send the formData to your API
-      // const response = await fetch('/api/assignments', {
-      //   method: 'POST',
-      //   body: formData,
-      // })
-
-      // if (!response.ok) throw new Error('Failed to create assignment')
-
-      toast.success("Assignment created successfully!")
-      router.push("/board")
-    } catch (error) {
-      console.error("Error creating assignment:", error)
-      toast.error("Failed to create assignment. Please try again.")
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
   return (
-    <div className="container mx-auto py-8 px-4">
-      <Card className="max-w-4xl mx-auto">
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold">Create New Assignment</CardTitle>
-          <CardDescription>
-            Share your assignment with the community. Instructors will be able to review and provide feedback.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <AssignmentEditor onSubmit={handleSubmit} isSubmitting={isSubmitting} />
-        </CardContent>
-      </Card>
-    </div>
+    <main className="min-h-screen bg-gradient-to-br from-blue-50 to-white">
+      <div className="container mx-auto py-12 px-4">
+        {/* 뒤로가기 버튼 */}
+        <Link
+          href="/board"
+          className="inline-flex items-center text-gray-600 hover:text-black transition-colors mb-8 group"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform" />
+          게시판으로 돌아가기
+        </Link>
+
+        <div className="max-w-4xl mx-auto">
+          {/* 헤더 */}
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">새 과제 등록</h1>
+            <p className="text-gray-600">학생들에게 새로운 과제를 등록해보세요</p>
+          </div>
+
+          {/* 에디터 카드 */}
+          <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
+            <AssignmentEditor />
+          </div>
+        </div>
+      </div>
+    </main>
   )
 }

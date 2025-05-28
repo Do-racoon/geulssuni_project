@@ -12,7 +12,7 @@ export type AuthResponse = {
 }
 
 export const auth = {
-  // Sign in with email and password
+  // Sign in with email and password (최적화됨)
   signIn: async (email: string, password: string): Promise<AuthResponse> => {
     const supabaseClient = getSupabaseClient()
     const response = await supabaseClient.auth.signInWithPassword({
@@ -20,21 +20,20 @@ export const auth = {
       password,
     })
 
-    // Store user role in localStorage for client-side role checks
-    if (response.data?.user) {
-      try {
-        const { data: userData } = await supabaseClient
-          .from("users")
-          .select("role")
-          .eq("id", response.data.user.id)
-          .single()
-
-        if (userData?.role && typeof window !== "undefined") {
-          localStorage.setItem("userRole", userData.role)
-        }
-      } catch (error) {
-        console.error("Error fetching user role:", error)
-      }
+    // 병렬로 사용자 역할 조회 (성공한 경우에만)
+    if (response.data?.user && !response.error) {
+      // 백그라운드에서 역할 조회 (await 없이)
+      supabaseClient
+        .from("users")
+        .select("role")
+        .eq("id", response.data.user.id)
+        .single()
+        .then(({ data: userData }) => {
+          if (userData?.role && typeof window !== "undefined") {
+            localStorage.setItem("userRole", userData.role)
+          }
+        })
+        .catch((error) => console.error("Error fetching user role:", error))
     }
 
     return response
@@ -55,28 +54,28 @@ export const auth = {
 
     // If successful, also create a record in our users table
     if (response.data?.user) {
-      try {
-        await supabaseClient.from("users").insert([
+      // 백그라운드에서 사용자 레코드 생성
+      supabaseClient
+        .from("users")
+        .insert([
           {
             id: response.data.user.id,
             email: email,
             name: metadata?.name || "",
             nickname: metadata?.nickname || null,
-            role: "user", // Default role is user, admin can change later
+            role: "user",
             class_name: metadata?.className || null,
             is_active: true,
             email_verified: false,
           },
         ])
-      } catch (error) {
-        console.error("Error creating user record:", error)
-      }
+        .catch((error) => console.error("Error creating user record:", error))
     }
 
     return response
   },
 
-  // Sign out
+  // Sign out (최적화됨)
   signOut: async (): Promise<{ error: AuthError | null }> => {
     const supabaseClient = getSupabaseClient()
     if (typeof window !== "undefined") {
@@ -99,7 +98,7 @@ export const auth = {
     return data.user
   },
 
-  // Get user role
+  // Get user role (캐시 우선)
   getUserRole: async (): Promise<string | null> => {
     // First check localStorage for cached role
     if (typeof window !== "undefined") {
@@ -127,16 +126,25 @@ export const auth = {
     return null
   },
 
-  // Check if user is admin
+  // Check if user is admin (캐시 우선)
   isAdmin: async (): Promise<boolean> => {
+    // 먼저 캐시된 역할 확인
+    if (typeof window !== "undefined") {
+      const cachedRole = localStorage.getItem("userRole")
+      if (cachedRole) return cachedRole === "admin"
+    }
+
     const supabaseClient = getSupabaseClient()
     const { data: user } = await supabaseClient.auth.getUser()
 
     if (!user.user) return false
 
     try {
-      // DB에서 직접 역할 확인
       const { data: userData } = await supabaseClient.from("users").select("role").eq("id", user.user.id).single()
+
+      if (userData?.role && typeof window !== "undefined") {
+        localStorage.setItem("userRole", userData.role)
+      }
 
       return userData?.role === "admin"
     } catch (error) {

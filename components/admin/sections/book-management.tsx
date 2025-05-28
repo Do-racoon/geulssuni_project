@@ -1,82 +1,50 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Search, Plus, Edit, Trash2, ChevronDown, ChevronUp, Filter, ShoppingCart } from "lucide-react"
 import Image from "next/image"
 import AddBookModal from "../modals/add-book-modal"
 import EditBookModal from "../modals/edit-book-modal"
 import { toast } from "@/hooks/use-toast"
-
-// Sample data - in a real app, this would come from an API
-const books = [
-  {
-    id: "book-1",
-    title: "The Art of Minimalism",
-    author: "Thomas Noir",
-    category: "Design",
-    image: "/images/book-1.jpg",
-    publishDate: "2023-01-15",
-    price: 29.99,
-    sales: 124,
-    status: "published",
-  },
-  {
-    id: "book-2",
-    title: "Typography Essentials",
-    author: "Alexandra Reeves",
-    category: "Typography",
-    image: "/images/book-2.jpg",
-    publishDate: "2022-11-20",
-    price: 24.99,
-    sales: 98,
-    status: "published",
-  },
-  {
-    id: "book-3",
-    title: "Black & White Photography",
-    author: "Marcus Chen",
-    category: "Photography",
-    image: "/images/book-3.jpg",
-    publishDate: "2023-03-10",
-    price: 34.99,
-    sales: 76,
-    status: "published",
-  },
-  {
-    id: "book-4",
-    title: "Fashion Design Principles",
-    author: "Elise Laurent",
-    category: "Fashion",
-    image: "/placeholder.svg?height=400&width=300",
-    publishDate: "2023-02-25",
-    price: 39.99,
-    sales: 52,
-    status: "published",
-  },
-  {
-    id: "book-5",
-    title: "Modern Brand Identity",
-    author: "Alexandra Reeves",
-    category: "Branding",
-    image: "/placeholder.svg?height=400&width=300",
-    publishDate: "2023-04-05",
-    price: 27.99,
-    sales: 0,
-    status: "draft",
-  },
-]
+import { getBooks, deleteBook, type Book } from "@/lib/api/books"
 
 export default function BookManagement() {
   const [searchTerm, setSearchTerm] = useState("")
-  const [sortField, setSortField] = useState<keyof (typeof books)[0]>("publishDate")
+  const [sortField, setSortField] = useState<keyof Book>("created_at")
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
   const [filterCategory, setFilterCategory] = useState<string>("all")
   const [filterStatus, setFilterStatus] = useState<string>("all")
   const [showFilters, setShowFilters] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
-  const [selectedBook, setSelectedBook] = useState<(typeof books)[0] | null>(null)
-  const [booksList, setBooksList] = useState(books)
+  const [selectedBook, setSelectedBook] = useState<Book | null>(null)
+  const [booksList, setBooksList] = useState<Book[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Load books from database
+  useEffect(() => {
+    loadBooks()
+  }, [])
+
+  const loadBooks = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const books = await getBooks()
+      setBooksList(books)
+    } catch (err) {
+      console.error("Error loading books:", err)
+      setError("Failed to load books")
+      toast({
+        title: "Error",
+        description: "Failed to load books from database",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // Filter and sort books
   const filteredBooks = booksList
@@ -85,7 +53,10 @@ export default function BookManagement() {
         book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         book.author.toLowerCase().includes(searchTerm.toLowerCase())
       const matchesCategory = filterCategory === "all" || book.category === filterCategory
-      const matchesStatus = filterStatus === "all" || book.status === filterStatus
+      const matchesStatus =
+        filterStatus === "all" ||
+        (filterStatus === "published" && book.is_published) ||
+        (filterStatus === "draft" && !book.is_published)
 
       return matchesSearch && matchesCategory && matchesStatus
     })
@@ -98,7 +69,7 @@ export default function BookManagement() {
       return 0
     })
 
-  const handleSort = (field: keyof (typeof books)[0]) => {
+  const handleSort = (field: keyof Book) => {
     if (sortField === field) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc")
     } else {
@@ -107,29 +78,70 @@ export default function BookManagement() {
     }
   }
 
-  const handleEditBook = (book: (typeof books)[0]) => {
+  const handleEditBook = (book: Book) => {
     setSelectedBook(book)
     setShowEditModal(true)
   }
 
-  const handleSaveBook = (updatedBook: any) => {
+  const handleSaveBook = (updatedBook: Book) => {
     setBooksList(booksList.map((book) => (book.id === updatedBook.id ? updatedBook : book)))
     setShowEditModal(false)
+    toast({
+      title: "Success",
+      description: "Book updated successfully",
+    })
   }
 
-  const handleDeleteBook = (bookId: string) => {
-    // In a real app, this would call an API to delete the book
+  const handleAddBook = (newBook: Book) => {
+    setBooksList([newBook, ...booksList])
+    setShowAddModal(false)
+    toast({
+      title: "Success",
+      description: "Book added successfully",
+    })
+  }
+
+  const handleDeleteBook = async (bookId: string) => {
     if (confirm("Are you sure you want to delete this book? This action cannot be undone.")) {
-      setBooksList(booksList.filter((book) => book.id !== bookId))
-      toast({
-        title: "Book deleted",
-        description: "The book has been deleted successfully.",
-      })
+      try {
+        await deleteBook(bookId)
+        setBooksList(booksList.filter((book) => book.id !== bookId))
+        toast({
+          title: "Success",
+          description: "Book deleted successfully",
+        })
+      } catch (err) {
+        console.error("Error deleting book:", err)
+        toast({
+          title: "Error",
+          description: "Failed to delete book",
+          variant: "destructive",
+        })
+      }
     }
   }
 
   // Get unique categories for filter
-  const categories = [...new Set(booksList.map((book) => book.category))]
+  const categories = [...new Set(booksList.map((book) => book.category).filter(Boolean))]
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-lg">Loading books...</div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64">
+        <div className="text-lg text-red-600 mb-4">{error}</div>
+        <button onClick={loadBooks} className="bg-black text-white px-4 py-2 rounded-md hover:bg-gray-800">
+          Retry
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -137,7 +149,7 @@ export default function BookManagement() {
         <h1 className="text-2xl font-semibold mb-2">Book Management</h1>
         <button
           onClick={() => setShowAddModal(true)}
-          className="flex items-center bg-black text-white px-4 py-2 text-sm rounded-md"
+          className="flex items-center bg-black text-white px-4 py-2 text-sm rounded-md hover:bg-gray-800 transition-colors"
         >
           <Plus className="h-4 w-4 mr-2" />
           Add New Book
@@ -160,7 +172,7 @@ export default function BookManagement() {
 
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center text-sm border border-gray-200 px-4 py-2 rounded-md"
+              className="flex items-center text-sm border border-gray-200 px-4 py-2 rounded-md hover:bg-gray-50"
             >
               <Filter className="h-4 w-4 mr-2" />
               Filters
@@ -209,7 +221,7 @@ export default function BookManagement() {
                   Cover
                 </th>
                 <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort("title")}
                 >
                   <div className="flex items-center">
@@ -223,7 +235,7 @@ export default function BookManagement() {
                   </div>
                 </th>
                 <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort("author")}
                 >
                   <div className="flex items-center">
@@ -237,7 +249,7 @@ export default function BookManagement() {
                   </div>
                 </th>
                 <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort("category")}
                 >
                   <div className="flex items-center">
@@ -251,12 +263,12 @@ export default function BookManagement() {
                   </div>
                 </th>
                 <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                  onClick={() => handleSort("price")}
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort("views")}
                 >
                   <div className="flex items-center">
-                    Price
-                    {sortField === "price" &&
+                    Views
+                    {sortField === "views" &&
                       (sortDirection === "asc" ? (
                         <ChevronUp className="h-4 w-4 ml-1" />
                       ) : (
@@ -265,12 +277,12 @@ export default function BookManagement() {
                   </div>
                 </th>
                 <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                  onClick={() => handleSort("sales")}
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort("sales_count")}
                 >
                   <div className="flex items-center">
                     Sales
-                    {sortField === "sales" &&
+                    {sortField === "sales_count" &&
                       (sortDirection === "asc" ? (
                         <ChevronUp className="h-4 w-4 ml-1" />
                       ) : (
@@ -279,12 +291,12 @@ export default function BookManagement() {
                   </div>
                 </th>
                 <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                  onClick={() => handleSort("status")}
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort("is_published")}
                 >
                   <div className="flex items-center">
                     Status
-                    {sortField === "status" &&
+                    {sortField === "is_published" &&
                       (sortDirection === "asc" ? (
                         <ChevronUp className="h-4 w-4 ml-1" />
                       ) : (
@@ -301,43 +313,70 @@ export default function BookManagement() {
               {filteredBooks.map((book) => (
                 <tr key={book.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="relative h-16 w-12 rounded overflow-hidden">
-                      <Image src={book.image || "/placeholder.svg"} alt={book.title} fill className="object-cover" />
+                    <div className="relative h-16 w-12 rounded overflow-hidden bg-gray-100">
+                      {book.cover_url ? (
+                        <Image
+                          src={book.cover_url || "/placeholder.svg"}
+                          alt={book.title}
+                          fill
+                          className="object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement
+                            target.src = "/placeholder.svg?height=64&width=48&text=No+Image"
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-xs text-gray-400">
+                          No Image
+                        </div>
+                      )}
                     </div>
                   </td>
                   <td className="px-6 py-4">
                     <div className="font-medium text-gray-900">{book.title}</div>
                     <div className="text-sm text-gray-500">
-                      Published: {new Date(book.publishDate).toLocaleDateString()}
+                      Created: {book.created_at ? new Date(book.created_at).toLocaleDateString() : "N/A"}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">{book.author}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800">{book.category}</span>
+                    {book.category ? (
+                      <span className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800">{book.category}</span>
+                    ) : (
+                      <span className="text-gray-400 text-sm">No category</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium">${book.price.toFixed(2)}</div>
+                    <div className="text-sm font-medium">{book.views || 0}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center text-sm text-gray-500">
                       <ShoppingCart className="h-4 w-4 mr-1" />
-                      {book.sales}
+                      {book.sales_count || 0}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
                       className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        book.status === "published" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
+                        book.is_published ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
                       }`}
                     >
-                      {book.status.charAt(0).toUpperCase() + book.status.slice(1)}
+                      {book.is_published ? "Published" : "Draft"}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button onClick={() => handleEditBook(book)} className="text-gray-600 hover:text-gray-900 mr-3">
+                    <button
+                      onClick={() => handleEditBook(book)}
+                      className="text-gray-600 hover:text-gray-900 mr-3 p-1 rounded hover:bg-gray-100"
+                      title="Edit book"
+                    >
                       <Edit className="h-4 w-4" />
                     </button>
-                    <button onClick={() => handleDeleteBook(book.id)} className="text-red-600 hover:text-red-900">
+                    <button
+                      onClick={() => handleDeleteBook(book.id)}
+                      className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
+                      title="Delete book"
+                    >
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </td>
@@ -347,9 +386,13 @@ export default function BookManagement() {
           </table>
         </div>
 
-        {filteredBooks.length === 0 && (
+        {filteredBooks.length === 0 && !loading && (
           <div className="text-center py-8">
-            <p className="text-gray-500">No books found matching your criteria.</p>
+            <p className="text-gray-500">
+              {searchTerm || filterCategory !== "all" || filterStatus !== "all"
+                ? "No books found matching your criteria."
+                : "No books available. Add your first book!"}
+            </p>
           </div>
         )}
 
@@ -358,7 +401,7 @@ export default function BookManagement() {
         </div>
       </div>
 
-      {showAddModal && <AddBookModal onClose={() => setShowAddModal(false)} />}
+      {showAddModal && <AddBookModal onClose={() => setShowAddModal(false)} onSave={handleAddBook} />}
       {showEditModal && selectedBook && (
         <EditBookModal book={selectedBook} onClose={() => setShowEditModal(false)} onSave={handleSaveBook} />
       )}

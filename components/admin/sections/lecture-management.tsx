@@ -1,96 +1,68 @@
 "use client"
 
-import { useState } from "react"
-import { Search, Plus, Edit, Trash2, ChevronDown, ChevronUp, Filter, Calendar, Users } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Search, Plus, Edit, Trash2, ChevronDown, ChevronUp, Filter, Calendar, Users, Copy } from "lucide-react"
 import Image from "next/image"
 import AddLectureModal from "../modals/add-lecture-modal"
 import EditLectureModal from "../modals/edit-lecture-modal"
+import CopyLectureModal from "../modals/copy-lecture-modal"
 import { toast } from "@/hooks/use-toast"
-
-// Sample data - in a real app, this would come from an API
-const lectures = [
-  {
-    id: "lecture-1",
-    title: "Introduction to Minimalist Design",
-    instructor: "Thomas Noir",
-    category: "Design",
-    image: "/images/lecture-1.jpg",
-    date: "2023-06-15",
-    duration: "2 hours",
-    registrations: 24,
-    capacity: 30,
-    status: "upcoming",
-  },
-  {
-    id: "lecture-2",
-    title: "Advanced Typography Techniques",
-    instructor: "Alexandra Reeves",
-    category: "Typography",
-    image: "/images/lecture-2.jpg",
-    date: "2023-05-20",
-    duration: "3 hours",
-    registrations: 18,
-    capacity: 20,
-    status: "completed",
-  },
-  {
-    id: "lecture-3",
-    title: "Composition in Black and White Photography",
-    instructor: "Marcus Chen",
-    category: "Photography",
-    image: "/images/lecture-3.jpg",
-    date: "2023-07-10",
-    duration: "2.5 hours",
-    registrations: 15,
-    capacity: 25,
-    status: "upcoming",
-  },
-  {
-    id: "lecture-4",
-    title: "Editorial Design Masterclass",
-    instructor: "Elise Laurent",
-    category: "Design",
-    image: "/placeholder.svg?height=400&width=600",
-    date: "2023-06-25",
-    duration: "4 hours",
-    registrations: 12,
-    capacity: 15,
-    status: "upcoming",
-  },
-  {
-    id: "lecture-5",
-    title: "Fashion Photography Essentials",
-    instructor: "Alexandra Reeves",
-    category: "Photography",
-    image: "/placeholder.svg?height=400&width=600",
-    date: "2023-05-05",
-    duration: "3 hours",
-    registrations: 20,
-    capacity: 20,
-    status: "completed",
-  },
-]
+import { getLectures, updateLecture, deleteLecture, type Lecture } from "@/lib/api/lectures"
 
 export default function LectureManagement() {
   const [searchTerm, setSearchTerm] = useState("")
-  const [sortField, setSortField] = useState<keyof (typeof lectures)[0]>("date")
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
+  const [sortField, setSortField] = useState<keyof Lecture>("created_at")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
   const [filterCategory, setFilterCategory] = useState<string>("all")
   const [filterStatus, setFilterStatus] = useState<string>("all")
   const [showFilters, setShowFilters] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
-  const [selectedLecture, setSelectedLecture] = useState<(typeof lectures)[0] | null>(null)
-  const [lecturesList, setLecturesList] = useState(lectures)
+  const [showCopyModal, setShowCopyModal] = useState(false)
+  const [selectedLecture, setSelectedLecture] = useState<Lecture | null>(null)
+  const [lecturesList, setLecturesList] = useState<Lecture[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    loadLectures()
+  }, [])
+
+  useEffect(() => {
+    const handleLectureUpdated = () => {
+      loadLectures()
+    }
+
+    window.addEventListener("lecture-updated", handleLectureUpdated)
+    return () => {
+      window.removeEventListener("lecture-updated", handleLectureUpdated)
+    }
+  }, [])
+
+  const loadLectures = async () => {
+    try {
+      setIsLoading(true)
+      const data = await getLectures()
+      setLecturesList(data)
+    } catch (error) {
+      console.error("Error loading lectures:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load lectures",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   // Filter and sort lectures
   const filteredLectures = lecturesList
     .filter((lecture) => {
       const matchesSearch =
-        lecture.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        lecture.instructor.toLowerCase().includes(searchTerm.toLowerCase())
+        lecture.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        lecture.instructor?.toLowerCase().includes(searchTerm.toLowerCase())
       const matchesCategory = filterCategory === "all" || lecture.category === filterCategory
-      const matchesStatus = filterStatus === "all" || lecture.status === filterStatus
+      const matchesStatus = filterStatus === "all" || lecture.is_published === (filterStatus === "published")
 
       return matchesSearch && matchesCategory && matchesStatus
     })
@@ -103,7 +75,7 @@ export default function LectureManagement() {
       return 0
     })
 
-  const handleSort = (field: keyof (typeof lectures)[0]) => {
+  const handleSort = (field: keyof Lecture) => {
     if (sortField === field) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc")
     } else {
@@ -112,29 +84,71 @@ export default function LectureManagement() {
     }
   }
 
-  const handleEditLecture = (lecture: (typeof lectures)[0]) => {
+  const handleEditLecture = (lecture: Lecture) => {
     setSelectedLecture(lecture)
     setShowEditModal(true)
   }
 
-  const handleSaveLecture = (updatedLecture: any) => {
-    setLecturesList(lecturesList.map((lecture) => (lecture.id === updatedLecture.id ? updatedLecture : lecture)))
-    setShowEditModal(false)
+  const handleCopyLecture = (lecture: Lecture) => {
+    setSelectedLecture(lecture)
+    setShowCopyModal(true)
   }
 
-  const handleDeleteLecture = (lectureId: string) => {
-    // In a real app, this would call an API to delete the lecture
-    if (confirm("Are you sure you want to delete this lecture? This action cannot be undone.")) {
-      setLecturesList(lecturesList.filter((lecture) => lecture.id !== lectureId))
+  const handleSaveLecture = async (updatedLecture: any) => {
+    try {
+      setIsLoading(true)
+      await updateLecture(updatedLecture.id, updatedLecture)
+      await loadLectures()
+      setShowEditModal(false)
       toast({
-        title: "Lecture deleted",
-        description: "The lecture has been deleted successfully.",
+        title: "Lecture updated",
+        description: "The lecture has been updated successfully.",
       })
+    } catch (error) {
+      console.error("Error updating lecture:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update lecture",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleDeleteLecture = async (lectureId: string) => {
+    if (confirm("Are you sure you want to delete this lecture? This action cannot be undone.")) {
+      try {
+        setIsLoading(true)
+        await deleteLecture(lectureId)
+        await loadLectures()
+        toast({
+          title: "Lecture deleted",
+          description: "The lecture has been deleted successfully.",
+        })
+      } catch (error) {
+        console.error("Error deleting lecture:", error)
+        toast({
+          title: "Error",
+          description: "Failed to delete lecture",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
     }
   }
 
   // Get unique categories for filter
-  const categories = [...new Set(lecturesList.map((lecture) => lecture.category))]
+  const categories = [...new Set(lecturesList.map((lecture) => lecture.category).filter(Boolean))]
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-gray-500">Loading lectures...</div>
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -198,9 +212,8 @@ export default function LectureManagement() {
                   className="w-full p-2 border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-black"
                 >
                   <option value="all">All Statuses</option>
-                  <option value="upcoming">Upcoming</option>
-                  <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
+                  <option value="published">Published</option>
+                  <option value="draft">Draft</option>
                 </select>
               </div>
             </div>
@@ -212,7 +225,7 @@ export default function LectureManagement() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Image
+                  Thumbnail
                 </th>
                 <th
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
@@ -258,11 +271,11 @@ export default function LectureManagement() {
                 </th>
                 <th
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                  onClick={() => handleSort("date")}
+                  onClick={() => handleSort("created_at")}
                 >
                   <div className="flex items-center">
-                    Date
-                    {sortField === "date" &&
+                    Created
+                    {sortField === "created_at" &&
                       (sortDirection === "asc" ? (
                         <ChevronUp className="h-4 w-4 ml-1" />
                       ) : (
@@ -271,15 +284,15 @@ export default function LectureManagement() {
                   </div>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Registrations
+                  Views
                 </th>
                 <th
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                  onClick={() => handleSort("status")}
+                  onClick={() => handleSort("is_published")}
                 >
                   <div className="flex items-center">
                     Status
-                    {sortField === "status" &&
+                    {sortField === "is_published" &&
                       (sortDirection === "asc" ? (
                         <ChevronUp className="h-4 w-4 ml-1" />
                       ) : (
@@ -296,56 +309,76 @@ export default function LectureManagement() {
               {filteredLectures.map((lecture) => (
                 <tr key={lecture.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="relative h-12 w-16 rounded overflow-hidden">
-                      <Image
-                        src={lecture.image || "/placeholder.svg"}
-                        alt={lecture.title}
-                        fill
-                        className="object-cover"
-                      />
+                    <div className="relative h-12 w-16 rounded overflow-hidden bg-gray-100">
+                      {lecture.thumbnail_url ? (
+                        <Image
+                          src={lecture.thumbnail_url || "/placeholder.svg"}
+                          alt={lecture.title || "Lecture thumbnail"}
+                          fill
+                          className="object-cover"
+                          onError={(e) => {
+                            // Fallback to placeholder if image fails to load
+                            e.currentTarget.src = "/placeholder.svg?height=48&width=64&text=No+Image"
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-xs text-gray-400">
+                          No Image
+                        </div>
+                      )}
                     </div>
                   </td>
                   <td className="px-6 py-4">
                     <div className="font-medium text-gray-900">{lecture.title}</div>
-                    <div className="text-sm text-gray-500">{lecture.duration}</div>
+                    {/* duration 표시 제거 */}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">{lecture.instructor}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">{lecture.instructor || "TBD"}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800">{lecture.category}</span>
+                    <span className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800">
+                      {lecture.category || "Uncategorized"}
+                    </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center text-sm text-gray-500">
                       <Calendar className="h-4 w-4 mr-1" />
-                      {new Date(lecture.date).toLocaleDateString()}
+                      {lecture.created_at ? new Date(lecture.created_at).toLocaleDateString() : "N/A"}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center text-sm text-gray-500">
                       <Users className="h-4 w-4 mr-1" />
-                      {lecture.registrations}/{lecture.capacity}
+                      {lecture.views || 0}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
                       className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        lecture.status === "upcoming"
-                          ? "bg-green-100 text-green-800"
-                          : lecture.status === "completed"
-                            ? "bg-blue-100 text-blue-800"
-                            : "bg-red-100 text-red-800"
+                        lecture.is_published ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
                       }`}
                     >
-                      {lecture.status.charAt(0).toUpperCase() + lecture.status.slice(1)}
+                      {lecture.is_published ? "Published" : "Draft"}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <button
                       onClick={() => handleEditLecture(lecture)}
                       className="text-gray-600 hover:text-gray-900 mr-3"
+                      title="Edit lecture"
                     >
                       <Edit className="h-4 w-4" />
                     </button>
-                    <button onClick={() => handleDeleteLecture(lecture.id)} className="text-red-600 hover:text-red-900">
+                    <button
+                      onClick={() => handleCopyLecture(lecture)}
+                      className="text-blue-600 hover:text-blue-900 mr-3"
+                      title="Copy lecture"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteLecture(lecture.id)}
+                      className="text-red-600 hover:text-red-900"
+                      title="Delete lecture"
+                    >
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </td>
@@ -372,6 +405,13 @@ export default function LectureManagement() {
           lecture={selectedLecture}
           onClose={() => setShowEditModal(false)}
           onSave={handleSaveLecture}
+        />
+      )}
+      {showCopyModal && selectedLecture && (
+        <CopyLectureModal
+          lecture={selectedLecture}
+          onClose={() => setShowCopyModal(false)}
+          onSuccess={() => loadLectures()}
         />
       )}
     </div>

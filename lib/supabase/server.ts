@@ -30,3 +30,6 @@ export const getAdminSupabaseClient = () => {
     },
   })
 }
+
+// Add this export at the end of the file
+export { createServerClient as createClient }

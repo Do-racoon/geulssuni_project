@@ -1,127 +1,244 @@
-"use client"
-
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { notFound } from "next/navigation"
+import { getBook, getBooksByTags, incrementBookViews } from "@/lib/api/books"
 import Image from "next/image"
-import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
-import { Badge } from "@/components/ui/badge"
-import { getBook } from "@/data/books"
-import { ArrowLeft, Calendar, User, BookOpen, Tag, ExternalLink } from "lucide-react"
+import Link from "next/link"
+import { ArrowLeft, Eye, Calendar, BookOpen, ExternalLink, Tag } from "lucide-react"
 
-export default function BookDetailPage({ params }: { params: { id: string } }) {
-  const router = useRouter()
-  const [book, setBook] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    // Find the book by ID
-    const foundBook = getBook(params.id)
-
-    if (foundBook) {
-      setBook(foundBook)
-    }
-
-    setLoading(false)
-  }, [params.id])
-
-  if (loading) {
-    return (
-      <div className="container mx-auto py-8 px-4">
-        <div className="flex justify-center items-center h-64">
-          <p>Loading...</p>
-        </div>
-      </div>
-    )
+interface BookPageProps {
+  params: {
+    id: string
   }
+}
+
+async function fetchBook(id: string) {
+  try {
+    const book = await getBook(id)
+
+    // Increment views (don't await to avoid blocking)
+    incrementBookViews(id).catch(console.error)
+
+    return book
+  } catch (error) {
+    console.error("Error fetching book:", error)
+    return null
+  }
+}
+
+async function fetchRelatedBooks(book: any) {
+  if (!book.tags || book.tags.length === 0) {
+    return []
+  }
+
+  try {
+    return await getBooksByTags(book.tags, book.id, 6)
+  } catch (error) {
+    console.error("Error fetching related books:", error)
+    return []
+  }
+}
+
+export default async function BookPage({ params }: BookPageProps) {
+  const book = await fetchBook(params.id)
 
   if (!book) {
-    return (
-      <div className="container mx-auto py-8 px-4">
-        <div className="flex flex-col items-center justify-center h-64">
-          <p className="text-xl mb-4">Book not found</p>
-          <Button onClick={() => router.push("/books")}>Back to Books</Button>
-        </div>
-      </div>
-    )
+    notFound()
   }
 
-  // Mock purchase URL - in a real app, this would come from the book data
-  const purchaseUrl = book.purchaseUrl || "https://example.com/books/" + book.id
+  const relatedBooks = await fetchRelatedBooks(book)
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      <Button variant="ghost" className="mb-6" onClick={() => router.push("/books")}>
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        Back to Books
-      </Button>
+    <div className="min-h-screen bg-white">
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        {/* Back Button */}
+        <Link
+          href="/books"
+          className="inline-flex items-center gap-2 text-gray-600 hover:text-black transition-colors mb-8"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Books
+        </Link>
 
-      <div className="max-w-4xl mx-auto">
-        <div className="flex flex-col md:flex-row gap-8 mb-8">
-          <div className="w-full md:w-1/3 flex justify-center">
-            <div className="relative w-full max-w-[250px] aspect-[3/4]">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+          {/* Book Cover */}
+          <div className="aspect-[3/4] relative overflow-hidden rounded-lg bg-gray-100">
+            {book.cover_url ? (
               <Image
-                src={book.cover || "/placeholder.svg?height=300&width=200"}
+                src={book.cover_url || "/placeholder.svg"}
                 alt={book.title}
                 fill
-                className="object-cover rounded-md shadow-md"
+                className="object-cover"
+                priority
               />
-            </div>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                <div className="text-center p-8">
+                  <div className="text-6xl mb-4">📚</div>
+                  <div className="text-xl text-gray-500 font-medium">{book.title}</div>
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="w-full md:w-2/3">
-            <h1 className="text-3xl font-bold mb-2">{book.title}</h1>
+          {/* Book Details */}
+          <div className="flex flex-col">
+            <div className="mb-6">
+              {book.category && (
+                <span className="inline-block bg-gray-100 text-gray-700 text-sm px-3 py-1 rounded-full mb-4">
+                  {book.category}
+                </span>
+              )}
 
-            <div className="flex flex-wrap gap-2 mb-4">
-              <Badge variant="secondary" className="flex items-center gap-1">
-                <User className="h-3 w-3" />
-                {book.author}
-              </Badge>
+              <h1 className="text-4xl font-light tracking-wide mb-4">{book.title}</h1>
+              <p className="text-xl text-gray-600 mb-6">by {book.author}</p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-gray-500" />
-                <span>Published: {book.publishDate}</span>
+            {/* Tags */}
+            {book.tags && book.tags.length > 0 && (
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <Tag className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm text-gray-500">Tags</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {book.tags.map((tag, index) => (
+                    <span key={index} className="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded-md">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
               </div>
+            )}
 
-              <div className="flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-gray-500" />
-                <span>{book.pages} pages</span>
-              </div>
+            {/* Stats */}
+            <div className="flex items-center gap-6 mb-8 text-sm text-gray-500">
+              {book.views > 0 && (
+                <div className="flex items-center gap-1">
+                  <Eye className="w-4 h-4" />
+                  {book.views.toLocaleString()} views
+                </div>
+              )}
 
-              <div className="flex items-center gap-2">
-                <Tag className="h-4 w-4 text-gray-500" />
-                <span>ISBN: {book.isbn}</span>
-              </div>
+              {book.pages && (
+                <div className="flex items-center gap-1">
+                  <BookOpen className="w-4 h-4" />
+                  {book.pages} pages
+                </div>
+              )}
 
-              <div className="flex items-center gap-2">
-                <span className="text-gray-500">Publisher:</span>
-                <span>{book.publisher}</span>
-              </div>
+              {book.created_at && (
+                <div className="flex items-center gap-1">
+                  <Calendar className="w-4 h-4" />
+                  {new Date(book.created_at).getFullYear()}
+                </div>
+              )}
             </div>
 
-            <div className="flex flex-wrap gap-2 mb-6">
-              <Badge variant="outline">{book.category.replace("-", " ")}</Badge>
-            </div>
+            {/* Description */}
+            {book.description && (
+              <div className="mb-8">
+                <h2 className="text-lg font-medium mb-4">About this book</h2>
+                <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{book.description}</p>
+              </div>
+            )}
 
-            <Button asChild className="flex items-center gap-2">
-              <a href={purchaseUrl} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="h-4 w-4" />
-                Buy the Book
-              </a>
-            </Button>
+            {/* Action Button */}
+            <div className="mt-auto">
+              {book.purchase_link ? (
+                <a
+                  href={book.purchase_link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 bg-black text-white px-8 py-3 rounded-md hover:bg-gray-800 transition-colors"
+                >
+                  Read Preview
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              ) : (
+                <button disabled className="bg-gray-300 text-gray-500 px-8 py-3 rounded-md cursor-not-allowed">
+                  Preview Not Available
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
-        <Separator className="mb-6" />
+        {/* Related Books Section */}
+        {relatedBooks.length > 0 && (
+          <div className="mt-16">
+            <h2 className="text-2xl font-light tracking-wide mb-8">More books with similar tags</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
+              {relatedBooks.map((relatedBook) => (
+                <Link key={relatedBook.id} href={`/books/${relatedBook.id}`} className="group">
+                  <div className="bg-white border border-gray-100 rounded-lg overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 group-hover:-translate-y-1">
+                    <div className="aspect-[3/4] relative overflow-hidden">
+                      {relatedBook.cover_url ? (
+                        <Image
+                          src={relatedBook.cover_url || "/placeholder.svg"}
+                          alt={relatedBook.title}
+                          fill
+                          className="object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+                          <div className="text-center p-6">
+                            <div className="text-4xl mb-3">📚</div>
+                            <div className="text-sm text-gray-500 font-medium line-clamp-3">{relatedBook.title}</div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-4">
+                      <h3 className="font-medium text-base line-clamp-2 mb-2 group-hover:text-gray-600 transition-colors">
+                        {relatedBook.title}
+                      </h3>
+                      <p className="text-sm text-gray-600 mb-2">{relatedBook.author}</p>
+                      <div className="flex items-center justify-between">
+                        {relatedBook.category && (
+                          <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
+                            {relatedBook.category}
+                          </span>
+                        )}
+                        {relatedBook.views > 0 && (
+                          <span className="text-xs text-gray-500 flex items-center gap-1">
+                            <Eye className="w-3 h-3" />
+                            {relatedBook.views.toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
-        <div className="prose max-w-none mb-8">
-          <h2 className="text-2xl font-semibold mb-4">Description</h2>
-          <p>{book.description}</p>
-          {book.longDescription && <p className="mt-4">{book.longDescription}</p>}
-        </div>
+        {/* No Related Books */}
+        {relatedBooks.length === 0 && book.tags && book.tags.length > 0 && (
+          <div className="mt-16">
+            <h2 className="text-2xl font-light tracking-wide mb-8">More books with similar tags</h2>
+            <div className="text-center py-12 text-gray-500">
+              <p>No related books found with similar tags</p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
+}
+
+// Generate metadata for SEO
+export async function generateMetadata({ params }: BookPageProps) {
+  const book = await fetchBook(params.id)
+
+  if (!book) {
+    return {
+      title: "Book Not Found",
+    }
+  }
+
+  return {
+    title: `${book.title} by ${book.author}`,
+    description: book.description || `Read ${book.title} by ${book.author}`,
+  }
 }

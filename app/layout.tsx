@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   title: "Geulssuni",
   description: "A minimalist creative agency inspired by Dior's visual aesthetic",
   viewport: "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover",
-    generator: 'v0.dev'
+  generator: "v0.dev",
 }
 
 export default function RootLayout({

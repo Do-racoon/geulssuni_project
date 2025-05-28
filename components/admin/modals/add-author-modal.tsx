@@ -5,6 +5,8 @@ import type React from "react"
 import { useState } from "react"
 import { X, Upload, Plus } from "lucide-react"
 import Image from "next/image"
+import { createAuthor } from "@/lib/api/authors"
+import { toast } from "@/hooks/use-toast"
 
 interface AddAuthorModalProps {
   onClose: () => void
@@ -21,24 +23,39 @@ export default function AddAuthorModal({ onClose }: AddAuthorModalProps) {
   const [featured, setFeatured] = useState(false)
   const [status, setStatus] = useState("active")
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // In a real app, this would call an API to create the author
-    console.log({
-      name,
-      bio,
-      hashtags,
-      instagramUrl,
-      profileImage,
-      coverImage,
-      featured,
-      status,
-      createdAt: new Date().toISOString(),
-    })
+    try {
+      await createAuthor({
+        name,
+        profession: bio,
+        experience: bio,
+        number_of_works: 0,
+        quote: bio,
+        instagram_url: instagramUrl || undefined,
+        image_url: profileImage || undefined,
+        image_position_x: 50,
+        image_position_y: 50,
+        likes: 0,
+      })
 
-    // Close the modal
-    onClose()
+      toast({
+        title: "Author created",
+        description: "The author has been created successfully.",
+      })
+
+      onClose()
+      // 부모 컴포넌트에서 데이터 새로고침하도록 이벤트 발생
+      window.dispatchEvent(new CustomEvent("author-updated"))
+    } catch (error) {
+      console.error("Error creating author:", error)
+      toast({
+        title: "Error",
+        description: "Failed to create author",
+        variant: "destructive",
+      })
+    }
   }
 
   // Simulate image upload

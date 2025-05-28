@@ -1,9 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Search, Plus, Edit, Trash2, Filter } from "lucide-react"
 import Image from "next/image"
 import AddAuthorModal from "../modals/add-author-modal"
+import { getAuthors, deleteAuthor, type Author } from "@/lib/api/authors"
+import { toast } from "@/hooks/use-toast"
 
 // Sample data - in a real app, this would come from an API
 const authors = [
@@ -70,21 +72,43 @@ const authors = [
 ]
 
 export default function AuthorsManagement() {
+  const [authorsList, setAuthorsList] = useState<Author[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
-  const [sortField, setSortField] = useState<keyof (typeof authors)[0]>("name")
+  const [sortField, setSortField] = useState<keyof Author>("name")
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
   const [filterStatus, setFilterStatus] = useState<string>("all")
   const [filterFeatured, setFilterFeatured] = useState<string>("all")
   const [showFilters, setShowFilters] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
 
+  useEffect(() => {
+    loadAuthors()
+  }, [])
+
+  const loadAuthors = async () => {
+    try {
+      setIsLoading(true)
+      const data = await getAuthors()
+      setAuthorsList(data)
+    } catch (error) {
+      console.error("Error loading authors:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load authors",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   // Filter and sort authors
-  const filteredAuthors = authors
+  const filteredAuthors = authorsList
     .filter((author) => {
       const matchesSearch =
         author.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        author.bio.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        author.hashtags.some((tag) => tag.toLowerCase().includes(searchTerm.toLowerCase()))
+        (author.profession && author.profession.toLowerCase().includes(searchTerm.toLowerCase()))
       const matchesStatus = filterStatus === "all" || author.status === filterStatus
       const matchesFeatured =
         filterFeatured === "all" || (filterFeatured === "featured" ? author.featured : !author.featured)
@@ -100,7 +124,7 @@ export default function AuthorsManagement() {
       return 0
     })
 
-  const handleSort = (field: keyof (typeof authors)[0]) => {
+  const handleSort = (field: keyof Author) => {
     if (sortField === field) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc")
     } else {
@@ -109,10 +133,26 @@ export default function AuthorsManagement() {
     }
   }
 
-  const handleDeleteAuthor = (authorId: string) => {
-    // In a real app, this would call an API to delete the author
+  const handleDeleteAuthor = async (authorId: string) => {
     if (confirm("Are you sure you want to delete this author? This action cannot be undone.")) {
-      console.log(`Delete author with ID: ${authorId}`)
+      try {
+        setIsLoading(true)
+        await deleteAuthor(authorId)
+        await loadAuthors()
+        toast({
+          title: "Author deleted",
+          description: "The author has been deleted successfully.",
+        })
+      } catch (error) {
+        console.error("Error deleting author:", error)
+        toast({
+          title: "Error",
+          description: "Failed to delete author",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
     }
   }
 
@@ -209,7 +249,7 @@ export default function AuthorsManagement() {
       )}
 
       <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 text-sm text-gray-500">
-        Showing {filteredAuthors.length} of {authors.length} authors
+        Showing {filteredAuthors.length} of {authorsList.length} authors
       </div>
 
       {showAddModal && <AddAuthorModal onClose={() => setShowAddModal(false)} />}

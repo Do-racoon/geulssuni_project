@@ -3,13 +3,37 @@
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import LectureCard from "./lecture-card"
-import { type Lecture, lectures } from "@/data/lectures"
-import { Filter, Calendar, Clock } from "lucide-react"
+import { Filter } from "lucide-react"
+
+interface Lecture {
+  id: string
+  title: string
+  instructor_id?: string
+  author_id?: string
+  description?: string
+  thumbnail_url?: string
+  duration?: number
+  category?: string
+  tags?: string[]
+  contact_url?: string
+  price?: number
+  is_published?: boolean
+  created_at?: string
+  updated_at?: string
+  author?: {
+    name: string
+    profession?: string
+  }
+}
+
+interface LectureGridProps {
+  lectures: Lecture[]
+}
 
 type Category = "all" | "beginner" | "intermediate" | "advanced" | "special"
 type SortOption = "newest" | "oldest" | "duration-asc" | "duration-desc"
 
-export default function LectureGrid() {
+export default function LectureGrid({ lectures }: LectureGridProps) {
   const [category, setCategory] = useState<Category>("all")
   const [sortBy, setSortBy] = useState<SortOption>("newest")
   const [showFilters, setShowFilters] = useState(false)
@@ -27,20 +51,29 @@ export default function LectureGrid() {
     result.sort((a, b) => {
       switch (sortBy) {
         case "newest":
-          return new Date(b.date).getTime() - new Date(a.date).getTime()
+          return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
         case "oldest":
-          return new Date(a.date).getTime() - new Date(b.date).getTime()
+          return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
         case "duration-asc":
-          return a.durationMinutes - b.durationMinutes
+          return (a.duration || 0) - (b.duration || 0)
         case "duration-desc":
-          return b.durationMinutes - a.durationMinutes
+          return (b.duration || 0) - (a.duration || 0)
         default:
           return 0
       }
     })
 
     setFilteredLectures(result)
-  }, [category, sortBy])
+  }, [category, sortBy, lectures])
+
+  if (!lectures || lectures.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-gray-500 mb-4">아직 등록된 강의가 없습니다.</p>
+        <p className="text-sm text-gray-400">관리자가 강의를 추가하면 여기에 표시됩니다.</p>
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -125,48 +158,6 @@ export default function LectureGrid() {
               >
                 Special Sessions
               </button>
-            </div>
-
-            <div className="mt-6 md:hidden">
-              <h3 className="text-sm uppercase tracking-wider mb-4">Sort By</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <button
-                  onClick={() => setSortBy("newest")}
-                  className={`flex items-center justify-center px-4 py-2 text-sm transition-colors ${
-                    sortBy === "newest" ? "bg-black text-white" : "bg-white text-black border border-gray-200"
-                  }`}
-                >
-                  <Calendar className="h-4 w-4 mr-2" />
-                  Newest
-                </button>
-                <button
-                  onClick={() => setSortBy("oldest")}
-                  className={`flex items-center justify-center px-4 py-2 text-sm transition-colors ${
-                    sortBy === "oldest" ? "bg-black text-white" : "bg-white text-black border border-gray-200"
-                  }`}
-                >
-                  <Calendar className="h-4 w-4 mr-2" />
-                  Oldest
-                </button>
-                <button
-                  onClick={() => setSortBy("duration-asc")}
-                  className={`flex items-center justify-center px-4 py-2 text-sm transition-colors ${
-                    sortBy === "duration-asc" ? "bg-black text-white" : "bg-white text-black border border-gray-200"
-                  }`}
-                >
-                  <Clock className="h-4 w-4 mr-2" />
-                  Shortest
-                </button>
-                <button
-                  onClick={() => setSortBy("duration-desc")}
-                  className={`flex items-center justify-center px-4 py-2 text-sm transition-colors ${
-                    sortBy === "duration-desc" ? "bg-black text-white" : "bg-white text-black border border-gray-200"
-                  }`}
-                >
-                  <Clock className="h-4 w-4 mr-2" />
-                  Longest
-                </button>
-              </div>
             </div>
           </div>
         </motion.div>

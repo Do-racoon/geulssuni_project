@@ -5,6 +5,21 @@ import Image from "next/image"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { Eye, BookOpen, Clock } from "lucide-react"
+import { supabase } from "@/lib/supabase/client"
+
+interface PopularContentItem {
+  id: string
+  content_type: "lecture" | "book"
+  content_id: string
+  title: string
+  author: string
+  thumbnail_url: string
+  views: number
+  engagement: number
+  duration_minutes: number
+  pages: number
+  featured: boolean
+}
 
 type ContentType = "lecture" | "book"
 
@@ -21,7 +36,7 @@ interface ContentItem {
 }
 
 // Sample data - in a real application, this would come from an API
-const contentItems: ContentItem[] = [
+const contentItemsOriginal: ContentItem[] = [
   {
     id: 1,
     type: "lecture",
@@ -91,28 +106,38 @@ const contentItems: ContentItem[] = [
 ]
 
 export default function PopularContent() {
+  const [contentItems, setContentItems] = useState<PopularContentItem[]>([])
+  const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<ContentType | "all">("all")
   const [sortedContent, setSortedContent] = useState<ContentItem[]>([])
 
   useEffect(() => {
-    // Sort by views and then by featured status
-    const sorted = [...contentItems].sort((a, b) => {
-      if (a.featured !== b.featured) {
-        return a.featured ? -1 : 1
+    async function fetchPopularContent() {
+      try {
+        const { data, error } = await supabase
+          .from("popular_content")
+          .select("*")
+          .order("views", { ascending: false })
+          .order("featured", { ascending: false })
+
+        if (error) throw error
+        setContentItems(data || [])
+      } catch (error) {
+        console.error("Error fetching popular content:", error)
+      } finally {
+        setLoading(false)
       }
-      return b.views - a.views
-    })
+    }
 
-    // Filter by type if needed
-    const filtered = filter === "all" ? sorted : sorted.filter((item) => item.type === filter)
-
-    setSortedContent(filtered)
-  }, [filter])
+    fetchPopularContent()
+  }, [])
 
   // Function to get the correct detail page URL based on content type
-  const getDetailPageUrl = (item: ContentItem) => {
-    return item.type === "lecture" ? `/lectures/${item.id}` : `/books/${item.id}`
+  const getDetailPageUrl = (item: PopularContentItem) => {
+    return item.content_type === "lecture" ? `/lectures/${item.content_id}` : `/books/${item.content_id}`
   }
+
+  const filteredContent = filter === "all" ? contentItems : contentItems.filter((item) => item.content_type === filter)
 
   return (
     <section className="py-24 px-4 bg-white">
@@ -142,67 +167,79 @@ export default function PopularContent() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {sortedContent.map((item, index) => (
-            <motion.div
-              key={item.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: index * 0.1 }}
-              whileHover={{ y: -5 }}
-              className="bg-white border border-gray-100 shadow-sm card-hover h-full"
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                height: item.featured ? "auto" : "460px", // Fixed height for non-featured cards
-              }}
-            >
-              <Link href={getDetailPageUrl(item)} className="block h-full flex flex-col">
-                <div
-                  className="relative w-full overflow-hidden"
-                  style={{
-                    height: "240px", // Fixed height for all images
-                    flexShrink: 0, // Prevent image from shrinking
-                  }}
-                >
-                  <Image
-                    src={item.thumbnail || "/placeholder.svg"}
-                    alt={item.title}
-                    fill
-                    className="object-cover monochrome"
-                    style={{ objectPosition: "center" }}
-                  />
-                  <div className="absolute top-3 right-3 bg-white px-3 py-1 text-xs uppercase tracking-widest">
-                    {item.type}
-                  </div>
-                </div>
-                <div className="p-6 flex flex-col flex-grow">
-                  <h3 className="text-xl font-light tracking-wider mb-2 line-clamp-2">{item.title}</h3>
-                  <p className="text-sm text-gray-600 mb-4">by {item.author}</p>
-
-                  {/* This spacer pushes the stats to the bottom */}
-                  <div className="flex-grow"></div>
-
-                  <div className="flex items-center justify-between text-sm text-gray-500 mt-auto">
-                    <div className="flex items-center gap-1">
-                      <Eye className="h-4 w-4" />
-                      <span>{item.views.toLocaleString()}</span>
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      {item.type === "lecture" ? <Clock className="h-4 w-4" /> : <BookOpen className="h-4 w-4" />}
-                      <span>{item.duration}</span>
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs">{item.engagement}% engagement</span>
+        {loading ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-black"></div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {filteredContent.map((item, index) => (
+              <motion.div
+                key={item.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: index * 0.1 }}
+                whileHover={{ y: -5 }}
+                className="bg-white border border-gray-100 shadow-sm card-hover h-full"
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  height: item.featured ? "auto" : "460px", // Fixed height for non-featured cards
+                }}
+              >
+                <Link href={getDetailPageUrl(item)} className="block h-full flex flex-col">
+                  <div
+                    className="relative w-full overflow-hidden"
+                    style={{
+                      height: "240px", // Fixed height for all images
+                      flexShrink: 0, // Prevent image from shrinking
+                    }}
+                  >
+                    <Image
+                      src={item.thumbnail_url || "/placeholder.svg"}
+                      alt={item.title}
+                      fill
+                      className="object-cover monochrome"
+                      style={{ objectPosition: "center" }}
+                    />
+                    <div className="absolute top-3 right-3 bg-white px-3 py-1 text-xs uppercase tracking-widest">
+                      {item.content_type}
                     </div>
                   </div>
-                </div>
-              </Link>
-            </motion.div>
-          ))}
-        </div>
+                  <div className="p-6 flex flex-col flex-grow">
+                    <h3 className="text-xl font-light tracking-wider mb-2 line-clamp-2">{item.title}</h3>
+                    <p className="text-sm text-gray-600 mb-4">by {item.author}</p>
+
+                    {/* This spacer pushes the stats to the bottom */}
+                    <div className="flex-grow"></div>
+
+                    <div className="flex items-center justify-between text-sm text-gray-500 mt-auto">
+                      <div className="flex items-center gap-1">
+                        <Eye className="h-4 w-4" />
+                        <span>{item.views.toLocaleString()}</span>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        {item.content_type === "lecture" ? (
+                          <Clock className="h-4 w-4" />
+                        ) : (
+                          <BookOpen className="h-4 w-4" />
+                        )}
+                        <span>
+                          {item.content_type === "lecture" ? `${item.duration_minutes} min` : `${item.pages} pages`}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs">{item.engagement}% engagement</span>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   )

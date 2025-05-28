@@ -5,6 +5,8 @@ import type React from "react"
 import { useState } from "react"
 import { X } from "lucide-react"
 import RichTextEditor from "@/components/rich-text-editor"
+import { createFAQ } from "@/lib/api/faqs"
+import { toast } from "@/hooks/use-toast"
 
 interface AddFaqModalProps {
   onClose: () => void
@@ -17,18 +19,33 @@ export default function AddFaqModal({ onClose }: AddFaqModalProps) {
   const [category, setCategory] = useState("general")
   const [useRichEditor, setUseRichEditor] = useState(true)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // In a real app, this would call an API to create the FAQ
-    console.log({
-      question,
-      answer: useRichEditor ? richAnswer : answer,
-      category,
-      id: `faq-${Date.now()}`,
-    })
+    try {
+      await createFAQ({
+        question,
+        answer: useRichEditor ? richAnswer : answer,
+        category,
+        is_published: true,
+      })
 
-    onClose()
+      toast({
+        title: "FAQ created",
+        description: "The FAQ has been created successfully.",
+      })
+
+      onClose()
+      // 부모 컴포넌트에서 데이터 새로고침하도록 이벤트 발생
+      window.dispatchEvent(new CustomEvent("faq-updated"))
+    } catch (error) {
+      console.error("Error creating FAQ:", error)
+      toast({
+        title: "Error",
+        description: "Failed to create FAQ",
+        variant: "destructive",
+      })
+    }
   }
 
   return (

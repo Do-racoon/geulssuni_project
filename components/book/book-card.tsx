@@ -1,49 +1,48 @@
+"use client"
+
+import type React from "react"
 import Image from "next/image"
-import Link from "next/link"
-import type { Book } from "@/data/books"
-import { Button } from "@/components/ui/button"
-import { ExternalLink } from "lucide-react"
+import { incrementBookSales } from "@/lib/api/books"
 
 interface BookCardProps {
-  book: Book
+  book: any
 }
 
-export default function BookCard({ book }: BookCardProps) {
+const BookCard: React.FC<BookCardProps> = ({ book }) => {
+  const handlePurchaseClick = async (book: any) => {
+    try {
+      await incrementBookSales(book.id)
+      if (book.external_link) {
+        window.open(book.external_link, "_blank")
+      } else if (book.purchase_link) {
+        window.open(book.purchase_link, "_blank")
+      }
+    } catch (error) {
+      console.error("Error tracking purchase:", error)
+    }
+  }
+
   return (
-    <div className="bg-white h-full content-card">
-      <Link href={`/books/${book.id}`} className="block group">
-        <div className="content-card-image">
-          <Image
-            src={book.cover || "/placeholder.svg"}
-            alt={book.title}
-            fill
-            className="object-cover monochrome"
-            style={{ objectPosition: "center" }}
-          />
-        </div>
-      </Link>
-      <div className="content-card-body">
-        <Link href={`/books/${book.id}`} className="block group">
-          <h3 className="content-card-title group-hover:underline">{book.title}</h3>
-          <p className="content-card-author">by {book.author}</p>
-        </Link>
-
-        <div className="flex-grow"></div>
-
-        <div className="content-card-actions mt-4">
-          {book.purchaseUrl && (
-            <a href={book.purchaseUrl} target="_blank" rel="noopener noreferrer">
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full border-black hover:bg-black hover:text-white transition-colors"
-              >
-                Buy <ExternalLink className="ml-1 h-3 w-3" />
-              </Button>
-            </a>
-          )}
+    <div className="bg-white rounded-lg shadow-md overflow-hidden">
+      <div className="relative h-64">
+        <Image src={book.image_url || "/placeholder.svg"} alt={book.title} layout="fill" objectFit="cover" />
+      </div>
+      <div className="p-4">
+        <h3 className="text-lg font-semibold mb-2">{book.title}</h3>
+        <p className="text-gray-700 text-sm">{book.description}</p>
+        <button
+          onClick={() => handlePurchaseClick(book)}
+          className="w-full bg-black text-white py-2 px-4 rounded-md hover:bg-gray-800 transition-colors mt-4"
+        >
+          구매하기
+        </button>
+        <div className="flex items-center justify-between text-sm text-gray-500 mt-2">
+          <span>{book.views || 0} views</span>
+          <span>{book.sales_count || 0} sales</span>
         </div>
       </div>
     </div>
   )
 }
+
+export default BookCard

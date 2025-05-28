@@ -20,15 +20,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Pencil, Trash2, MoreHorizontal, Plus, Search, ExternalLink, Save, X, Calendar } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { format } from "date-fns"
+import { supabase } from "@/lib/supabase/client"
 
 // Define the Portfolio type
 interface Portfolio {
   id: string
   title: string
   category: string
-  shortDescription: string
+  short_description: string
+  description: string
+  image_url: string
   link: string
-  createdDate: string
+  creator: string
+  featured: boolean
+  status: "published" | "draft"
+  created_at: string
   isEditing?: boolean
 }
 
@@ -45,44 +51,32 @@ export default function PortfolioManagement() {
 
   // Mock data - in a real app, this would come from an API
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      setPortfolioItems([
-        {
-          id: "1",
-          title: "Brand Identity for TechCorp",
-          category: "Branding",
-          shortDescription: "Complete brand identity redesign for a tech company",
-          link: "https://example.com/techcorp",
-          createdDate: "2023-05-15",
-        },
-        {
-          id: "2",
-          title: "Eco-Friendly Packaging Design",
-          category: "Packaging",
-          shortDescription: "Sustainable packaging solution for organic products",
-          link: "https://example.com/eco-packaging",
-          createdDate: "2023-07-22",
-        },
-        {
-          id: "3",
-          title: "Annual Report Design",
-          category: "Print",
-          shortDescription: "Creative annual report for financial institution",
-          link: "https://example.com/annual-report",
-          createdDate: "2023-03-10",
-        },
-        {
-          id: "4",
-          title: "Mobile App UI/UX",
-          category: "Digital",
-          shortDescription: "User interface design for fitness tracking app",
-          link: "https://example.com/fitness-app",
-          createdDate: "2023-09-05",
-        },
-      ])
-      setIsLoading(false)
-    }, 500)
+    async function fetchPortfolioItems() {
+      try {
+        const { data, error } = await supabase.from("portfolio").select("*").order("created_at", { ascending: false })
+
+        if (error) throw error
+
+        const formattedData =
+          data?.map((item) => ({
+            ...item,
+            createdDate: item.created_at.split("T")[0], // Format for date input
+          })) || []
+
+        setPortfolioItems(formattedData)
+      } catch (error) {
+        console.error("Error fetching portfolio items:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load portfolio items.",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchPortfolioItems()
   }, [])
 
   // Function to handle sorting
@@ -113,7 +107,7 @@ export default function PortfolioManagement() {
     (item) =>
       item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.shortDescription.toLowerCase().includes(searchQuery.toLowerCase()),
+      item.short_description.toLowerCase().includes(searchQuery.toLowerCase()),
   )
 
   // Function to add a new portfolio item
@@ -122,9 +116,14 @@ export default function PortfolioManagement() {
       id: `new-${Date.now()}`,
       title: "",
       category: "",
-      shortDescription: "",
+      short_description: "",
+      description: "",
+      image_url: "",
       link: "",
-      createdDate: new Date().toISOString().split("T")[0],
+      creator: "Admin",
+      featured: false,
+      status: "draft",
+      created_at: new Date().toISOString(),
       isEditing: true,
     }
 
@@ -143,27 +142,69 @@ export default function PortfolioManagement() {
 
   // Function to save portfolio item changes
   const saveItem = async (id: string) => {
-    // In a real app, this would be an API call
     try {
       setIsLoading(true)
 
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      const item = portfolioItems.find((p) => p.id === id)
+      if (!item) return
 
-      // Update the item in the state
-      setPortfolioItems(portfolioItems.map((item) => (item.id === id ? { ...item, isEditing: false } : item)))
+      if (id.startsWith("new-")) {
+        // Create new item
+        const { data, error } = await supabase
+          .from("portfolio")
+          .insert({
+            title: item.title,
+            category: item.category,
+            short_description: item.short_description,
+            description: item.description || "",
+            image_url: item.image_url || "",
+            link: item.link,
+            creator: item.creator || "Admin",
+            featured: item.featured,
+            status: item.status,
+          })
+          .select()
+          .single()
+
+        if (error) throw error
+
+        // Update local state with new ID
+        setPortfolioItems(
+          portfolioItems.map((p) =>
+            p.id === id ? { ...data, isEditing: false, createdDate: data.created_at.split("T")[0] } : p,
+          ),
+        )
+      } else {
+        // Update existing item
+        const { error } = await supabase
+          .from("portfolio")
+          .update({
+            title: item.title,
+            category: item.category,
+            short_description: item.short_description,
+            description: item.description,
+            image_url: item.image_url,
+            link: item.link,
+            creator: item.creator,
+            featured: item.featured,
+            status: item.status,
+          })
+          .eq("id", id)
+
+        if (error) throw error
+
+        setPortfolioItems(portfolioItems.map((p) => (p.id === id ? { ...p, isEditing: false } : p)))
+      }
 
       toast({
-        title: "Portfolio item updated",
-        description: "The portfolio item has been successfully updated.",
+        title: "Portfolio item saved",
+        description: "The portfolio item has been successfully saved.",
       })
-
-      // In a real app, you would update the frontend immediately
-      // This ensures real-time sync with the frontend as requested
     } catch (error) {
+      console.error("Error saving portfolio item:", error)
       toast({
         title: "Error",
-        description: "Failed to update portfolio item. Please try again.",
+        description: "Failed to save portfolio item. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -195,20 +236,18 @@ export default function PortfolioManagement() {
     try {
       setIsLoading(true)
 
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      const { error } = await supabase.from("portfolio").delete().eq("id", itemToDelete)
 
-      // Remove the item from the state
+      if (error) throw error
+
       setPortfolioItems(portfolioItems.filter((item) => item.id !== itemToDelete))
 
       toast({
         title: "Portfolio item deleted",
         description: "The portfolio item has been successfully deleted.",
       })
-
-      // In a real app, you would update the frontend immediately
-      // This ensures real-time sync with the frontend as requested
     } catch (error) {
+      console.error("Error deleting portfolio item:", error)
       toast({
         title: "Error",
         description: "Failed to delete portfolio item. Please try again.",
@@ -270,9 +309,9 @@ export default function PortfolioManagement() {
                 </TableHead>
                 <TableHead>Short Description</TableHead>
                 <TableHead>Link</TableHead>
-                <TableHead className="cursor-pointer" onClick={() => requestSort("createdDate")}>
+                <TableHead className="cursor-pointer" onClick={() => requestSort("created_at")}>
                   Created Date
-                  {sortConfig?.key === "createdDate" && (
+                  {sortConfig?.key === "created_at" && (
                     <span className="ml-1">{sortConfig.direction === "ascending" ? "↑" : "↓"}</span>
                   )}
                 </TableHead>
@@ -320,12 +359,12 @@ export default function PortfolioManagement() {
                     <TableCell>
                       {item.isEditing ? (
                         <Input
-                          value={item.shortDescription}
-                          onChange={(e) => updateItemField(item.id, "shortDescription", e.target.value)}
+                          value={item.short_description}
+                          onChange={(e) => updateItemField(item.id, "short_description", e.target.value)}
                           className="w-full"
                         />
                       ) : (
-                        <span className="line-clamp-2">{item.shortDescription}</span>
+                        <span className="line-clamp-2">{item.short_description}</span>
                       )}
                     </TableCell>
                     <TableCell>

@@ -93,6 +93,13 @@ export interface Database {
           is_published: boolean
           created_at: string
           updated_at: string
+          views: number | null
+          category: string | null
+          pages: number | null
+          purchase_link: string | null
+          tags: string[] | null
+          sales_count: number | null
+          external_link: string | null
         }
         Insert: {
           id?: string
@@ -104,6 +111,13 @@ export interface Database {
           is_published?: boolean
           created_at?: string
           updated_at?: string
+          views?: number | null
+          category?: string | null
+          pages?: number | null
+          purchase_link?: string | null
+          tags?: string[] | null
+          sales_count?: number | null
+          external_link?: string | null
         }
         Update: {
           id?: string
@@ -115,6 +129,13 @@ export interface Database {
           is_published?: boolean
           created_at?: string
           updated_at?: string
+          views?: number | null
+          category?: string | null
+          pages?: number | null
+          purchase_link?: string | null
+          tags?: string[] | null
+          sales_count?: number | null
+          external_link?: string | null
         }
       }
       board_posts: {
