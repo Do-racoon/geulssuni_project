@@ -9,12 +9,12 @@ import { getCurrentUser } from "@/lib/auth"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 
-interface AssignmentPost {
+interface Assignment {
   id: string
   title: string
   content: string
-  category: string // beginner, intermediate, advanced
-  type: string
+  description: string
+  class_level: string // beginner, intermediate, advanced
   author_id: string
   author?: {
     name: string
@@ -24,6 +24,10 @@ interface AssignmentPost {
   reviewed_at?: string
   reviewed_by?: string
   views: number
+  due_date: string
+  submissions_count: number
+  total_students: number
+  is_completed: boolean
   created_at: string
   updated_at: string
 }
@@ -37,7 +41,7 @@ interface User {
 }
 
 export default function AssignmentBoard() {
-  const [posts, setPosts] = useState<AssignmentPost[]>([])
+  const [assignments, setAssignments] = useState<Assignment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
@@ -72,8 +76,8 @@ export default function AssignmentBoard() {
         console.error("사용자 로딩 실패:", userError)
       }
 
-      // 과제 게시글 가져오기
-      const response = await fetch("/api/board-posts/assignments", {
+      // assignments 테이블에서 데이터 가져오기
+      const response = await fetch("/api/assignments", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -84,7 +88,7 @@ export default function AssignmentBoard() {
 
       if (response.ok) {
         const data = await response.json()
-        setPosts(data)
+        setAssignments(data)
         setError(null)
       } else {
         const errorText = await response.text()
@@ -98,9 +102,9 @@ export default function AssignmentBoard() {
     }
   }
 
-  const handleReviewToggle = async (postId: string) => {
+  const handleReviewToggle = async (assignmentId: string) => {
     try {
-      const response = await fetch(`/api/board-posts/${postId}/review`, {
+      const response = await fetch(`/api/assignments/${assignmentId}/review`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -108,55 +112,58 @@ export default function AssignmentBoard() {
       })
 
       if (response.ok) {
-        const updatedPost = await response.json()
-        setPosts(posts.map((post) => (post.id === postId ? updatedPost : post)))
+        const updatedAssignment = await response.json()
+        setAssignments(
+          assignments.map((assignment) => (assignment.id === assignmentId ? updatedAssignment : assignment)),
+        )
       }
     } catch (error) {
       console.error("검수 상태 업데이트 오류:", error)
     }
   }
 
-  const handleDelete = async (postId: string) => {
-    if (!confirm("정말로 이 게시글을 삭제하시겠습니까?")) {
+  const handleDelete = async (assignmentId: string) => {
+    if (!confirm("정말로 이 과제를 삭제하시겠습니까?")) {
       return
     }
 
     try {
-      const response = await fetch(`/api/board-posts/${postId}`, {
+      const response = await fetch(`/api/assignments/${assignmentId}`, {
         method: "DELETE",
       })
 
       if (response.ok) {
-        setPosts(posts.filter((post) => post.id !== postId))
+        setAssignments(assignments.filter((assignment) => assignment.id !== assignmentId))
       } else {
-        alert("게시글 삭제에 실패했습니다.")
+        alert("과제 삭제에 실패했습니다.")
       }
     } catch (error) {
       console.error("삭제 오류:", error)
-      alert("게시글 삭제 중 오류가 발생했습니다.")
+      alert("과제 삭제 중 오류가 발생했습니다.")
     }
   }
 
   // 필터링
-  const filteredPosts = posts.filter((post) => {
+  const filteredAssignments = assignments.filter((assignment) => {
     const matchesSearch =
       searchQuery === "" ||
-      post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      post.content.toLowerCase().includes(searchQuery.toLowerCase())
+      assignment.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      assignment.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      assignment.description.toLowerCase().includes(searchQuery.toLowerCase())
 
     // 레벨 필터링
     let matchesLevel = true
     if (currentUser?.role === "user" && currentUser?.class_level) {
-      matchesLevel = post.category === currentUser.class_level
+      matchesLevel = assignment.class_level === currentUser.class_level
     } else if (selectedLevel !== "all") {
-      matchesLevel = post.category === selectedLevel
+      matchesLevel = assignment.class_level === selectedLevel
     }
 
     // 검수 상태 필터링
     const matchesReview =
       reviewFilter === "all" ||
-      (reviewFilter === "pending" && post.review_status === "pending") ||
-      (reviewFilter === "completed" && post.review_status === "completed")
+      (reviewFilter === "pending" && assignment.review_status === "pending") ||
+      (reviewFilter === "completed" && assignment.review_status === "completed")
 
     return matchesSearch && matchesLevel && matchesReview
   })
@@ -284,7 +291,7 @@ export default function AssignmentBoard() {
       </div>
 
       {/* 게시글 목록 */}
-      {posts.length === 0 ? (
+      {assignments.length === 0 ? (
         <div className="text-center py-12 border border-dashed border-gray-200 rounded-md">
           <p className="text-gray-500 mb-4">등록된 과제가 없습니다. 😔</p>
           {canCreateAssignment && (
@@ -296,7 +303,7 @@ export default function AssignmentBoard() {
             </Button>
           )}
         </div>
-      ) : filteredPosts.length === 0 ? (
+      ) : filteredAssignments.length === 0 ? (
         <div className="text-center py-12 border border-dashed border-gray-200 rounded-md">
           <p className="text-gray-500">검색 조건에 맞는 과제가 없습니다. 🔍</p>
         </div>
@@ -312,34 +319,40 @@ export default function AssignmentBoard() {
             <div className="col-span-1">관리</div>
           </div>
 
-          {/* 게시글 목록 */}
-          {filteredPosts.map((post) => (
-            <div key={post.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+          {/* 과제 목록 */}
+          {filteredAssignments.map((assignment) => (
+            <div key={assignment.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
               <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
                 {/* 제목 */}
                 <div className="col-span-1 md:col-span-4">
-                  <Link href={`/board/assignment/${post.id}`} className="block">
+                  <Link href={`/board/assignment/${assignment.id}`} className="block">
                     <div className="flex items-center gap-2 mb-2">
-                      <Badge className={getLevelColor(post.category)}>{getLevelText(post.category)}</Badge>
+                      <Badge className={getLevelColor(assignment.class_level)}>
+                        {getLevelText(assignment.class_level)}
+                      </Badge>
                     </div>
-                    <h3 className="font-medium hover:text-blue-600 transition-colors">{post.title}</h3>
+                    <h3 className="font-medium hover:text-blue-600 transition-colors">{assignment.title}</h3>
+                    <p className="text-sm text-gray-500 mt-1 line-clamp-2">{assignment.description}</p>
                   </Link>
                 </div>
 
                 {/* 작성자 */}
                 <div className="col-span-1 md:col-span-2">
-                  <span className="text-sm text-gray-600">{post.author?.name || "알 수 없음"}</span>
+                  <span className="text-sm text-gray-600">{assignment.author?.name || "알 수 없음"}</span>
                 </div>
 
                 {/* 게시일 */}
                 <div className="col-span-1 md:col-span-2">
-                  <span className="text-sm text-gray-600">{new Date(post.created_at).toLocaleDateString()}</span>
+                  <span className="text-sm text-gray-600">{new Date(assignment.created_at).toLocaleDateString()}</span>
+                  <div className="text-xs text-gray-400">
+                    마감: {new Date(assignment.due_date).toLocaleDateString()}
+                  </div>
                 </div>
 
                 {/* 검수상태 */}
                 <div className="col-span-1 md:col-span-2">
                   <div className="flex items-center gap-2">
-                    {post.review_status === "completed" ? (
+                    {assignment.review_status === "completed" ? (
                       <Badge className="bg-green-100 text-green-800">
                         <CheckCircle className="h-3 w-3 mr-1" />
                         검수완료
@@ -350,32 +363,42 @@ export default function AssignmentBoard() {
                         검수중
                       </Badge>
                     )}
-                    {isInstructor && (
-                      <Button onClick={() => handleReviewToggle(post.id)} variant="outline" size="sm" className="ml-2">
-                        {post.review_status === "completed" ? "검수중으로" : "완료로"}
-                      </Button>
-                    )}
                   </div>
-                  {post.reviewed_at && (
-                    <div className="text-xs text-gray-500 mt-1">{new Date(post.reviewed_at).toLocaleDateString()}</div>
+                  {assignment.reviewed_at && (
+                    <div className="text-xs text-gray-500 mt-1">
+                      {new Date(assignment.reviewed_at).toLocaleDateString()}
+                    </div>
+                  )}
+                  {isInstructor && (
+                    <Button
+                      onClick={() => handleReviewToggle(assignment.id)}
+                      variant="outline"
+                      size="sm"
+                      className="mt-1"
+                    >
+                      {assignment.review_status === "completed" ? "검수중으로" : "완료로"}
+                    </Button>
                   )}
                 </div>
 
                 {/* 조회수 */}
                 <div className="col-span-1 md:col-span-1">
-                  <span className="text-sm text-gray-600">{post.views}</span>
+                  <span className="text-sm text-gray-600">{assignment.views}</span>
+                  <div className="text-xs text-gray-400">
+                    {assignment.submissions_count}/{assignment.total_students}
+                  </div>
                 </div>
 
                 {/* 관리 버튼 */}
                 <div className="col-span-1 md:col-span-1">
-                  {(isInstructor || post.author_id === currentUser?.id) && (
+                  {(isInstructor || assignment.author_id === currentUser?.id) && (
                     <div className="flex gap-1">
                       <Button asChild variant="outline" size="sm">
-                        <Link href={`/board/assignment/${post.id}/edit`}>
+                        <Link href={`/board/assignment/${assignment.id}/edit`}>
                           <Edit className="h-3 w-3" />
                         </Link>
                       </Button>
-                      <Button onClick={() => handleDelete(post.id)} variant="outline" size="sm">
+                      <Button onClick={() => handleDelete(assignment.id)} variant="outline" size="sm">
                         <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
@@ -390,7 +413,7 @@ export default function AssignmentBoard() {
       {/* 상태 표시 */}
       <div className="flex items-center justify-between text-sm text-gray-500">
         <div>
-          {filteredPosts.length}개의 과제 발견 (전체 {posts.length}개)
+          {filteredAssignments.length}개의 과제 발견 (전체 {assignments.length}개)
         </div>
         <div className="flex gap-2 items-center">
           <span className="flex items-center gap-1">
