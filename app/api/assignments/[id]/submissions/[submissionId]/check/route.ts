@@ -2,7 +2,7 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 
-export async function POST(request: Request, { params }: { params: { id: string; submissionId: string } }) {
+export async function PATCH(request: Request, { params }: { params: { id: string; submissionId: string } }) {
   try {
     const supabase = createRouteHandlerClient({ cookies })
     const { submissionId } = params
@@ -24,15 +24,27 @@ export async function POST(request: Request, { params }: { params: { id: string;
       return NextResponse.json({ error: "체크 권한이 없습니다." }, { status: 403 })
     }
 
-    // 제출 체크 업데이트
+    // 제출 체크 상태 업데이트
+    const updateData: any = {
+      is_checked: body.isChecked,
+      updated_at: new Date().toISOString(),
+    }
+
+    if (body.isChecked) {
+      updateData.checked_by = body.checkedBy
+      updateData.checked_at = new Date().toISOString()
+    } else {
+      updateData.checked_by = null
+      updateData.checked_at = null
+    }
+
+    if (body.feedback !== undefined) {
+      updateData.feedback = body.feedback
+    }
+
     const { data, error } = await supabase
       .from("assignment_submissions")
-      .update({
-        is_checked: true,
-        checked_by: user.id,
-        checked_at: new Date().toISOString(),
-        feedback: body.feedback || null,
-      })
+      .update(updateData)
       .eq("id", submissionId)
       .select(`
         *,
