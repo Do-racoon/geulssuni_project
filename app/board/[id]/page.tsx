@@ -1,12 +1,12 @@
 import { notFound, redirect } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowLeft, Heart, MessageCircle, Share2 } from "lucide-react"
+import { ArrowLeft, Heart, MessageCircle } from "lucide-react"
 import { getBoardPost, getBoardComments } from "@/lib/api/board"
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import CommentSection from "@/components/board/comment-section"
-import { Button } from "@/components/ui/button"
+import PostActions from "@/components/board/post-actions"
 
 interface BoardPostPageProps {
   params: {
@@ -24,6 +24,25 @@ async function checkIfAssignment(id: string) {
   } catch (error) {
     console.error("Error checking assignments:", error)
     return false
+  }
+}
+
+async function getCurrentUser() {
+  const supabase = createServerComponentClient({ cookies })
+
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) return null
+
+    const { data: dbUser } = await supabase.from("users").select("id, role").eq("id", user.id).single()
+
+    return dbUser
+  } catch (error) {
+    console.error("Error getting current user:", error)
+    return null
   }
 }
 
@@ -58,6 +77,9 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
     console.error("Error getting comments:", error)
     comments = []
   }
+
+  // 현재 사용자 정보 가져오기
+  const currentUser = await getCurrentUser()
 
   const formattedDate = new Date(post.created_at).toLocaleDateString("ko-KR", {
     year: "numeric",
@@ -166,29 +188,15 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
         </div>
 
         {/* 액션 버튼들 */}
-        <div className="flex items-center justify-between border-t border-b border-black py-4 mb-8">
-          <div className="flex items-center space-x-4">
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex items-center bg-white text-black border-black hover:bg-black hover:text-white tracking-wider font-light rounded-none"
-            >
-              <Heart className="h-4 w-4 mr-2" />
-              LIKE {post.likes}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex items-center bg-white text-black border-black hover:bg-black hover:text-white tracking-wider font-light rounded-none"
-            >
-              <Share2 className="h-4 w-4 mr-2" />
-              SHARE
-            </Button>
-          </div>
-        </div>
+        <PostActions post={post} currentUserId={currentUser?.id} isAdmin={currentUser?.role === "admin"} />
 
         {/* 댓글 섹션 */}
-        <CommentSection postId={params.id} initialComments={comments} />
+        <CommentSection
+          postId={params.id}
+          initialComments={comments}
+          currentUserId={currentUser?.id}
+          isAdmin={currentUser?.role === "admin"}
+        />
       </div>
     </main>
   )
