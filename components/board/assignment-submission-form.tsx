@@ -2,188 +2,120 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { Upload, CheckCircle, AlertCircle } from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
+import { Upload, CheckCircle, Send } from "lucide-react"
+import { getCurrentUser } from "@/lib/auth"
 import { toast } from "sonner"
 
 interface AssignmentSubmissionFormProps {
   assignmentId: string
-  currentUser: any
-  isOverdue: boolean
-  maxSubmissions: number
-  currentSubmissions: number
+  onSubmitSuccess?: () => void
 }
 
-export default function AssignmentSubmissionForm({
-  assignmentId,
-  currentUser,
-  isOverdue,
-  maxSubmissions,
-  currentSubmissions,
-}: AssignmentSubmissionFormProps) {
-  const [file, setFile] = useState<File | null>(null)
-  const [uploading, setUploading] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [hasSubmitted, setHasSubmitted] = useState(false)
-  const [existingSubmission, setExistingSubmission] = useState<any>(null)
+export default function AssignmentSubmissionForm({ assignmentId, onSubmitSuccess }: AssignmentSubmissionFormProps) {
+  const [comment, setComment] = useState("")
+  const [fileUrl, setFileUrl] = useState("")
+  const [fileName, setFileName] = useState("")
+  const [uploadingFile, setUploadingFile] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  useEffect(() => {
-    checkExistingSubmission()
-  }, [assignmentId, currentUser])
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
 
-  const checkExistingSubmission = async () => {
-    if (!currentUser) return
-
+    setUploadingFile(true)
     try {
-      const response = await fetch(`/api/assignments/${assignmentId}/submissions/check`, {
+      const formData = new FormData()
+      formData.append("file", file)
+
+      const response = await fetch("/api/upload", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId: currentUser.id }),
+        body: formData,
       })
 
       if (response.ok) {
-        const data = await response.json()
-        if (data.hasSubmitted) {
-          setHasSubmitted(true)
-          setExistingSubmission(data.submission)
-        }
+        const { url } = await response.json()
+        setFileUrl(url)
+        setFileName(file.name)
+        toast.success("파일이 업로드되었습니다!")
+      } else {
+        toast.error("파일 업로드에 실패했습니다.")
       }
     } catch (error) {
-      console.error("기존 제출 확인 오류:", error)
-    }
-  }
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = event.target.files?.[0]
-    if (selectedFile) {
-      setFile(selectedFile)
+      console.error("파일 업로드 오류:", error)
+      toast.error("파일 업로드 중 오류가 발생했습니다.")
+    } finally {
+      setUploadingFile(false)
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!file) {
-      toast.error("파일을 선택해주세요.")
+    if (!fileUrl) {
+      toast.error("제출할 파일을 업로드해주세요.")
       return
     }
 
-    if (isOverdue) {
-      toast.error("마감일이 지났습니다.")
-      return
-    }
-
-    if (maxSubmissions > 0 && currentSubmissions >= maxSubmissions) {
-      toast.error("제출 인원이 마감되었습니다.")
-      return
-    }
-
-    setSubmitting(true)
+    setIsSubmitting(true)
 
     try {
-      // 파일 업로드
-      setUploading(true)
-      const formData = new FormData()
-      formData.append("file", file)
-
-      const uploadResponse = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      })
-
-      if (!uploadResponse.ok) {
-        throw new Error("파일 업로드 실패")
+      const currentUser = await getCurrentUser()
+      if (!currentUser) {
+        toast.error("로그인이 필요합니다.")
+        return
       }
 
-      const { url: fileUrl } = await uploadResponse.json()
-      setUploading(false)
-
-      // 과제 제출
-      const submitResponse = await fetch(`/api/assignments/${assignmentId}/submissions`, {
+      const response = await fetch(`/api/assignments/${assignmentId}/submissions`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
-          studentId: currentUser.id,
-          studentName: currentUser.name,
-          fileUrl,
-          fileName: file.name,
+          student_id: currentUser.id,
+          student_name: currentUser.name,
+          file_url: fileUrl,
+          file_name: fileName,
+          feedback: comment,
         }),
       })
 
-      if (submitResponse.ok) {
+      if (response.ok) {
         toast.success("과제가 성공적으로 제출되었습니다!")
-        setHasSubmitted(true)
-        checkExistingSubmission()
-        setFile(null)
+        setComment("")
+        setFileUrl("")
+        setFileName("")
+        if (onSubmitSuccess) {
+          onSubmitSuccess()
+        }
       } else {
-        const errorData = await submitResponse.json()
-        toast.error(errorData.error || "제출에 실패했습니다.")
+        const errorData = await response.json()
+        toast.error(errorData.error || "과제 제출에 실패했습니다.")
       }
     } catch (error) {
-      console.error("제출 오류:", error)
-      toast.error("제출 중 오류가 발생했습니다.")
+      console.error("과제 제출 오류:", error)
+      toast.error("과제 제출 중 오류가 발생했습니다.")
     } finally {
-      setSubmitting(false)
-      setUploading(false)
+      setIsSubmitting(false)
     }
-  }
-
-  if (hasSubmitted && existingSubmission) {
-    return (
-      <div className="text-center py-8">
-        <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-4" />
-        <h3 className="text-lg font-light tracking-widest uppercase mb-2">ALREADY SUBMITTED</h3>
-        <p className="text-gray-600 tracking-wide mb-4">
-          SUBMITTED ON: {new Date(existingSubmission.submitted_at).toLocaleString()}
-        </p>
-        <p className="text-gray-600 tracking-wide mb-4">FILE: {existingSubmission.file_name}</p>
-        {existingSubmission.is_checked && (
-          <div
-            className="inline-flex items-center gap-2 px-4 py-2 bg-green-100 text-green-800 border border-green-300"
-            style={{ borderRadius: "0" }}
-          >
-            <CheckCircle className="h-4 w-4" />
-            <span className="tracking-widest uppercase font-light">CHECKED BY INSTRUCTOR</span>
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  if (isOverdue) {
-    return (
-      <div className="text-center py-8">
-        <AlertCircle className="h-12 w-12 text-red-600 mx-auto mb-4" />
-        <h3 className="text-lg font-light tracking-widest uppercase text-red-600">SUBMISSION CLOSED</h3>
-        <p className="text-gray-600 tracking-wide">The deadline has passed.</p>
-      </div>
-    )
-  }
-
-  if (maxSubmissions > 0 && currentSubmissions >= maxSubmissions) {
-    return (
-      <div className="text-center py-8">
-        <AlertCircle className="h-12 w-12 text-orange-600 mx-auto mb-4" />
-        <h3 className="text-lg font-light tracking-widest uppercase text-orange-600">SUBMISSION FULL</h3>
-        <p className="text-gray-600 tracking-wide">Maximum number of submissions reached.</p>
-      </div>
-    )
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* 파일 업로드 */}
       <div className="space-y-3">
         <Label htmlFor="file-upload" className="text-sm font-light tracking-widest uppercase">
-          SELECT FILE TO SUBMIT *
+          ASSIGNMENT FILE *
         </Label>
         <div className="flex items-center gap-4">
-          <div className="relative flex-1">
+          <div className="relative">
             <input
               id="file-upload"
               type="file"
-              onChange={handleFileChange}
+              onChange={handleFileUpload}
               className="hidden"
               accept=".pdf,.doc,.docx,.txt,.zip,.rar,.jpg,.jpeg,.png"
             />
@@ -191,27 +123,66 @@ export default function AssignmentSubmissionForm({
               type="button"
               variant="outline"
               onClick={() => document.getElementById("file-upload")?.click()}
-              className="w-full border-black text-black bg-white hover:bg-black hover:text-white tracking-widest uppercase font-light"
+              disabled={uploadingFile}
+              className="flex items-center gap-2 border-black text-black bg-white hover:bg-black hover:text-white tracking-widest uppercase font-light"
               style={{ borderRadius: "0" }}
             >
-              <Upload className="h-4 w-4 mr-2" />
-              {file ? file.name : "CHOOSE FILE"}
+              <Upload className="h-4 w-4" />
+              {uploadingFile ? "UPLOADING..." : "SELECT FILE"}
             </Button>
           </div>
+          {fileUrl && (
+            <div className="flex items-center gap-2 text-sm text-green-600">
+              <CheckCircle className="h-4 w-4" />
+              <span className="tracking-wide">{fileName || "FILE UPLOADED SUCCESSFULLY"}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setFileUrl("")
+                  setFileName("")
+                }}
+                className="text-red-500 hover:text-red-700 tracking-widest uppercase"
+                style={{ borderRadius: "0" }}
+              >
+                REMOVE
+              </Button>
+            </div>
+          )}
         </div>
         <p className="text-sm text-gray-500 tracking-wide">
-          SUPPORTED FORMATS: PDF, DOC, DOCX, TXT, ZIP, RAR, JPG, PNG (MAX 10MB)
+          SUPPORTED FORMATS: PDF, DOC, DOCX, TXT, ZIP, RAR, JPG, JPEG, PNG (MAX 10MB)
         </p>
       </div>
 
-      <Button
-        type="submit"
-        disabled={!file || submitting || uploading}
-        className="w-full bg-black text-white hover:bg-gray-800 tracking-widest uppercase font-light"
-        style={{ borderRadius: "0" }}
-      >
-        {uploading ? "UPLOADING..." : submitting ? "SUBMITTING..." : "SUBMIT ASSIGNMENT"}
-      </Button>
+      {/* 코멘트 */}
+      <div className="space-y-3">
+        <Label htmlFor="comment" className="text-sm font-light tracking-widest uppercase">
+          COMMENT (OPTIONAL)
+        </Label>
+        <Textarea
+          id="comment"
+          placeholder="Add any comments or notes about your submission..."
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          className="resize-none border-black focus:border-black focus:ring-0 font-light"
+          style={{ borderRadius: "0" }}
+        />
+      </div>
+
+      {/* 제출 버튼 */}
+      <div className="flex justify-end">
+        <Button
+          type="submit"
+          disabled={!fileUrl || isSubmitting}
+          className="flex items-center gap-2 min-w-[150px] bg-black text-white hover:bg-gray-800 tracking-widest uppercase font-light"
+          style={{ borderRadius: "0" }}
+        >
+          <Send className="h-4 w-4" />
+          {isSubmitting ? "SUBMITTING..." : "SUBMIT ASSIGNMENT"}
+        </Button>
+      </div>
     </form>
   )
 }
