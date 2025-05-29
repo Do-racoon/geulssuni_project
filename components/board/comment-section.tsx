@@ -34,20 +34,22 @@ export default function CommentSection({
 
     if (!newComment.trim() || isSubmitting) return
 
+    if (!currentUserId) {
+      alert("로그인이 필요합니다.")
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
-      // 임시 사용자 ID (실제로는 로그인된 사용자 ID 사용)
-      const userId = currentUserId || "c3d4e5f6-a7b8-6c7d-0e1f-2a3b4c5d6e7f"
-
-      const comment = await createComment(postId, newComment.trim(), userId)
+      const comment = await createComment(postId, newComment.trim(), currentUserId)
 
       if (comment) {
         // 새 댓글을 목록에 추가
         const newCommentWithAuthor = {
           ...comment,
           author: {
-            name: "이학생", // 임시 이름
+            name: "현재 사용자", // 실제로는 현재 사용자 이름 사용
             avatar: "/placeholder.svg?height=32&width=32&query=user",
           },
           likes: 0,
@@ -59,6 +61,7 @@ export default function CommentSection({
       }
     } catch (error) {
       console.error("Error creating comment:", error)
+      alert("댓글 작성에 실패했습니다.")
     } finally {
       setIsSubmitting(false)
     }
@@ -173,18 +176,18 @@ export default function CommentSection({
                     {canDeleteComment(comment) && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-none">
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                        <DropdownMenuContent align="end" className="border border-black rounded-none">
                           <DropdownMenuItem
                             onClick={() => handleDeleteComment(comment.id)}
                             disabled={deletingCommentId === comment.id}
-                            className="text-red-600 focus:text-red-600"
+                            className="text-red-600 focus:text-red-600 tracking-wider font-light"
                           >
                             <Trash2 className="h-4 w-4 mr-2" />
-                            {deletingCommentId === comment.id ? "삭제 중..." : "삭제"}
+                            {deletingCommentId === comment.id ? "DELETING..." : "DELETE"}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
