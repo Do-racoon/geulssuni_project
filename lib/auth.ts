@@ -231,14 +231,20 @@ export const getCurrentUser = async () => {
         const existingUser = userProfilesByEmail[0]
 
         // Check if this user has any existing data that would prevent ID updates
+        const { data: existingAssignments } = await supabaseClient
+          .from("assignments")
+          .select("id")
+          .eq("instructor_id", existingUser.id)
+          .limit(1)
+
         const { data: existingPosts } = await supabaseClient
           .from("board_posts")
           .select("id")
           .eq("author_id", existingUser.id)
           .limit(1)
 
-        if (existingPosts && existingPosts.length > 0) {
-          console.log("User has existing posts, keeping original ID to preserve relationships")
+        if ((existingAssignments && existingAssignments.length > 0) || (existingPosts && existingPosts.length > 0)) {
+          console.log("User has existing assignments or posts, keeping original ID to preserve relationships")
 
           // Return the existing user record without modifying it
           return {
@@ -254,6 +260,13 @@ export const getCurrentUser = async () => {
         console.log("No existing data found, attempting to update user ID...")
 
         try {
+          // First, update any assignments that reference this user
+          await supabaseClient
+            .from("assignments")
+            .update({ instructor_id: authUser.user.id, author_id: authUser.user.id })
+            .eq("instructor_id", existingUser.id)
+
+          // Then update the user ID
           const { data: updatedUser, error: updateError } = await supabaseClient
             .from("users")
             .update({ id: authUser.user.id })
