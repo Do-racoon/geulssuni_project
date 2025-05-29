@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Heart, Share2, Trash2, MoreVertical } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Heart, Trash2, MoreVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { togglePostLike, type BoardPost } from "@/lib/api/board"
@@ -20,6 +20,25 @@ export default function PostActions({ post, currentUserId, isAdmin }: PostAction
   const [isLiking, setIsLiking] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const router = useRouter()
+
+  // 초기 좋아요 상태 확인
+  useEffect(() => {
+    const checkLikeStatus = async () => {
+      if (!currentUserId) return
+
+      try {
+        const response = await fetch(`/api/board-posts/${post.id}/like-status?userId=${currentUserId}`)
+        if (response.ok) {
+          const { isLiked } = await response.json()
+          setIsLiked(isLiked)
+        }
+      } catch (error) {
+        console.error("Error checking like status:", error)
+      }
+    }
+
+    checkLikeStatus()
+  }, [post.id, currentUserId])
 
   const handleLike = async () => {
     if (!currentUserId) {
@@ -41,40 +60,6 @@ export default function PostActions({ post, currentUserId, isAdmin }: PostAction
     }
   }
 
-  const handleShare = async () => {
-    try {
-      // 먼저 클립보드 복사를 시도 (더 안전함)
-      await navigator.clipboard.writeText(window.location.href)
-      toast.success("링크가 클립보드에 복사되었습니다.")
-    } catch (clipboardError) {
-      // 클립보드 복사가 실패하면 네이티브 공유 시도
-      try {
-        if (navigator.share && navigator.canShare) {
-          const shareData = {
-            title: post.title,
-            text: post.content.slice(0, 100) + "...",
-            url: window.location.href,
-          }
-
-          if (navigator.canShare(shareData)) {
-            await navigator.share(shareData)
-          } else {
-            throw new Error("Cannot share this content")
-          }
-        } else {
-          // 둘 다 실패하면 수동으로 URL 표시
-          const url = window.location.href
-          prompt("링크를 복사하세요:", url)
-        }
-      } catch (shareError) {
-        console.error("Error sharing:", shareError)
-        // 최후의 수단: URL을 alert로 표시
-        const url = window.location.href
-        alert(`링크: ${url}`)
-      }
-    }
-  }
-
   const handleDelete = async () => {
     if (!confirm("정말로 이 게시글을 삭제하시겠습니까?")) {
       return
@@ -82,19 +67,21 @@ export default function PostActions({ post, currentUserId, isAdmin }: PostAction
 
     setIsDeleting(true)
     try {
+      // 직접 Supabase 클라이언트를 사용하여 삭제
       const response = await fetch(`/api/board-posts/${post.id}`, {
         method: "DELETE",
       })
 
-      if (response.ok) {
-        toast.success("게시글이 삭제되었습니다.")
-        router.push("/board")
-      } else {
-        toast.error("게시글 삭제에 실패했습니다.")
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "게시글 삭제에 실패했습니다.")
       }
+
+      toast.success("게시글이 삭제되었습니다.")
+      router.push("/board")
     } catch (error) {
       console.error("Delete error:", error)
-      toast.error("게시글 삭제 중 오류가 발생했습니다.")
+      toast.error(error instanceof Error ? error.message : "게시글 삭제 중 오류가 발생했습니다.")
     } finally {
       setIsDeleting(false)
     }
@@ -107,7 +94,7 @@ export default function PostActions({ post, currentUserId, isAdmin }: PostAction
       <div className="flex items-center space-x-4">
         <Button
           onClick={handleLike}
-          disabled={isLiking}
+          disabled={isLiking || !currentUserId}
           variant="outline"
           size="sm"
           className={`flex items-center border-black hover:bg-black hover:text-white tracking-wider font-light rounded-none ${
@@ -116,15 +103,6 @@ export default function PostActions({ post, currentUserId, isAdmin }: PostAction
         >
           <Heart className={`h-4 w-4 mr-2 ${isLiked ? "fill-current" : ""}`} />
           {isLiking ? "..." : `LIKE ${likeCount}`}
-        </Button>
-        <Button
-          onClick={handleShare}
-          variant="outline"
-          size="sm"
-          className="flex items-center bg-white text-black border-black hover:bg-black hover:text-white tracking-wider font-light rounded-none"
-        >
-          <Share2 className="h-4 w-4 mr-2" />
-          SHARE
         </Button>
       </div>
 
