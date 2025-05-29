@@ -204,7 +204,7 @@ export default function AssignmentSubmissionModal({
     return (
       <div className="text-center py-6 bg-gray-50 border border-gray-200 p-6">
         <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-4" />
-        <h3 className="text-lg font-light tracking-widest uppercase mb-2">ALREADY SUBMITTED</h3>
+        <h3 className="text-lg font-light tracking-widest uppercase mb-2 text-black">ALREADY SUBMITTED</h3>
         <p className="text-gray-600 tracking-wide mb-4">
           SUBMITTED ON: {new Date(existingSubmission.submitted_at).toLocaleString()}
         </p>
@@ -275,9 +275,9 @@ export default function AssignmentSubmissionModal({
       </Button>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md bg-white">
           <DialogHeader>
-            <DialogTitle className="text-center text-xl font-light tracking-widest uppercase">
+            <DialogTitle className="text-center text-xl font-light tracking-widest uppercase text-black">
               SUBMIT ASSIGNMENT
             </DialogTitle>
           </DialogHeader>
@@ -286,7 +286,7 @@ export default function AssignmentSubmissionModal({
             <div className="space-y-4">
               {/* 이름 입력 */}
               <div className="space-y-2">
-                <Label htmlFor="student-name" className="text-sm font-light tracking-widest uppercase">
+                <Label htmlFor="student-name" className="text-sm font-light tracking-widest uppercase text-black">
                   YOUR NAME *
                 </Label>
                 <Input
@@ -296,7 +296,7 @@ export default function AssignmentSubmissionModal({
                   onChange={handleNameChange}
                   onBlur={handleNameBlur}
                   placeholder="Enter your name"
-                  className="border-gray-300 focus:border-black"
+                  className="border-gray-300 focus:border-black text-black bg-white"
                   required
                 />
                 {studentName && hasSubmitted && (
@@ -306,7 +306,7 @@ export default function AssignmentSubmissionModal({
 
               {/* 파일 선택 */}
               <div className="space-y-2">
-                <Label htmlFor="file-upload" className="text-sm font-light tracking-widest uppercase">
+                <Label htmlFor="file-upload" className="text-sm font-light tracking-widest uppercase text-black">
                   SELECT FILE *
                 </Label>
                 <div className="flex items-center gap-4">
@@ -338,7 +338,7 @@ export default function AssignmentSubmissionModal({
 
               {/* 코멘트 입력 */}
               <div className="space-y-2">
-                <Label htmlFor="comment" className="text-sm font-light tracking-widest uppercase">
+                <Label htmlFor="comment" className="text-sm font-light tracking-widest uppercase text-black">
                   COMMENT (OPTIONAL)
                 </Label>
                 <Textarea
@@ -346,7 +346,7 @@ export default function AssignmentSubmissionModal({
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   placeholder="Add any comments about your submission..."
-                  className="border-gray-300 focus:border-black min-h-[100px]"
+                  className="border-gray-300 focus:border-black min-h-[100px] text-black bg-white"
                   rows={4}
                 />
               </div>

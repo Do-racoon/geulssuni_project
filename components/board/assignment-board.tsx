@@ -75,11 +75,12 @@ export default function AssignmentBoard() {
   const [passwordInput, setPasswordInput] = useState("")
   const [passwordError, setPasswordError] = useState(false)
 
-  // 사용자 권한 관련 변수들 - 모든 사용자가 과제 관리 가능하도록 변경
+  // 사용자 권한 관련 변수들 - 관리자, 강사만 관리 기능 사용 가능
   const isInstructor =
     currentUser?.role === "instructor" || currentUser?.role === "admin" || currentUser?.role === "teacher"
-  const canCreateAssignment = true // 모든 사용자가 과제 생성 가능
+  const canCreateAssignment = isInstructor // 관리자, 강사만 과제 생성 가능
   const canSelectLevel = isInstructor
+  const canManageAssignments = isInstructor // 관리자, 강사만 수정/삭제 가능
 
   useEffect(() => {
     loadUserAndAssignments()
@@ -437,7 +438,7 @@ export default function AssignmentBoard() {
                 <div className="col-span-2">DATE</div>
                 <div className="col-span-2">STATUS</div>
                 <div className="col-span-1">STATS</div>
-                <div className="col-span-1">ACTIONS</div>
+                {canManageAssignments && <div className="col-span-1">ACTIONS</div>}
               </div>
 
               {/* 과제 목록 */}
@@ -529,30 +530,32 @@ export default function AssignmentBoard() {
                     </div>
                   </div>
 
-                  {/* 관리 버튼 - 모든 사용자가 볼 수 있도록 변경 */}
-                  <div className="col-span-1 flex items-center justify-center">
-                    <div className="flex gap-1">
-                      <Button
-                        asChild
-                        variant="outline"
-                        size="sm"
-                        className="h-8 w-8 p-0 border-gray-300 hover:border-blue-500 hover:bg-blue-500 hover:text-white transition-all duration-300"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Link href={`/board/assignment/${assignment.id}/edit`}>
-                          <Edit className="h-3 w-3" />
-                        </Link>
-                      </Button>
-                      <Button
-                        onClick={(e) => handleDelete(assignment.id, e)}
-                        variant="outline"
-                        size="sm"
-                        className="h-8 w-8 p-0 border-gray-300 hover:border-red-500 hover:bg-red-500 hover:text-white transition-all duration-300"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
+                  {/* 관리 버튼 - 관리자, 강사만 표시 */}
+                  {canManageAssignments && (
+                    <div className="col-span-1 flex items-center justify-center">
+                      <div className="flex gap-1">
+                        <Button
+                          asChild
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 p-0 border-gray-300 hover:border-blue-500 hover:bg-blue-500 hover:text-white transition-all duration-300"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Link href={`/board/assignment/${assignment.id}/edit`}>
+                            <Edit className="h-3 w-3" />
+                          </Link>
+                        </Button>
+                        <Button
+                          onClick={(e) => handleDelete(assignment.id, e)}
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 p-0 border-gray-300 hover:border-red-500 hover:bg-red-500 hover:text-white transition-all duration-300"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -597,27 +600,29 @@ export default function AssignmentBoard() {
                         {assignment.title}
                       </h3>
                     </div>
-                    {/* 모든 사용자가 관리 버튼을 볼 수 있도록 변경 */}
-                    <div className="flex gap-2 ml-4">
-                      <Button
-                        asChild
-                        variant="outline"
-                        size="sm"
-                        className="h-8 w-8 p-0 border-gray-300 hover:border-blue-500 hover:bg-blue-500 hover:text-white transition-all duration-300"
-                      >
-                        <Link href={`/board/assignment/${assignment.id}/edit`}>
-                          <Edit className="h-3 w-3" />
-                        </Link>
-                      </Button>
-                      <Button
-                        onClick={(e) => handleDelete(assignment.id, e)}
-                        variant="outline"
-                        size="sm"
-                        className="h-8 w-8 p-0 border-gray-300 hover:border-red-500 hover:bg-red-500 hover:text-white transition-all duration-300"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
+                    {/* 관리자, 강사만 관리 버튼 표시 */}
+                    {canManageAssignments && (
+                      <div className="flex gap-2 ml-4">
+                        <Button
+                          asChild
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 p-0 border-gray-300 hover:border-blue-500 hover:bg-blue-500 hover:text-white transition-all duration-300"
+                        >
+                          <Link href={`/board/assignment/${assignment.id}/edit`}>
+                            <Edit className="h-3 w-3" />
+                          </Link>
+                        </Button>
+                        <Button
+                          onClick={(e) => handleDelete(assignment.id, e)}
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 p-0 border-gray-300 hover:border-red-500 hover:bg-red-500 hover:text-white transition-all duration-300"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
@@ -695,7 +700,7 @@ export default function AssignmentBoard() {
       <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
         <DialogContent className="sm:max-w-md mx-4">
           <DialogHeader>
-            <DialogTitle className="text-center text-xl font-light tracking-widest uppercase">
+            <DialogTitle className="text-center text-xl font-light tracking-widest uppercase text-black">
               PASSWORD REQUIRED
             </DialogTitle>
           </DialogHeader>
@@ -713,7 +718,7 @@ export default function AssignmentBoard() {
                     setPasswordInput(e.target.value)
                     setPasswordError(false)
                   }}
-                  className={`border-gray-300 focus:border-black ${passwordError ? "border-red-500" : ""}`}
+                  className={`border-gray-300 focus:border-black text-black ${passwordError ? "border-red-500" : ""}`}
                   onKeyPress={(e) => {
                     if (e.key === "Enter") {
                       handlePasswordCheck()
