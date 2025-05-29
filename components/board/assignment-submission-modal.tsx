@@ -37,15 +37,20 @@ export default function AssignmentSubmissionModal({
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    checkExistingSubmission()
-  }, [assignmentId])
-
-  useEffect(() => {
     // 현재 사용자 이름으로 초기화
     if (currentUser?.name) {
       setStudentName(currentUser.name)
     }
   }, [currentUser])
+
+  useEffect(() => {
+    // 이름이 설정된 후에 제출 확인
+    if (studentName) {
+      checkExistingSubmission()
+    } else {
+      setLoading(false)
+    }
+  }, [assignmentId, studentName])
 
   const checkExistingSubmission = async () => {
     try {
@@ -53,7 +58,10 @@ export default function AssignmentSubmissionModal({
       const response = await fetch(`/api/assignments/${assignmentId}/submissions/check`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId: currentUser?.id || "anonymous" }),
+        body: JSON.stringify({
+          studentId: currentUser?.id || null,
+          studentName: studentName.trim(),
+        }),
       })
 
       if (response.ok) {
@@ -79,6 +87,20 @@ export default function AssignmentSubmissionModal({
         return
       }
       setFile(selectedFile)
+    }
+  }
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setStudentName(e.target.value)
+    // 이름이 변경되면 제출 상태 초기화
+    setHasSubmitted(false)
+    setExistingSubmission(null)
+  }
+
+  const handleNameBlur = () => {
+    // 이름 입력이 완료되면 제출 확인
+    if (studentName.trim()) {
+      checkExistingSubmission()
     }
   }
 
@@ -130,7 +152,7 @@ export default function AssignmentSubmissionModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          studentId: currentUser?.id || "anonymous",
+          studentId: currentUser?.id || null,
           studentName: studentName.trim(),
           fileUrl,
           fileName: file.name,
@@ -271,11 +293,15 @@ export default function AssignmentSubmissionModal({
                   id="student-name"
                   type="text"
                   value={studentName}
-                  onChange={(e) => setStudentName(e.target.value)}
+                  onChange={handleNameChange}
+                  onBlur={handleNameBlur}
                   placeholder="Enter your name"
                   className="border-gray-300 focus:border-black"
                   required
                 />
+                {studentName && hasSubmitted && (
+                  <p className="text-sm text-red-600">이 이름으로 이미 제출된 과제가 있습니다.</p>
+                )}
               </div>
 
               {/* 파일 선택 */}
@@ -337,7 +363,7 @@ export default function AssignmentSubmissionModal({
               </Button>
               <Button
                 type="submit"
-                disabled={!file || !studentName.trim() || submitting || uploading}
+                disabled={!file || !studentName.trim() || submitting || uploading || hasSubmitted}
                 className="bg-black text-white hover:bg-gray-800 tracking-widest uppercase font-light w-full sm:w-auto"
               >
                 {uploading ? "UPLOADING..." : submitting ? "SUBMITTING..." : "SUBMIT"}

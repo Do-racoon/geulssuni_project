@@ -89,13 +89,27 @@ export async function POST(request: Request, { params }: { params: { id: string 
       return NextResponse.json({ error: "제출 인원이 마감되었습니다." }, { status: 400 })
     }
 
-    // 동일한 학생 ID로 이미 제출했는지 확인
-    const { data: existingSubmission } = await supabase
-      .from("assignment_submissions")
-      .select("id")
-      .eq("assignment_id", assignmentId)
-      .eq("student_id", body.studentId)
-      .single()
+    // 중복 제출 확인 - studentId가 있으면 ID로, 없으면 이름으로 확인
+    let existingSubmission = null
+
+    if (body.studentId) {
+      const { data } = await supabase
+        .from("assignment_submissions")
+        .select("id")
+        .eq("assignment_id", assignmentId)
+        .eq("student_id", body.studentId)
+        .single()
+      existingSubmission = data
+    } else {
+      // 로그인하지 않은 사용자는 이름으로 중복 확인
+      const { data } = await supabase
+        .from("assignment_submissions")
+        .select("id")
+        .eq("assignment_id", assignmentId)
+        .eq("student_name", body.studentName)
+        .single()
+      existingSubmission = data
+    }
 
     if (existingSubmission) {
       return NextResponse.json({ error: "이미 제출한 과제입니다." }, { status: 400 })
@@ -104,7 +118,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     // 제출 데이터 생성
     const submissionData = {
       assignment_id: assignmentId,
-      student_id: body.studentId || "anonymous",
+      student_id: body.studentId || null, // null로 설정 (UUID 타입이므로)
       student_name: body.studentName,
       file_url: body.fileUrl,
       file_name: body.fileName,

@@ -5,29 +5,62 @@ import { NextResponse } from "next/server"
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
     const supabase = createRouteHandlerClient({ cookies })
-    const { id: assignmentId } = params
-    const { studentId } = await request.json()
+    const assignmentId = params.id
+    const body = await request.json()
+    const { studentId, studentName } = body
 
-    // 제출 정보 조회
-    const { data: submission, error } = await supabase
+    // studentId가 없거나 "anonymous"인 경우
+    if (!studentId || studentId === "anonymous") {
+      // 학생 이름으로 검색 (로그인하지 않은 사용자의 경우)
+      if (studentName) {
+        const { data: submissions, error } = await supabase
+          .from("assignment_submissions")
+          .select("*")
+          .eq("assignment_id", assignmentId)
+          .eq("student_name", studentName)
+          .order("submitted_at", { ascending: false })
+          .limit(1)
+
+        if (error) {
+          console.error("제출 확인 오류:", error)
+          return NextResponse.json({ hasSubmitted: false })
+        }
+
+        if (submissions && submissions.length > 0) {
+          return NextResponse.json({
+            hasSubmitted: true,
+            submission: submissions[0],
+          })
+        }
+      }
+
+      return NextResponse.json({ hasSubmitted: false })
+    }
+
+    // 로그인한 사용자의 경우 student_id로 검색
+    const { data: submissions, error } = await supabase
       .from("assignment_submissions")
       .select("*")
       .eq("assignment_id", assignmentId)
       .eq("student_id", studentId)
-      .single()
+      .order("submitted_at", { ascending: false })
+      .limit(1)
 
-    if (error && error.code !== "PGRST116") {
-      // PGRST116: 결과가 없음
+    if (error) {
       console.error("제출 확인 오류:", error)
-      return NextResponse.json({ error: "제출 정보를 확인할 수 없습니다." }, { status: 500 })
+      return NextResponse.json({ hasSubmitted: false })
     }
 
-    return NextResponse.json({
-      hasSubmitted: !!submission,
-      submission: submission || null,
-    })
+    if (submissions && submissions.length > 0) {
+      return NextResponse.json({
+        hasSubmitted: true,
+        submission: submissions[0],
+      })
+    }
+
+    return NextResponse.json({ hasSubmitted: false })
   } catch (error) {
     console.error("제출 확인 API 오류:", error)
-    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 })
+    return NextResponse.json({ hasSubmitted: false })
   }
 }
