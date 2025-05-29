@@ -19,7 +19,14 @@ export async function GET() {
       return NextResponse.json({ error: "과제를 불러올 수 없습니다." }, { status: 500 })
     }
 
-    return NextResponse.json(assignments || [])
+    // 비밀번호 정보 처리
+    const processedAssignments = assignments.map((assignment: any) => ({
+      ...assignment,
+      has_password: !!assignment.password,
+      password: undefined, // 클라이언트에 비밀번호 자체는 전송하지 않음
+    }))
+
+    return NextResponse.json(processedAssignments || [])
   } catch (error) {
     console.error("과제 API 오류:", error)
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 })
@@ -64,7 +71,7 @@ export async function POST(request: Request) {
       authorId = userByEmail.id
     }
 
-    // 권한 확인 (관리자 또는 강사만 과제 생성 가능)
+    // 권한 확인 (관리자, 강사, 교사만 과제 생성 가능)
     const userRole =
       dbUser?.role || (await supabase.from("users").select("role").eq("id", authorId).single()).data?.role
 
@@ -88,6 +95,7 @@ export async function POST(request: Request) {
       total_students: body.total_students || body.max_submissions || 0,
       is_completed: false,
       attachment_url: body.attachment_url,
+      password: body.password || null, // 비밀번호 필드 추가
     }
 
     const { data, error } = await supabase
@@ -104,7 +112,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "과제를 생성할 수 없습니다." }, { status: 500 })
     }
 
-    return NextResponse.json(data, { status: 201 })
+    // 비밀번호 정보 처리
+    const processedData = {
+      ...data,
+      has_password: !!data.password,
+      password: undefined,
+    }
+
+    return NextResponse.json(processedData, { status: 201 })
   } catch (error) {
     console.error("과제 생성 API 오류:", error)
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 })

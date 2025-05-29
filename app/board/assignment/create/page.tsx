@@ -2,9 +2,9 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
-import { ArrowLeft, Save, Calendar, Users } from "lucide-react"
+import { ArrowLeft, Save, Calendar, Users, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { getCurrentUser } from "@/lib/auth"
 
 export default function CreateAssignmentPage() {
   const router = useRouter()
@@ -23,8 +24,34 @@ export default function CreateAssignmentPage() {
     level: "",
     due_date: "",
     max_submissions: 0,
+    password: "", // 비밀번호 필드 추가
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const checkUserPermission = async () => {
+      try {
+        const user = await getCurrentUser()
+        setCurrentUser(user)
+
+        // 권한 확인 (teacher, admin만 접근 가능)
+        if (!user || !["teacher", "admin", "instructor"].includes(user.role)) {
+          toast.error("과제 등록 권한이 없습니다.")
+          router.push("/board")
+        }
+      } catch (error) {
+        console.error("사용자 정보 로딩 실패:", error)
+        toast.error("사용자 정보를 불러올 수 없습니다.")
+        router.push("/board")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    checkUserPermission()
+  }, [router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -55,6 +82,7 @@ export default function CreateAssignmentPage() {
           class_level: formData.level,
           due_date: formData.due_date,
           max_submissions: formData.max_submissions,
+          password: formData.password.trim() || null, // 비밀번호가 없으면 null로 설정
         }),
       })
 
@@ -74,6 +102,17 @@ export default function CreateAssignmentPage() {
   }
 
   const minDateTime = new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16)
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin w-6 h-6 border-2 border-black border-t-transparent mx-auto mb-6"></div>
+          <p className="text-gray-600 font-light tracking-wider">CHECKING PERMISSIONS...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 to-white">
@@ -208,6 +247,29 @@ export default function CreateAssignmentPage() {
                       required
                     />
                   </div>
+                </div>
+
+                {/* 비밀번호 */}
+                <div className="space-y-3">
+                  <Label
+                    htmlFor="password"
+                    className="text-sm font-light tracking-widest uppercase flex items-center gap-2"
+                  >
+                    <Lock className="h-4 w-4" />
+                    PASSWORD (OPTIONAL)
+                  </Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Set password for this assignment"
+                    value={formData.password}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, password: e.target.value }))}
+                    className="border-black focus:border-black focus:ring-0 font-light"
+                    style={{ borderRadius: "0" }}
+                  />
+                  <p className="text-xs text-gray-500 tracking-wide">
+                    IF SET, STUDENTS WILL NEED TO ENTER THIS PASSWORD TO ACCESS THE ASSIGNMENT
+                  </p>
                 </div>
 
                 {/* 내용 */}
