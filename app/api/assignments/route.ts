@@ -6,7 +6,6 @@ export async function GET() {
   try {
     const supabase = createRouteHandlerClient({ cookies })
 
-    // assignments 테이블에서 모든 과제 가져오기 (작성자 정보 포함)
     const { data: assignments, error } = await supabase
       .from("assignments")
       .select(`
@@ -20,20 +19,9 @@ export async function GET() {
       return NextResponse.json({ error: "과제를 불러올 수 없습니다." }, { status: 500 })
     }
 
-    // 작성자 정보 포맷팅
-    const formattedAssignments = assignments?.map((assignment) => ({
-      ...assignment,
-      author: assignment.author
-        ? {
-            name: assignment.author.name || "Unknown",
-            avatar: `/placeholder.svg?height=32&width=32&query=${assignment.author.name || "user"}`,
-          }
-        : null,
-    }))
-
-    return NextResponse.json(formattedAssignments || [])
+    return NextResponse.json(assignments || [])
   } catch (error) {
-    console.error("과제 목록 조회 오류:", error)
+    console.error("과제 API 오류:", error)
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 })
   }
 }
@@ -43,29 +31,65 @@ export async function POST(request: Request) {
     const supabase = createRouteHandlerClient({ cookies })
     const body = await request.json()
 
-    const { title, content, description, class_level, due_date, author_id } = body
+    // 현재 사용자 정보 가져오기
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-    // 필수 필드 검증
-    if (!title || !content || !class_level || !author_id) {
-      return NextResponse.json({ error: "필수 필드가 누락되었습니다." }, { status: 400 })
+    if (!user) {
+      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 })
     }
 
-    // 새 과제 생성
-    const { data: assignment, error } = await supabase
+    // 사용자가 users 테이블에 존재하는지 확인
+    const { data: dbUser, error: userError } = await supabase
+      .from("users")
+      .select("id, role")
+      .eq("id", user.id)
+      .single()
+
+    let authorId = user.id
+
+    if (userError || !dbUser) {
+      // 사용자가 users 테이블에 없다면 이메일로 찾기
+      const { data: userByEmail, error: emailError } = await supabase
+        .from("users")
+        .select("id, role")
+        .eq("email", user.email)
+        .single()
+
+      if (emailError || !userByEmail) {
+        return NextResponse.json({ error: "사용자 정보를 찾을 수 없습니다." }, { status: 404 })
+      }
+
+      authorId = userByEmail.id
+    }
+
+    // 권한 확인 (관리자 또는 강사만 과제 생성 가능)
+    const userRole =
+      dbUser?.role || (await supabase.from("users").select("role").eq("id", authorId).single()).data?.role
+
+    if (!["admin", "instructor", "teacher"].includes(userRole)) {
+      return NextResponse.json({ error: "과제 생성 권한이 없습니다." }, { status: 403 })
+    }
+
+    const assignmentData = {
+      title: body.title,
+      description: body.description,
+      content: body.content,
+      class_level: body.class_level,
+      due_date: body.due_date,
+      author_id: authorId,
+      instructor_id: authorId,
+      review_status: "pending",
+      views: 0,
+      submissions_count: 0,
+      total_students: body.total_students || 0,
+      is_completed: false,
+    }
+
+    const { data, error } = await supabase
       .from("assignments")
-      .insert({
-        title,
-        content,
-        description: description || content.substring(0, 200),
-        class_level,
-        due_date,
-        author_id,
-        review_status: "pending",
-        views: 0,
-        submissions_count: 0,
-        total_students: 0,
-        is_completed: false,
-      })
+      .insert([assignmentData])
       .select(`
         *,
         author:users!author_id(name, email)
@@ -77,7 +101,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "과제를 생성할 수 없습니다." }, { status: 500 })
     }
 
-    return NextResponse.json(assignment, { status: 201 })
+    return NextResponse.json(data, { status: 201 })
   } catch (error) {
     console.error("과제 생성 API 오류:", error)
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 })

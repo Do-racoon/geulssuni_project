@@ -8,6 +8,7 @@ import { Search, RefreshCw, PlusCircle, Edit, Trash2, CheckCircle, Clock } from 
 import { getCurrentUser } from "@/lib/auth"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
+import { useToast } from "@/hooks/use-toast"
 
 interface Assignment {
   id: string
@@ -48,9 +49,11 @@ export default function AssignmentBoard() {
   const [selectedLevel, setSelectedLevel] = useState("all")
   const [reviewFilter, setReviewFilter] = useState("all")
   const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const { toast } = useToast()
 
   // 사용자 권한 관련 변수들
-  const isInstructor = currentUser?.role === "instructor" || currentUser?.role === "admin"
+  const isInstructor =
+    currentUser?.role === "instructor" || currentUser?.role === "admin" || currentUser?.role === "teacher"
   const canCreateAssignment = isInstructor
   const canSelectLevel = isInstructor
 
@@ -116,9 +119,25 @@ export default function AssignmentBoard() {
         setAssignments(
           assignments.map((assignment) => (assignment.id === assignmentId ? updatedAssignment : assignment)),
         )
+        toast({
+          title: "검수 상태 변경 완료",
+          description: `과제의 검수 상태가 ${updatedAssignment.review_status === "completed" ? "완료" : "대기"}로 변경되었습니다.`,
+        })
+      } else {
+        const errorData = await response.json()
+        toast({
+          title: "검수 상태 변경 실패",
+          description: errorData.error || "검수 상태를 변경할 수 없습니다.",
+          variant: "destructive",
+        })
       }
     } catch (error) {
       console.error("검수 상태 업데이트 오류:", error)
+      toast({
+        title: "오류 발생",
+        description: "검수 상태 변경 중 오류가 발생했습니다.",
+        variant: "destructive",
+      })
     }
   }
 
@@ -134,12 +153,25 @@ export default function AssignmentBoard() {
 
       if (response.ok) {
         setAssignments(assignments.filter((assignment) => assignment.id !== assignmentId))
+        toast({
+          title: "과제 삭제 완료",
+          description: "과제가 성공적으로 삭제되었습니다.",
+        })
       } else {
-        alert("과제 삭제에 실패했습니다.")
+        const errorData = await response.json()
+        toast({
+          title: "삭제 실패",
+          description: errorData.error || "과제를 삭제할 수 없습니다.",
+          variant: "destructive",
+        })
       }
     } catch (error) {
       console.error("삭제 오류:", error)
-      alert("과제 삭제 중 오류가 발생했습니다.")
+      toast({
+        title: "오류 발생",
+        description: "과제 삭제 중 오류가 발생했습니다.",
+        variant: "destructive",
+      })
     }
   }
 

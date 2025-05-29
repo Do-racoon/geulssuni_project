@@ -15,6 +15,35 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 })
     }
 
+    // 사용자가 users 테이블에 존재하는지 확인
+    const { data: dbUser, error: userError } = await supabase
+      .from("users")
+      .select("id, role")
+      .eq("id", user.id)
+      .single()
+
+    if (userError || !dbUser) {
+      // 사용자가 users 테이블에 없다면 이메일로 찾기
+      const { data: userByEmail, error: emailError } = await supabase
+        .from("users")
+        .select("id, role")
+        .eq("email", user.email)
+        .single()
+
+      if (emailError || !userByEmail) {
+        return NextResponse.json({ error: "사용자 정보를 찾을 수 없습니다." }, { status: 404 })
+      }
+
+      // 이메일로 찾은 사용자 정보 사용
+      dbUser.id = userByEmail.id
+      dbUser.role = userByEmail.role
+    }
+
+    // 권한 확인 (관리자 또는 강사만 검수 가능)
+    if (!["admin", "instructor", "teacher"].includes(dbUser.role)) {
+      return NextResponse.json({ error: "검수 권한이 없습니다." }, { status: 403 })
+    }
+
     // 현재 과제 상태 가져오기
     const { data: assignment, error: fetchError } = await supabase
       .from("assignments")
@@ -35,7 +64,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
     // 검수 완료 시 검수자와 검수일 기록
     if (newStatus === "completed") {
-      updateData.reviewed_by = user.id
+      updateData.reviewed_by = dbUser.id
       updateData.reviewed_at = new Date().toISOString()
     } else {
       updateData.reviewed_by = null
