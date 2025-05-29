@@ -94,8 +94,7 @@ export async function POST(request: Request) {
       submissions_count: 0,
       total_students: body.total_students || body.max_submissions || 0,
       is_completed: false,
-      attachment_url: body.attachment_url,
-      password: body.password || null, // 비밀번호 필드 추가
+      password: body.password || null, // 비밀번호 필드만 유지
     }
 
     const { data, error } = await supabase
