@@ -43,19 +43,35 @@ export default function PostActions({ post, currentUserId, isAdmin }: PostAction
 
   const handleShare = async () => {
     try {
-      if (navigator.share) {
-        await navigator.share({
-          title: post.title,
-          text: post.content.slice(0, 100) + "...",
-          url: window.location.href,
-        })
-      } else {
-        await navigator.clipboard.writeText(window.location.href)
-        toast.success("링크가 클립보드에 복사되었습니다.")
+      // 먼저 클립보드 복사를 시도 (더 안전함)
+      await navigator.clipboard.writeText(window.location.href)
+      toast.success("링크가 클립보드에 복사되었습니다.")
+    } catch (clipboardError) {
+      // 클립보드 복사가 실패하면 네이티브 공유 시도
+      try {
+        if (navigator.share && navigator.canShare) {
+          const shareData = {
+            title: post.title,
+            text: post.content.slice(0, 100) + "...",
+            url: window.location.href,
+          }
+
+          if (navigator.canShare(shareData)) {
+            await navigator.share(shareData)
+          } else {
+            throw new Error("Cannot share this content")
+          }
+        } else {
+          // 둘 다 실패하면 수동으로 URL 표시
+          const url = window.location.href
+          prompt("링크를 복사하세요:", url)
+        }
+      } catch (shareError) {
+        console.error("Error sharing:", shareError)
+        // 최후의 수단: URL을 alert로 표시
+        const url = window.location.href
+        alert(`링크: ${url}`)
       }
-    } catch (error) {
-      console.error("Error sharing:", error)
-      toast.error("공유 중 오류가 발생했습니다.")
     }
   }
 
