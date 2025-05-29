@@ -1,15 +1,30 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, RefreshCw, PlusCircle, Edit, Trash2, CheckCircle, Clock, Lock } from "lucide-react"
+import {
+  Search,
+  RefreshCw,
+  PlusCircle,
+  Edit,
+  Trash2,
+  CheckCircle,
+  Clock,
+  Lock,
+  Calendar,
+  Users,
+  Eye,
+} from "lucide-react"
 import { getCurrentUser } from "@/lib/auth"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 
 interface Assignment {
   id: string
@@ -156,7 +171,9 @@ export default function AssignmentBoard() {
     }
   }
 
-  const handleDelete = async (assignmentId: string) => {
+  const handleDelete = async (assignmentId: string, event: React.MouseEvent) => {
+    event.stopPropagation()
+
     if (!confirm("정말로 이 과제를 삭제하시겠습니까?")) {
       return
     }
@@ -270,13 +287,13 @@ export default function AssignmentBoard() {
   const getLevelColor = (level: string) => {
     switch (level) {
       case "beginner":
-        return "bg-gray-100 text-gray-900 border border-gray-300"
+        return "bg-green-50 text-green-700 border border-green-200"
       case "intermediate":
-        return "bg-gray-200 text-gray-900 border border-gray-400"
+        return "bg-blue-50 text-blue-700 border border-blue-200"
       case "advanced":
-        return "bg-black text-white border border-black"
+        return "bg-purple-50 text-purple-700 border border-purple-200"
       default:
-        return "bg-gray-100 text-gray-900 border border-gray-300"
+        return "bg-gray-50 text-gray-700 border border-gray-200"
     }
   }
 
@@ -295,23 +312,23 @@ export default function AssignmentBoard() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 max-w-full overflow-hidden">
       {/* 헤더 - 디올 스타일 */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
         <div>
-          <h2 className="text-3xl font-light tracking-[0.2em] uppercase text-black">ASSIGNMENTS</h2>
+          <h2 className="text-2xl sm:text-3xl font-light tracking-[0.2em] uppercase text-black">ASSIGNMENTS</h2>
           {currentUser && currentUser.role === "user" && (
             <p className="text-sm text-gray-500 mt-2 font-light tracking-wider">
               {getLevelText(currentUser.class_level || "")} LEVEL ONLY
             </p>
           )}
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
           <Button
             onClick={loadUserAndAssignments}
             variant="outline"
             size="sm"
-            className="border-black text-black hover:bg-black hover:text-white transition-all duration-300 font-light tracking-wider uppercase"
+            className="border-black text-black hover:bg-black hover:text-white transition-all duration-300 font-light tracking-wider uppercase w-full sm:w-auto"
           >
             <RefreshCw className="h-4 w-4 mr-2" />
             REFRESH
@@ -319,7 +336,7 @@ export default function AssignmentBoard() {
           {canCreateAssignment && (
             <Button
               asChild
-              className="bg-black text-white hover:bg-gray-800 transition-all duration-300 font-light tracking-wider uppercase"
+              className="bg-black text-white hover:bg-gray-800 transition-all duration-300 font-light tracking-wider uppercase w-full sm:w-auto"
             >
               <Link href="/board/assignment/create">
                 <PlusCircle className="h-4 w-4 mr-2" />
@@ -345,8 +362,8 @@ export default function AssignmentBoard() {
         </div>
       )}
 
-      {/* 검색 및 필터 - 디올 스타일 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* 검색 및 필터 - 반응형 개선 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
@@ -389,7 +406,7 @@ export default function AssignmentBoard() {
         </Select>
       </div>
 
-      {/* 게시글 목록 - 디올 테이블 스타일 */}
+      {/* 게시글 목록 - 반응형 개선 */}
       {assignments.length === 0 ? (
         <div className="text-center py-20 border border-gray-200">
           <p className="text-gray-500 mb-6 font-light tracking-wider text-lg">NO ASSIGNMENTS AVAILABLE</p>
@@ -407,153 +424,277 @@ export default function AssignmentBoard() {
           <p className="text-gray-500 font-light tracking-wider text-lg">NO MATCHING ASSIGNMENTS FOUND</p>
         </div>
       ) : (
-        <div className="space-y-0 border border-gray-300">
-          {/* 테이블 헤더 - 각진 디자인 */}
-          <div className="hidden md:grid md:grid-cols-12 gap-6 p-6 bg-black text-white text-xs font-light tracking-[0.15em] uppercase">
-            <div className="col-span-4">TITLE</div>
-            <div className="col-span-2">INSTRUCTOR</div>
-            <div className="col-span-2">DATE</div>
-            <div className="col-span-2">STATUS</div>
-            <div className="col-span-1">VIEWS</div>
-            <div className="col-span-1">ACTIONS</div>
-          </div>
+        <>
+          {/* 데스크톱 테이블 뷰 */}
+          <div className="hidden lg:block overflow-x-auto">
+            <div className="min-w-full border border-gray-300">
+              {/* 테이블 헤더 */}
+              <div className="grid grid-cols-12 gap-4 p-4 bg-black text-white text-xs font-light tracking-[0.15em] uppercase">
+                <div className="col-span-4">TITLE</div>
+                <div className="col-span-2">INSTRUCTOR</div>
+                <div className="col-span-2">DATE</div>
+                <div className="col-span-2">STATUS</div>
+                <div className="col-span-1">STATS</div>
+                <div className="col-span-1">ACTIONS</div>
+              </div>
 
-          {/* 과제 목록 - 각진 디자인 */}
-          {filteredAssignments.map((assignment, index) => (
-            <div
-              key={assignment.id}
-              className={`border-b border-gray-200 hover:bg-gray-50 transition-colors duration-200 ${
-                index % 2 === 0 ? "bg-white" : "bg-gray-25"
-              }`}
-            >
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 p-6 items-center">
-                {/* 제목 */}
-                <div className="col-span-1 md:col-span-4">
-                  <div className="block group cursor-pointer" onClick={() => handleAssignmentClick(assignment)}>
-                    <div className="flex items-center gap-3 mb-2">
-                      <Badge className={`${getLevelColor(assignment.class_level)} text-xs font-light tracking-wider`}>
-                        {getLevelText(assignment.class_level)}
-                      </Badge>
-                      {assignment.has_password && (
-                        <Badge className="bg-yellow-100 text-yellow-800 border border-yellow-300 text-xs font-light tracking-wider">
-                          <Lock className="h-3 w-3 mr-1" />
-                          PASSWORD
+              {/* 과제 목록 */}
+              {filteredAssignments.map((assignment, index) => (
+                <div
+                  key={assignment.id}
+                  className={`grid grid-cols-12 gap-4 p-4 border-b border-gray-200 hover:bg-gray-50 transition-colors duration-200 ${
+                    index % 2 === 0 ? "bg-white" : "bg-gray-25"
+                  }`}
+                >
+                  {/* 제목 */}
+                  <div className="col-span-4">
+                    <div className="cursor-pointer" onClick={() => handleAssignmentClick(assignment)}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge className={`${getLevelColor(assignment.class_level)} text-xs font-light tracking-wider`}>
+                          {getLevelText(assignment.class_level)}
+                        </Badge>
+                        {assignment.has_password && (
+                          <Badge className="bg-yellow-50 text-yellow-700 border border-yellow-200 text-xs font-light tracking-wider">
+                            <Lock className="h-3 w-3 mr-1" />
+                            PROTECTED
+                          </Badge>
+                        )}
+                      </div>
+                      <h3 className="font-light text-lg tracking-wide hover:text-gray-600 transition-colors duration-200 line-clamp-1">
+                        {assignment.title}
+                      </h3>
+                      <p className="text-sm text-gray-500 mt-1 line-clamp-2 font-light">{assignment.description}</p>
+                    </div>
+                  </div>
+
+                  {/* 작성자 */}
+                  <div className="col-span-2 flex items-center">
+                    <span className="text-sm text-gray-700 font-light tracking-wide">
+                      {assignment.author?.name || "UNKNOWN"}
+                    </span>
+                  </div>
+
+                  {/* 게시일 */}
+                  <div className="col-span-2 flex flex-col justify-center">
+                    <div className="text-sm text-gray-700 font-light">
+                      {new Date(assignment.created_at).toLocaleDateString()}
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1 font-light flex items-center">
+                      <Calendar className="h-3 w-3 mr-1" />
+                      DUE: {new Date(assignment.due_date).toLocaleDateString()}
+                    </div>
+                  </div>
+
+                  {/* 검수상태 */}
+                  <div className="col-span-2 flex flex-col justify-center">
+                    <div className="flex items-center gap-2 mb-2">
+                      {assignment.review_status === "completed" ? (
+                        <Badge className="bg-green-50 text-green-700 border border-green-200 text-xs font-light tracking-wider">
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          COMPLETED
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-gray-100 text-gray-700 border border-gray-200 text-xs font-light tracking-wider">
+                          <Clock className="h-3 w-3 mr-1" />
+                          PENDING
                         </Badge>
                       )}
                     </div>
-                    <h3 className="font-light text-lg tracking-wide group-hover:text-gray-600 transition-colors duration-200">
-                      {assignment.title}
-                    </h3>
-                    <p className="text-sm text-gray-500 mt-2 line-clamp-2 font-light">{assignment.description}</p>
-                  </div>
-                </div>
-
-                {/* 작성자 */}
-                <div className="col-span-1 md:col-span-2">
-                  <span className="text-sm text-gray-700 font-light tracking-wide">
-                    {assignment.author?.name || "UNKNOWN"}
-                  </span>
-                </div>
-
-                {/* 게시일 */}
-                <div className="col-span-1 md:col-span-2">
-                  <div className="text-sm text-gray-700 font-light">
-                    {new Date(assignment.created_at).toLocaleDateString()}
-                  </div>
-                  <div className="text-xs text-gray-400 mt-1 font-light">
-                    DUE: {new Date(assignment.due_date).toLocaleDateString()}
-                  </div>
-                </div>
-
-                {/* 검수상태 */}
-                <div className="col-span-1 md:col-span-2">
-                  <div className="flex items-center gap-2 mb-2">
-                    {assignment.review_status === "completed" ? (
-                      <Badge className="bg-black text-white text-xs font-light tracking-wider">
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        COMPLETED
-                      </Badge>
-                    ) : (
-                      <Badge className="bg-gray-200 text-gray-800 text-xs font-light tracking-wider">
-                        <Clock className="h-3 w-3 mr-1" />
-                        PENDING
-                      </Badge>
+                    {isInstructor && (
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleReviewToggle(assignment.id)
+                        }}
+                        variant="outline"
+                        size="sm"
+                        className="text-xs border-gray-300 hover:border-black hover:bg-black hover:text-white transition-all duration-300 font-light tracking-wider"
+                      >
+                        {assignment.review_status === "completed" ? "MARK PENDING" : "MARK COMPLETED"}
+                      </Button>
                     )}
                   </div>
-                  {assignment.reviewed_at && (
-                    <div className="text-xs text-gray-400 font-light">
-                      {new Date(assignment.reviewed_at).toLocaleDateString()}
-                    </div>
-                  )}
-                  {isInstructor && (
-                    <Button
-                      onClick={() => handleReviewToggle(assignment.id)}
-                      variant="outline"
-                      size="sm"
-                      className="mt-2 text-xs border-gray-300 hover:border-black hover:bg-black hover:text-white transition-all duration-300 font-light tracking-wider"
-                    >
-                      {assignment.review_status === "completed" ? "MARK PENDING" : "MARK COMPLETED"}
-                    </Button>
-                  )}
-                </div>
 
-                {/* 조회수 */}
-                <div className="col-span-1 md:col-span-1">
-                  <div className="text-sm text-gray-700 font-light">{assignment.views}</div>
-                  <div className="text-xs text-gray-400 font-light">
-                    {assignment.submissions_count}/{assignment.total_students}
+                  {/* 통계 */}
+                  <div className="col-span-1 flex flex-col justify-center">
+                    <div className="text-sm text-gray-700 font-light flex items-center">
+                      <Eye className="h-3 w-3 mr-1" />
+                      {assignment.views}
+                    </div>
+                    <div className="text-xs text-gray-400 font-light flex items-center mt-1">
+                      <Users className="h-3 w-3 mr-1" />
+                      {assignment.submissions_count}/{assignment.total_students}
+                    </div>
+                  </div>
+
+                  {/* 관리 버튼 */}
+                  <div className="col-span-1 flex items-center justify-center">
+                    {(isInstructor || assignment.author_id === currentUser?.id) && (
+                      <div className="flex gap-1">
+                        <Button
+                          asChild
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 p-0 border-gray-300 hover:border-blue-500 hover:bg-blue-500 hover:text-white transition-all duration-300"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Link href={`/board/assignment/${assignment.id}/edit`}>
+                            <Edit className="h-3 w-3" />
+                          </Link>
+                        </Button>
+                        <Button
+                          onClick={(e) => handleDelete(assignment.id, e)}
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 p-0 border-gray-300 hover:border-red-500 hover:bg-red-500 hover:text-white transition-all duration-300"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
+              ))}
+            </div>
+          </div>
 
-                {/* 관리 버튼 */}
-                <div className="col-span-1 md:col-span-1">
-                  {(isInstructor || assignment.author_id === currentUser?.id) && (
-                    <div className="flex gap-2">
+          {/* 모바일/태블릿 카드 뷰 */}
+          <div className="lg:hidden space-y-4">
+            {filteredAssignments.map((assignment) => (
+              <Card
+                key={assignment.id}
+                className="border border-gray-200 hover:shadow-md transition-shadow duration-200"
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge className={`${getLevelColor(assignment.class_level)} text-xs font-light tracking-wider`}>
+                          {getLevelText(assignment.class_level)}
+                        </Badge>
+                        {assignment.has_password && (
+                          <Badge className="bg-yellow-50 text-yellow-700 border border-yellow-200 text-xs font-light tracking-wider">
+                            <Lock className="h-3 w-3 mr-1" />
+                            PROTECTED
+                          </Badge>
+                        )}
+                        {assignment.review_status === "completed" ? (
+                          <Badge className="bg-green-50 text-green-700 border border-green-200 text-xs font-light tracking-wider">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            COMPLETED
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-gray-100 text-gray-700 border border-gray-200 text-xs font-light tracking-wider">
+                            <Clock className="h-3 w-3 mr-1" />
+                            PENDING
+                          </Badge>
+                        )}
+                      </div>
+                      <h3
+                        className="font-light text-lg tracking-wide cursor-pointer hover:text-gray-600 transition-colors duration-200"
+                        onClick={() => handleAssignmentClick(assignment)}
+                      >
+                        {assignment.title}
+                      </h3>
+                    </div>
+                    {(isInstructor || assignment.author_id === currentUser?.id) && (
+                      <div className="flex gap-2 ml-4">
+                        <Button
+                          asChild
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 p-0 border-gray-300 hover:border-blue-500 hover:bg-blue-500 hover:text-white transition-all duration-300"
+                        >
+                          <Link href={`/board/assignment/${assignment.id}/edit`}>
+                            <Edit className="h-3 w-3" />
+                          </Link>
+                        </Button>
+                        <Button
+                          onClick={(e) => handleDelete(assignment.id, e)}
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 p-0 border-gray-300 hover:border-red-500 hover:bg-red-500 hover:text-white transition-all duration-300"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <p className="text-sm text-gray-600 mb-4 font-light line-clamp-2">{assignment.description}</p>
+
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-500 font-light">Instructor</p>
+                      <p className="font-light">{assignment.author?.name || "UNKNOWN"}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 font-light">Created</p>
+                      <p className="font-light">{new Date(assignment.created_at).toLocaleDateString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 font-light flex items-center">
+                        <Calendar className="h-3 w-3 mr-1" />
+                        Due Date
+                      </p>
+                      <p className="font-light">{new Date(assignment.due_date).toLocaleDateString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 font-light">Stats</p>
+                      <div className="flex items-center gap-3">
+                        <span className="flex items-center font-light">
+                          <Eye className="h-3 w-3 mr-1" />
+                          {assignment.views}
+                        </span>
+                        <span className="flex items-center font-light">
+                          <Users className="h-3 w-3 mr-1" />
+                          {assignment.submissions_count}/{assignment.total_students}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {isInstructor && (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
                       <Button
-                        asChild
+                        onClick={() => handleReviewToggle(assignment.id)}
                         variant="outline"
                         size="sm"
-                        className="border-gray-300 hover:border-black hover:bg-black hover:text-white transition-all duration-300"
+                        className="w-full text-xs border-gray-300 hover:border-black hover:bg-black hover:text-white transition-all duration-300 font-light tracking-wider"
                       >
-                        <Link href={`/board/assignment/${assignment.id}/edit`}>
-                          <Edit className="h-3 w-3" />
-                        </Link>
-                      </Button>
-                      <Button
-                        onClick={() => handleDelete(assignment.id)}
-                        variant="outline"
-                        size="sm"
-                        className="border-gray-300 hover:border-red-500 hover:bg-red-500 hover:text-white transition-all duration-300"
-                      >
-                        <Trash2 className="h-3 w-3" />
+                        {assignment.review_status === "completed" ? "MARK PENDING" : "MARK COMPLETED"}
                       </Button>
                     </div>
                   )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </>
       )}
 
-      {/* 상태 표시 - 디올 스타일 */}
-      <div className="flex items-center justify-between text-sm text-gray-500 font-light tracking-wider pt-6 border-t border-gray-200">
+      {/* 상태 표시 - 반응형 개선 */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between text-sm text-gray-500 font-light tracking-wider pt-6 border-t border-gray-200 gap-4">
         <div>
           {filteredAssignments.length} OF {assignments.length} ASSIGNMENTS
         </div>
-        <div className="flex gap-6 items-center">
+        <div className="flex flex-wrap gap-4 items-center">
           <span className="flex items-center gap-2">
-            <span className="w-3 h-3 inline-block bg-black"></span> COMPLETED
+            <span className="w-3 h-3 inline-block bg-green-500 rounded-sm"></span> COMPLETED
           </span>
           <span className="flex items-center gap-2">
-            <span className="w-3 h-3 inline-block bg-gray-300"></span> PENDING
+            <span className="w-3 h-3 inline-block bg-gray-400 rounded-sm"></span> PENDING
+          </span>
+          <span className="flex items-center gap-2">
+            <span className="w-3 h-3 inline-block bg-yellow-500 rounded-sm"></span> PROTECTED
           </span>
         </div>
       </div>
 
       {/* 비밀번호 확인 모달 */}
       <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md mx-4">
           <DialogHeader>
             <DialogTitle className="text-center text-xl font-light tracking-widest uppercase">
               PASSWORD REQUIRED
@@ -574,24 +715,29 @@ export default function AssignmentBoard() {
                     setPasswordError(false)
                   }}
                   className={`border-gray-300 focus:border-black ${passwordError ? "border-red-500" : ""}`}
+                  onKeyPress={(e) => {
+                    if (e.key === "Enter") {
+                      handlePasswordCheck()
+                    }
+                  }}
                 />
                 {passwordError && <p className="text-red-500 text-sm">Incorrect password. Please try again.</p>}
               </div>
             </div>
           </div>
-          <DialogFooter className="sm:justify-center">
+          <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button
               type="button"
               variant="outline"
               onClick={() => setPasswordDialogOpen(false)}
-              className="border-black text-black hover:bg-black hover:text-white tracking-widest uppercase font-light"
+              className="border-black text-black hover:bg-black hover:text-white tracking-widest uppercase font-light w-full sm:w-auto"
             >
               CANCEL
             </Button>
             <Button
               type="button"
               onClick={handlePasswordCheck}
-              className="bg-black text-white hover:bg-gray-800 tracking-widest uppercase font-light"
+              className="bg-black text-white hover:bg-gray-800 tracking-widest uppercase font-light w-full sm:w-auto"
             >
               CONTINUE
             </Button>
