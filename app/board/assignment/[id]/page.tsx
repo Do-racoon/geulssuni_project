@@ -22,7 +22,7 @@ async function getAssignment(id: string) {
       .from("assignments")
       .select(`
         *,
-        instructor:users!instructor_id(name, email)
+        author:users!author_id(name, email)
       `)
       .eq("id", id)
       .single()
@@ -31,6 +31,12 @@ async function getAssignment(id: string) {
       console.error("과제를 찾을 수 없습니다:", error)
       return null
     }
+
+    // 조회수 증가
+    await supabase
+      .from("assignments")
+      .update({ views: assignment.views + 1 })
+      .eq("id", id)
 
     return assignment
   } catch (error) {
@@ -96,7 +102,7 @@ export default async function AssignmentPage({ params }: { params: { id: string 
                 <div className="flex items-center gap-4 text-sm text-gray-600">
                   <div className="flex items-center gap-1">
                     <User className="h-4 w-4" />
-                    <span>강사: {assignment.instructor?.name || "알 수 없음"}</span>
+                    <span>강사: {assignment.author?.name || "알 수 없음"}</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <Calendar className="h-4 w-4" />

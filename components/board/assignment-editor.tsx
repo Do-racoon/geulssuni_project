@@ -19,7 +19,7 @@ interface AssignmentFormData {
   title: string
   content: string
   level: string
-  password: string
+  password: string // This field will be removed later
   attachment_url?: string
 }
 
@@ -29,11 +29,11 @@ export default function AssignmentEditor() {
     title: "",
     content: "",
     level: "",
-    password: "",
+    password: "", // This field will be removed later
     attachment_url: "",
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
+  const [showPassword, setShowPassword] = useState(false) // This state will be removed later
   const [previewMode, setPreviewMode] = useState(false)
   const [uploadingFile, setUploadingFile] = useState(false)
 
@@ -119,10 +119,11 @@ export default function AssignmentEditor() {
         body: JSON.stringify({
           title: formData.title.trim(),
           content: formData.content.trim(),
-          level: formData.level,
+          description: formData.content.trim().substring(0, 200),
+          class_level: formData.level,
           author_id: currentUser.id,
+          due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           attachment_url: formData.attachment_url || null,
-          password: formData.password.trim(),
         }),
       })
 
