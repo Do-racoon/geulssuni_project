@@ -203,65 +203,73 @@ export default function AssignmentBoard() {
   const getLevelText = (level: string) => {
     switch (level) {
       case "beginner":
-        return "기초반"
+        return "BASIC"
       case "intermediate":
-        return "중급반"
+        return "INTERMEDIATE"
       case "advanced":
-        return "전문반"
+        return "ADVANCED"
       default:
-        return level
+        return level.toUpperCase()
     }
   }
 
   const getLevelColor = (level: string) => {
     switch (level) {
       case "beginner":
-        return "bg-green-100 text-green-800"
+        return "bg-gray-100 text-gray-900 border border-gray-300"
       case "intermediate":
-        return "bg-yellow-100 text-yellow-800"
+        return "bg-gray-200 text-gray-900 border border-gray-400"
       case "advanced":
-        return "bg-red-100 text-red-800"
+        return "bg-black text-white border border-black"
       default:
-        return "bg-gray-100 text-gray-800"
+        return "bg-gray-100 text-gray-900 border border-gray-300"
     }
   }
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <h2 className="text-2xl font-light tracking-wider">과제 📋 (로딩중...)</h2>
+      <div className="space-y-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+          <h2 className="text-3xl font-light tracking-[0.2em] uppercase">ASSIGNMENTS</h2>
         </div>
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
-          <p className="text-gray-500">과제를 불러오는 중...</p>
+        <div className="text-center py-16">
+          <div className="animate-spin w-6 h-6 border-2 border-black border-t-transparent mx-auto mb-6"></div>
+          <p className="text-gray-600 font-light tracking-wider">LOADING ASSIGNMENTS...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      {/* 헤더 */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-8">
+      {/* 헤더 - 디올 스타일 */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
         <div>
-          <h2 className="text-2xl font-light tracking-wider">과제 📋</h2>
+          <h2 className="text-3xl font-light tracking-[0.2em] uppercase text-black">ASSIGNMENTS</h2>
           {currentUser && currentUser.role === "user" && (
-            <p className="text-sm text-gray-500 mt-1">
-              {getLevelText(currentUser.class_level || "")} 과제만 표시됩니다
+            <p className="text-sm text-gray-500 mt-2 font-light tracking-wider">
+              {getLevelText(currentUser.class_level || "")} LEVEL ONLY
             </p>
           )}
         </div>
-        <div className="flex gap-2">
-          <Button onClick={loadUserAndAssignments} variant="outline" size="sm" className="flex items-center gap-2">
-            <RefreshCw className="h-4 w-4" />
-            새로고침
+        <div className="flex gap-3">
+          <Button
+            onClick={loadUserAndAssignments}
+            variant="outline"
+            size="sm"
+            className="border-black text-black hover:bg-black hover:text-white transition-all duration-300 font-light tracking-wider uppercase"
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            REFRESH
           </Button>
           {canCreateAssignment && (
-            <Button asChild className="flex items-center gap-2">
+            <Button
+              asChild
+              className="bg-black text-white hover:bg-gray-800 transition-all duration-300 font-light tracking-wider uppercase"
+            >
               <Link href="/board/assignment/create">
-                <PlusCircle className="h-4 w-4" />
-                과제 등록
+                <PlusCircle className="h-4 w-4 mr-2" />
+                NEW ASSIGNMENT
               </Link>
             </Button>
           )}
@@ -270,134 +278,150 @@ export default function AssignmentBoard() {
 
       {/* 에러 표시 */}
       {error && (
-        <div className="bg-red-50 border border-red-200 p-4 rounded-lg">
-          <p className="text-red-600 mb-4">{error}</p>
-          <Button onClick={loadUserAndAssignments} variant="outline" size="sm">
-            다시 시도
+        <div className="bg-red-50 border-l-4 border-red-500 p-6">
+          <p className="text-red-700 mb-4 font-light">{error}</p>
+          <Button
+            onClick={loadUserAndAssignments}
+            variant="outline"
+            size="sm"
+            className="border-red-500 text-red-500 hover:bg-red-500 hover:text-white"
+          >
+            RETRY
           </Button>
         </div>
       )}
 
-      {/* 검색 및 필터 */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+      {/* 검색 및 필터 - 디올 스타일 */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
-            placeholder="과제 검색..."
+            placeholder="SEARCH ASSIGNMENTS..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
+            className="pl-12 border-gray-300 focus:border-black transition-colors duration-300 font-light tracking-wider"
           />
         </div>
 
         {/* 레벨 필터 */}
         {canSelectLevel ? (
           <Select value={selectedLevel} onValueChange={setSelectedLevel}>
-            <SelectTrigger className="w-full sm:w-[180px]">
-              <SelectValue placeholder="난이도 필터" />
+            <SelectTrigger className="border-gray-300 focus:border-black font-light tracking-wider">
+              <SelectValue placeholder="LEVEL FILTER" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">모든 난이도</SelectItem>
-              <SelectItem value="beginner">기초반</SelectItem>
-              <SelectItem value="intermediate">중급반</SelectItem>
-              <SelectItem value="advanced">전문반</SelectItem>
+              <SelectItem value="all">ALL LEVELS</SelectItem>
+              <SelectItem value="beginner">BASIC</SelectItem>
+              <SelectItem value="intermediate">INTERMEDIATE</SelectItem>
+              <SelectItem value="advanced">ADVANCED</SelectItem>
             </SelectContent>
           </Select>
         ) : (
-          <div className="w-full sm:w-[180px] h-11 px-3 py-2 border border-gray-200 rounded-md bg-gray-50 flex items-center text-sm text-gray-600">
+          <div className="h-11 px-4 py-2 border border-gray-300 bg-gray-50 flex items-center text-sm text-gray-600 font-light tracking-wider">
             {getLevelText(currentUser?.class_level || "")}
           </div>
         )}
 
         {/* 검수 상태 필터 */}
         <Select value={reviewFilter} onValueChange={setReviewFilter}>
-          <SelectTrigger className="w-full sm:w-[180px]">
-            <SelectValue placeholder="검수 상태" />
+          <SelectTrigger className="border-gray-300 focus:border-black font-light tracking-wider">
+            <SelectValue placeholder="REVIEW STATUS" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">모든 상태</SelectItem>
-            <SelectItem value="pending">검수중</SelectItem>
-            <SelectItem value="completed">검수완료</SelectItem>
+            <SelectItem value="all">ALL STATUS</SelectItem>
+            <SelectItem value="pending">PENDING</SelectItem>
+            <SelectItem value="completed">COMPLETED</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
-      {/* 게시글 목록 */}
+      {/* 게시글 목록 - 디올 테이블 스타일 */}
       {assignments.length === 0 ? (
-        <div className="text-center py-12 border border-dashed border-gray-200 rounded-md">
-          <p className="text-gray-500 mb-4">등록된 과제가 없습니다. 😔</p>
+        <div className="text-center py-20 border border-gray-200">
+          <p className="text-gray-500 mb-6 font-light tracking-wider text-lg">NO ASSIGNMENTS AVAILABLE</p>
           {canCreateAssignment && (
-            <Button asChild>
+            <Button asChild className="bg-black text-white hover:bg-gray-800 font-light tracking-wider uppercase">
               <Link href="/board/assignment/create">
                 <PlusCircle className="mr-2 h-4 w-4" />
-                과제 등록
+                CREATE ASSIGNMENT
               </Link>
             </Button>
           )}
         </div>
       ) : filteredAssignments.length === 0 ? (
-        <div className="text-center py-12 border border-dashed border-gray-200 rounded-md">
-          <p className="text-gray-500">검색 조건에 맞는 과제가 없습니다. 🔍</p>
+        <div className="text-center py-20 border border-gray-200">
+          <p className="text-gray-500 font-light tracking-wider text-lg">NO MATCHING ASSIGNMENTS FOUND</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {/* 테이블 헤더 */}
-          <div className="hidden md:grid md:grid-cols-12 gap-4 p-4 bg-gray-50 rounded-lg text-sm font-medium text-gray-700">
-            <div className="col-span-4">제목</div>
-            <div className="col-span-2">작성자</div>
-            <div className="col-span-2">게시일</div>
-            <div className="col-span-2">검수상태</div>
-            <div className="col-span-1">조회수</div>
-            <div className="col-span-1">관리</div>
+        <div className="space-y-0 border border-gray-300">
+          {/* 테이블 헤더 - 각진 디자인 */}
+          <div className="hidden md:grid md:grid-cols-12 gap-6 p-6 bg-black text-white text-xs font-light tracking-[0.15em] uppercase">
+            <div className="col-span-4">TITLE</div>
+            <div className="col-span-2">INSTRUCTOR</div>
+            <div className="col-span-2">DATE</div>
+            <div className="col-span-2">STATUS</div>
+            <div className="col-span-1">VIEWS</div>
+            <div className="col-span-1">ACTIONS</div>
           </div>
 
-          {/* 과제 목록 */}
-          {filteredAssignments.map((assignment) => (
-            <div key={assignment.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+          {/* 과제 목록 - 각진 디자인 */}
+          {filteredAssignments.map((assignment, index) => (
+            <div
+              key={assignment.id}
+              className={`border-b border-gray-200 hover:bg-gray-50 transition-colors duration-200 ${
+                index % 2 === 0 ? "bg-white" : "bg-gray-25"
+              }`}
+            >
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 p-6 items-center">
                 {/* 제목 */}
                 <div className="col-span-1 md:col-span-4">
-                  <Link href={`/board/assignment/${assignment.id}`} className="block">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Badge className={getLevelColor(assignment.class_level)}>
+                  <Link href={`/board/assignment/${assignment.id}`} className="block group">
+                    <div className="flex items-center gap-3 mb-2">
+                      <Badge className={`${getLevelColor(assignment.class_level)} text-xs font-light tracking-wider`}>
                         {getLevelText(assignment.class_level)}
                       </Badge>
                     </div>
-                    <h3 className="font-medium hover:text-blue-600 transition-colors">{assignment.title}</h3>
-                    <p className="text-sm text-gray-500 mt-1 line-clamp-2">{assignment.description}</p>
+                    <h3 className="font-light text-lg tracking-wide group-hover:text-gray-600 transition-colors duration-200">
+                      {assignment.title}
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-2 line-clamp-2 font-light">{assignment.description}</p>
                   </Link>
                 </div>
 
                 {/* 작성자 */}
                 <div className="col-span-1 md:col-span-2">
-                  <span className="text-sm text-gray-600">{assignment.author?.name || "알 수 없음"}</span>
+                  <span className="text-sm text-gray-700 font-light tracking-wide">
+                    {assignment.author?.name || "UNKNOWN"}
+                  </span>
                 </div>
 
                 {/* 게시일 */}
                 <div className="col-span-1 md:col-span-2">
-                  <span className="text-sm text-gray-600">{new Date(assignment.created_at).toLocaleDateString()}</span>
-                  <div className="text-xs text-gray-400">
-                    마감: {new Date(assignment.due_date).toLocaleDateString()}
+                  <div className="text-sm text-gray-700 font-light">
+                    {new Date(assignment.created_at).toLocaleDateString()}
+                  </div>
+                  <div className="text-xs text-gray-400 mt-1 font-light">
+                    DUE: {new Date(assignment.due_date).toLocaleDateString()}
                   </div>
                 </div>
 
                 {/* 검수상태 */}
                 <div className="col-span-1 md:col-span-2">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 mb-2">
                     {assignment.review_status === "completed" ? (
-                      <Badge className="bg-green-100 text-green-800">
+                      <Badge className="bg-black text-white text-xs font-light tracking-wider">
                         <CheckCircle className="h-3 w-3 mr-1" />
-                        검수완료
+                        COMPLETED
                       </Badge>
                     ) : (
-                      <Badge className="bg-yellow-100 text-yellow-800">
+                      <Badge className="bg-gray-200 text-gray-800 text-xs font-light tracking-wider">
                         <Clock className="h-3 w-3 mr-1" />
-                        검수중
+                        PENDING
                       </Badge>
                     )}
                   </div>
                   {assignment.reviewed_at && (
-                    <div className="text-xs text-gray-500 mt-1">
+                    <div className="text-xs text-gray-400 font-light">
                       {new Date(assignment.reviewed_at).toLocaleDateString()}
                     </div>
                   )}
@@ -406,17 +430,17 @@ export default function AssignmentBoard() {
                       onClick={() => handleReviewToggle(assignment.id)}
                       variant="outline"
                       size="sm"
-                      className="mt-1"
+                      className="mt-2 text-xs border-gray-300 hover:border-black hover:bg-black hover:text-white transition-all duration-300 font-light tracking-wider"
                     >
-                      {assignment.review_status === "completed" ? "검수중으로" : "완료로"}
+                      {assignment.review_status === "completed" ? "MARK PENDING" : "MARK COMPLETED"}
                     </Button>
                   )}
                 </div>
 
                 {/* 조회수 */}
                 <div className="col-span-1 md:col-span-1">
-                  <span className="text-sm text-gray-600">{assignment.views}</span>
-                  <div className="text-xs text-gray-400">
+                  <div className="text-sm text-gray-700 font-light">{assignment.views}</div>
+                  <div className="text-xs text-gray-400 font-light">
                     {assignment.submissions_count}/{assignment.total_students}
                   </div>
                 </div>
@@ -424,13 +448,23 @@ export default function AssignmentBoard() {
                 {/* 관리 버튼 */}
                 <div className="col-span-1 md:col-span-1">
                   {(isInstructor || assignment.author_id === currentUser?.id) && (
-                    <div className="flex gap-1">
-                      <Button asChild variant="outline" size="sm">
+                    <div className="flex gap-2">
+                      <Button
+                        asChild
+                        variant="outline"
+                        size="sm"
+                        className="border-gray-300 hover:border-black hover:bg-black hover:text-white transition-all duration-300"
+                      >
                         <Link href={`/board/assignment/${assignment.id}/edit`}>
                           <Edit className="h-3 w-3" />
                         </Link>
                       </Button>
-                      <Button onClick={() => handleDelete(assignment.id)} variant="outline" size="sm">
+                      <Button
+                        onClick={() => handleDelete(assignment.id)}
+                        variant="outline"
+                        size="sm"
+                        className="border-gray-300 hover:border-red-500 hover:bg-red-500 hover:text-white transition-all duration-300"
+                      >
                         <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
@@ -442,17 +476,17 @@ export default function AssignmentBoard() {
         </div>
       )}
 
-      {/* 상태 표시 */}
-      <div className="flex items-center justify-between text-sm text-gray-500">
+      {/* 상태 표시 - 디올 스타일 */}
+      <div className="flex items-center justify-between text-sm text-gray-500 font-light tracking-wider pt-6 border-t border-gray-200">
         <div>
-          {filteredAssignments.length}개의 과제 발견 (전체 {assignments.length}개)
+          {filteredAssignments.length} OF {assignments.length} ASSIGNMENTS
         </div>
-        <div className="flex gap-2 items-center">
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-3 inline-block bg-green-500 rounded-full"></span> 검수완료
+        <div className="flex gap-6 items-center">
+          <span className="flex items-center gap-2">
+            <span className="w-3 h-3 inline-block bg-black"></span> COMPLETED
           </span>
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-3 inline-block bg-yellow-500 rounded-full"></span> 검수중
+          <span className="flex items-center gap-2">
+            <span className="w-3 h-3 inline-block bg-gray-300"></span> PENDING
           </span>
         </div>
       </div>
