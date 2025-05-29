@@ -25,18 +25,18 @@ export default function BoardTabs() {
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
       <div className="mb-8">
-        <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 bg-gray-100 p-1 rounded-xl h-14">
+        <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 bg-white border-2 border-black p-0 h-14">
           <TabsTrigger
             value="free"
-            className="rounded-lg h-12 text-base font-medium transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm data-[state=inactive]:text-gray-600 data-[state=inactive]:hover:text-gray-900"
+            className="h-14 text-base font-light tracking-widest uppercase transition-all duration-200 data-[state=active]:bg-black data-[state=active]:text-white data-[state=inactive]:text-black data-[state=inactive]:hover:bg-gray-100 border-r border-black last:border-r-0"
           >
-            📝 자유게시판
+            FREE BOARD
           </TabsTrigger>
           <TabsTrigger
             value="assignment"
-            className="rounded-lg h-12 text-base font-medium transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm data-[state=inactive]:text-gray-600 data-[state=inactive]:hover:text-gray-900"
+            className="h-14 text-base font-light tracking-widest uppercase transition-all duration-200 data-[state=active]:bg-black data-[state=active]:text-white data-[state=inactive]:text-black data-[state=inactive]:hover:bg-gray-100"
           >
-            📋 과제게시판
+            ASSIGNMENTS
           </TabsTrigger>
         </TabsList>
       </div>
