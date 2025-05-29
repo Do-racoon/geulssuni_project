@@ -8,6 +8,36 @@ export async function GET(request: Request, { params }: { params: { id: string }
     const supabase = createRouteHandlerClient({ cookies })
     const assignmentId = params.id
 
+    // 현재 사용자 정보 가져오기
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 })
+    }
+
+    // 권한 확인 (관리자나 강사만 모든 제출 목록 조회 가능)
+    const { data: dbUser } = await supabase.from("users").select("role").eq("id", user.id).single()
+
+    if (!dbUser || !["admin", "instructor", "teacher"].includes(dbUser.role)) {
+      // 일반 사용자는 자신의 제출만 조회 가능
+      const { data: submissions, error } = await supabase
+        .from("assignment_submissions")
+        .select("*")
+        .eq("assignment_id", assignmentId)
+        .eq("student_id", user.id)
+        .order("submitted_at", { ascending: false })
+
+      if (error) {
+        console.error("제출 목록 조회 오류:", error)
+        return NextResponse.json({ error: "제출 목록을 불러올 수 없습니다." }, { status: 500 })
+      }
+
+      return NextResponse.json(submissions || [])
+    }
+
+    // 관리자/강사는 모든 제출 목록 조회
     const { data: submissions, error } = await supabase
       .from("assignment_submissions")
       .select(`
@@ -58,12 +88,12 @@ export async function POST(request: Request, { params }: { params: { id: string 
     }
 
     // 마감일 확인
-    if (new Date(assignment.due_date) < new Date()) {
+    if (assignment.due_date && new Date(assignment.due_date) < new Date()) {
       return NextResponse.json({ error: "제출 마감일이 지났습니다." }, { status: 400 })
     }
 
     // 제출 인원 확인
-    if (assignment.current_submissions >= assignment.max_submissions) {
+    if (assignment.max_submissions > 0 && assignment.current_submissions >= assignment.max_submissions) {
       return NextResponse.json({ error: "제출 인원이 마감되었습니다." }, { status: 400 })
     }
 
@@ -83,19 +113,12 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const submissionData = {
       assignment_id: assignmentId,
       student_id: user.id,
-      student_name: body.student_name,
-      file_url: body.file_url,
-      file_name: body.file_name,
+      student_name: body.studentName,
+      file_url: body.fileUrl,
+      file_name: body.fileName,
     }
 
-    const { data, error } = await supabase
-      .from("assignment_submissions")
-      .insert([submissionData])
-      .select(`
-        *,
-        student:users!student_id(name, email)
-      `)
-      .single()
+    const { data, error } = await supabase.from("assignment_submissions").insert([submissionData]).select().single()
 
     if (error) {
       console.error("과제 제출 오류:", error)

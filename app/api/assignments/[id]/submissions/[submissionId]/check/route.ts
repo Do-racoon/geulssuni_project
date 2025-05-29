@@ -5,8 +5,8 @@ import { NextResponse } from "next/server"
 export async function PATCH(request: Request, { params }: { params: { id: string; submissionId: string } }) {
   try {
     const supabase = createRouteHandlerClient({ cookies })
-    const { submissionId } = params
-    const body = await request.json()
+    const { id: assignmentId, submissionId } = params
+    const { isChecked, checkedBy } = await request.json()
 
     // 현재 사용자 정보 가져오기
     const {
@@ -17,50 +17,43 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 })
     }
 
-    // 권한 확인 (관리자 또는 강사만 체크 가능)
+    // 권한 확인 (관리자나 강사만 체크 가능)
     const { data: dbUser } = await supabase.from("users").select("role").eq("id", user.id).single()
 
     if (!dbUser || !["admin", "instructor", "teacher"].includes(dbUser.role)) {
-      return NextResponse.json({ error: "체크 권한이 없습니다." }, { status: 403 })
+      return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 })
     }
 
-    // 제출 체크 상태 업데이트
+    // 제출물 체크 상태 업데이트
     const updateData: any = {
-      is_checked: body.isChecked,
+      is_checked: isChecked,
       updated_at: new Date().toISOString(),
     }
 
-    if (body.isChecked) {
-      updateData.checked_by = body.checkedBy
+    if (isChecked) {
+      updateData.checked_by = checkedBy
       updateData.checked_at = new Date().toISOString()
     } else {
       updateData.checked_by = null
       updateData.checked_at = null
     }
 
-    if (body.feedback !== undefined) {
-      updateData.feedback = body.feedback
-    }
-
     const { data, error } = await supabase
       .from("assignment_submissions")
       .update(updateData)
       .eq("id", submissionId)
-      .select(`
-        *,
-        student:users!student_id(name, email),
-        checked_by_user:users!checked_by(name, email)
-      `)
+      .eq("assignment_id", assignmentId)
+      .select()
       .single()
 
     if (error) {
-      console.error("제출 체크 오류:", error)
-      return NextResponse.json({ error: "체크 처리에 실패했습니다." }, { status: 500 })
+      console.error("제출물 체크 상태 업데이트 오류:", error)
+      return NextResponse.json({ error: "체크 상태를 업데이트할 수 없습니다." }, { status: 500 })
     }
 
     return NextResponse.json(data)
   } catch (error) {
-    console.error("제출 체크 API 오류:", error)
+    console.error("제출물 체크 API 오류:", error)
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 })
   }
 }

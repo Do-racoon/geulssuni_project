@@ -5,7 +5,7 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { Upload, CheckCircle, AlertCircle } from "lucide-react"
+import { Upload, CheckCircle, AlertCircle, Download, FileText } from "lucide-react"
 import { toast } from "sonner"
 
 interface AssignmentSubmissionFormProps {
@@ -28,15 +28,20 @@ export default function AssignmentSubmissionForm({
   const [submitting, setSubmitting] = useState(false)
   const [hasSubmitted, setHasSubmitted] = useState(false)
   const [existingSubmission, setExistingSubmission] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     checkExistingSubmission()
   }, [assignmentId, currentUser])
 
   const checkExistingSubmission = async () => {
-    if (!currentUser) return
+    if (!currentUser) {
+      setLoading(false)
+      return
+    }
 
     try {
+      setLoading(true)
       const response = await fetch(`/api/assignments/${assignmentId}/submissions/check`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -52,12 +57,19 @@ export default function AssignmentSubmissionForm({
       }
     } catch (error) {
       console.error("기존 제출 확인 오류:", error)
+    } finally {
+      setLoading(false)
     }
   }
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0]
     if (selectedFile) {
+      // 파일 크기 제한 (10MB)
+      if (selectedFile.size > 10 * 1024 * 1024) {
+        toast.error("파일 크기는 10MB를 초과할 수 없습니다.")
+        return
+      }
       setFile(selectedFile)
     }
   }
@@ -130,15 +142,37 @@ export default function AssignmentSubmissionForm({
     }
   }
 
+  if (loading) {
+    return (
+      <div className="text-center py-4">
+        <p className="text-gray-500 tracking-wide">로딩 중...</p>
+      </div>
+    )
+  }
+
   if (hasSubmitted && existingSubmission) {
     return (
-      <div className="text-center py-8">
+      <div className="text-center py-6 bg-gray-50 border border-gray-200 p-6">
         <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-4" />
         <h3 className="text-lg font-light tracking-widest uppercase mb-2">ALREADY SUBMITTED</h3>
         <p className="text-gray-600 tracking-wide mb-4">
           SUBMITTED ON: {new Date(existingSubmission.submitted_at).toLocaleString()}
         </p>
-        <p className="text-gray-600 tracking-wide mb-4">FILE: {existingSubmission.file_name}</p>
+
+        <div className="flex items-center justify-center gap-2 mb-4">
+          <FileText className="h-5 w-5 text-gray-600" />
+          <a
+            href={existingSubmission.file_url}
+            download={existingSubmission.file_name}
+            className="text-blue-600 hover:underline tracking-wide flex items-center"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {existingSubmission.file_name}
+            <Download className="h-4 w-4 ml-1" />
+          </a>
+        </div>
+
         {existingSubmission.is_checked && (
           <div
             className="inline-flex items-center gap-2 px-4 py-2 bg-green-100 text-green-800 border border-green-300"
@@ -154,7 +188,7 @@ export default function AssignmentSubmissionForm({
 
   if (isOverdue) {
     return (
-      <div className="text-center py-8">
+      <div className="text-center py-6 bg-gray-50 border border-gray-200 p-6">
         <AlertCircle className="h-12 w-12 text-red-600 mx-auto mb-4" />
         <h3 className="text-lg font-light tracking-widest uppercase text-red-600">SUBMISSION CLOSED</h3>
         <p className="text-gray-600 tracking-wide">The deadline has passed.</p>
@@ -164,7 +198,7 @@ export default function AssignmentSubmissionForm({
 
   if (maxSubmissions > 0 && currentSubmissions >= maxSubmissions) {
     return (
-      <div className="text-center py-8">
+      <div className="text-center py-6 bg-gray-50 border border-gray-200 p-6">
         <AlertCircle className="h-12 w-12 text-orange-600 mx-auto mb-4" />
         <h3 className="text-lg font-light tracking-widest uppercase text-orange-600">SUBMISSION FULL</h3>
         <p className="text-gray-600 tracking-wide">Maximum number of submissions reached.</p>

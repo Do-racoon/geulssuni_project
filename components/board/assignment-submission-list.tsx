@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle, Circle, FileText, Calendar, User } from "lucide-react"
+import { CheckCircle, Circle, FileText, Calendar, User, Download } from "lucide-react"
 import { toast } from "sonner"
 
 interface Submission {
@@ -33,6 +33,7 @@ export default function AssignmentSubmissionList({ assignmentId, currentUser }: 
 
   const fetchSubmissions = async () => {
     try {
+      setLoading(true)
       const response = await fetch(`/api/assignments/${assignmentId}/submissions`)
       if (response.ok) {
         const data = await response.json()
@@ -40,6 +41,7 @@ export default function AssignmentSubmissionList({ assignmentId, currentUser }: 
       }
     } catch (error) {
       console.error("제출 목록 조회 오류:", error)
+      toast.error("제출 목록을 불러오는데 실패했습니다.")
     } finally {
       setLoading(false)
     }
@@ -97,7 +99,7 @@ export default function AssignmentSubmissionList({ assignmentId, currentUser }: 
 
   if (submissions.length === 0) {
     return (
-      <div className="text-center py-8">
+      <div className="text-center py-8 bg-gray-50 border border-gray-200">
         <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
         <p className="text-gray-500 tracking-widest uppercase">NO SUBMISSIONS YET</p>
       </div>
@@ -112,9 +114,9 @@ export default function AssignmentSubmissionList({ assignmentId, currentUser }: 
           className="border border-black p-6 bg-white hover:bg-gray-50 transition-colors"
           style={{ borderRadius: "0" }}
         >
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex-1">
-              <div className="flex items-center gap-4 mb-3">
+              <div className="flex flex-wrap items-center gap-4 mb-3">
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4 text-gray-600" />
                   <span className="font-light tracking-wide text-lg">{submission.student_name}</span>
@@ -131,16 +133,18 @@ export default function AssignmentSubmissionList({ assignmentId, currentUser }: 
                 </Badge>
               </div>
 
-              <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
+              <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 mb-3">
                 <div className="flex items-center gap-2">
                   <FileText className="h-4 w-4" />
                   <a
                     href={submission.file_url}
+                    download={submission.file_name}
+                    className="hover:underline tracking-wide flex items-center text-blue-600"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="hover:underline tracking-wide"
                   >
                     {submission.file_name}
+                    <Download className="h-4 w-4 ml-1" />
                   </a>
                 </div>
                 <div className="flex items-center gap-2">

@@ -5,23 +5,21 @@ import { NextResponse } from "next/server"
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
     const supabase = createRouteHandlerClient({ cookies })
-    const assignmentId = params.id
-    const body = await request.json()
+    const { id: assignmentId } = params
+    const { studentId } = await request.json()
 
-    // 현재 사용자가 이미 제출했는지 확인
+    // 제출 정보 조회
     const { data: submission, error } = await supabase
       .from("assignment_submissions")
-      .select(`
-        *,
-        student:users!student_id(name, email)
-      `)
+      .select("*")
       .eq("assignment_id", assignmentId)
-      .eq("student_id", body.studentId)
+      .eq("student_id", studentId)
       .single()
 
     if (error && error.code !== "PGRST116") {
+      // PGRST116: 결과가 없음
       console.error("제출 확인 오류:", error)
-      return NextResponse.json({ error: "제출 확인에 실패했습니다." }, { status: 500 })
+      return NextResponse.json({ error: "제출 정보를 확인할 수 없습니다." }, { status: 500 })
     }
 
     return NextResponse.json({
