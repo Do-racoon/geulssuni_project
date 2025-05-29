@@ -1,16 +1,20 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import FreeBoard from "./free-board"
 import AssignmentBoard from "./assignment-board"
-import { useSearchParams, useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth"
 
-export default function BoardTabs() {
+interface BoardTabsProps {
+  defaultTab?: string
+}
+
+function BoardTabsContent({ defaultTab = "free" }: BoardTabsProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const tab = searchParams.get("tab") || "free"
+  const tab = searchParams.get("tab") || defaultTab
   const [activeTab, setActiveTab] = useState(tab)
   const { user } = useAuth()
 
@@ -48,5 +52,13 @@ export default function BoardTabs() {
         <AssignmentBoard />
       </TabsContent>
     </Tabs>
+  )
+}
+
+export default function BoardTabs(props: BoardTabsProps) {
+  return (
+    <Suspense fallback={<div className="flex justify-center items-center h-64">Loading board...</div>}>
+      <BoardTabsContent {...props} />
+    </Suspense>
   )
 }

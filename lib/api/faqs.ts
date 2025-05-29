@@ -6,17 +6,12 @@ export interface FAQ {
   answer: string
   category: string
   order_index?: number
-  published?: boolean
   created_at?: string
   updated_at?: string
 }
 
 export async function getFAQs() {
-  const { data, error } = await supabase
-    .from("faqs")
-    .select("*")
-    .eq("published", true)
-    .order("order_index", { ascending: true })
+  const { data, error } = await supabase.from("faqs").select("*").order("order_index", { ascending: true })
 
   if (error) {
     console.error("Error loading FAQs:", error)
