@@ -6,7 +6,7 @@ export interface FAQ {
   answer: string
   category: string
   order_index?: number
-  is_published?: boolean
+  published?: boolean
   created_at?: string
   updated_at?: string
 }
@@ -15,11 +15,12 @@ export async function getFAQs() {
   const { data, error } = await supabase
     .from("faqs")
     .select("*")
-    .eq("is_published", true)
+    .eq("published", true)
     .order("order_index", { ascending: true })
 
   if (error) {
-    throw error
+    console.error("Error loading FAQs:", error)
+    return []
   }
 
   return data || []
@@ -29,7 +30,8 @@ export async function getFAQ(id: string) {
   const { data, error } = await supabase.from("faqs").select("*").eq("id", id).single()
 
   if (error) {
-    throw error
+    console.error("Error loading FAQ:", error)
+    return null
   }
 
   return data

@@ -20,11 +20,19 @@ async function LecturesContent() {
       )
     }
 
+    // Ensure lectures have tags property
+    const lecturesWithTags = lectures.map((lecture) => ({
+      ...lecture,
+      tags: lecture.tags || [],
+      date: lecture.date || new Date().toLocaleDateString(),
+      durationMinutes: lecture.duration || 0,
+    }))
+
     return (
       <div className="min-h-screen bg-white">
         <div className="max-w-6xl mx-auto px-4 py-16">
           <h1 className="text-4xl font-light tracking-wider text-center mb-16">LECTURES</h1>
-          <LectureGrid lectures={lectures} />
+          <LectureGrid lectures={lecturesWithTags} />
         </div>
       </div>
     )

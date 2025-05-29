@@ -44,16 +44,20 @@ export default function LectureGrid({ lectures }: LectureGridProps) {
 
     // Filter by category
     if (category !== "all") {
-      result = result.filter((lecture) => lecture.category === category)
+      result = result.filter((lecture) => (lecture.category || "").toLowerCase() === category.toLowerCase())
     }
 
     // Sort
     result.sort((a, b) => {
       switch (sortBy) {
         case "newest":
-          return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+          const dateA = new Date(a.created_at || a.updated_at || 0).getTime()
+          const dateB = new Date(b.created_at || b.updated_at || 0).getTime()
+          return dateB - dateA
         case "oldest":
-          return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+          const dateA2 = new Date(a.created_at || a.updated_at || 0).getTime()
+          const dateB2 = new Date(b.created_at || b.updated_at || 0).getTime()
+          return dateA2 - dateB2
         case "duration-asc":
           return (a.duration || 0) - (b.duration || 0)
         case "duration-desc":

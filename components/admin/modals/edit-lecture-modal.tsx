@@ -1,24 +1,14 @@
 "use client"
 
-import type React from "react"
 import { useState, useEffect } from "react"
-import {
-  Modal,
-  ModalOverlay,
-  ModalContent,
-  ModalHeader,
-  ModalFooter,
-  ModalBody,
-  ModalCloseButton,
-  Button,
-  FormControl,
-  FormLabel,
-  Input,
-  useToast,
-  Textarea,
-  Spinner,
-} from "@chakra-ui/react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { useToast } from "@/components/ui/use-toast"
 import { updateLecture } from "@/lib/api/lectures"
+import { Loader2 } from "lucide-react"
 
 interface EditLectureModalProps {
   isOpen: boolean
@@ -29,18 +19,18 @@ interface EditLectureModalProps {
   onLectureUpdated: () => void
 }
 
-const EditLectureModal: React.FC<EditLectureModalProps> = ({
+const EditLectureModal = ({
   isOpen,
   onClose,
   lectureId,
   initialTitle,
   initialDescription,
   onLectureUpdated,
-}) => {
+}: EditLectureModalProps) => {
   const [title, setTitle] = useState(initialTitle)
   const [description, setDescription] = useState(initialDescription)
   const [isLoading, setIsLoading] = useState(false)
-  const toast = useToast()
+  const { toast } = useToast()
 
   useEffect(() => {
     if (isOpen) {
@@ -54,9 +44,7 @@ const EditLectureModal: React.FC<EditLectureModalProps> = ({
       toast({
         title: "Error",
         description: "Lecture ID is missing.",
-        status: "error",
-        duration: 5000,
-        isClosable: true,
+        variant: "destructive",
       })
       return
     }
@@ -65,11 +53,8 @@ const EditLectureModal: React.FC<EditLectureModalProps> = ({
     try {
       await updateLecture(lectureId, { title, description })
       toast({
-        title: "Lecture updated.",
+        title: "Lecture updated",
         description: "The lecture has been successfully updated.",
-        status: "success",
-        duration: 5000,
-        isClosable: true,
       })
       onLectureUpdated()
       onClose()
@@ -78,9 +63,7 @@ const EditLectureModal: React.FC<EditLectureModalProps> = ({
       toast({
         title: "Error",
         description: error.message || "Failed to update lecture.",
-        status: "error",
-        duration: 5000,
-        isClosable: true,
+        variant: "destructive",
       })
     } finally {
       setIsLoading(false)
@@ -88,32 +71,32 @@ const EditLectureModal: React.FC<EditLectureModalProps> = ({
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
-      <ModalOverlay />
-      <ModalContent>
-        <ModalHeader>Edit Lecture</ModalHeader>
-        <ModalCloseButton />
-        <ModalBody>
-          <FormControl>
-            <FormLabel>Title</FormLabel>
-            <Input type="text" value={title} onChange={(e) => setTitle(e.target.value)} />
-          </FormControl>
-          <FormControl mt={4}>
-            <FormLabel>Description</FormLabel>
-            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} />
-          </FormControl>
-        </ModalBody>
-
-        <ModalFooter>
-          <Button colorScheme="blue" mr={3} onClick={onClose} isDisabled={isLoading}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit Lecture</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
+            <Label htmlFor="title">Title</Label>
+            <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="description">Description</Label>
+            <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} rows={4} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isLoading}>
             Cancel
           </Button>
-          <Button colorScheme="green" onClick={handleUpdateLecture} isLoading={isLoading}>
-            {isLoading ? <Spinner size="sm" /> : "Update"}
+          <Button onClick={handleUpdateLecture} disabled={isLoading}>
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Update
           </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

@@ -35,7 +35,7 @@ export default function LectureCard({ lecture }: LectureCardProps) {
       <div className="bg-white border border-gray-100 shadow-sm group-hover:shadow-md transition-all duration-300 h-full content-card">
         <div className="content-card-image">
           <Image
-            src={lecture.thumbnail || "/placeholder.svg"}
+            src={lecture.thumbnail || lecture.thumbnail_url || "/placeholder.svg"}
             alt={lecture.title}
             fill
             className="object-cover monochrome"
@@ -68,10 +68,10 @@ export default function LectureCard({ lecture }: LectureCardProps) {
         </div>
         <div className="content-card-body">
           <h3 className="content-card-title group-hover:underline">{lecture.title}</h3>
-          <p className="content-card-author">by {lecture.instructor}</p>
+          <p className="content-card-author">by {lecture.author?.name || lecture.instructor || "Unknown"}</p>
 
           <div className="flex flex-wrap gap-2 mb-4">
-            {lecture.tags.map((tag, index) => (
+            {(lecture.tags || []).map((tag, index) => (
               <span key={index} className="text-xs px-2 py-1 bg-gray-100">
                 {tag}
               </span>
@@ -85,7 +85,7 @@ export default function LectureCard({ lecture }: LectureCardProps) {
             </div>
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
-              <span>{lecture.durationMinutes} min</span>
+              <span>{lecture.duration || lecture.durationMinutes || 0} min</span>
             </div>
           </div>
         </div>
