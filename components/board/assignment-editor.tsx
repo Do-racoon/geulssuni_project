@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
-import { Upload, Save, AlertCircle, CheckCircle } from "lucide-react"
+import { Upload, Save, AlertCircle, CheckCircle, Calendar, Users } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { getCurrentUser } from "@/lib/auth"
 import { toast } from "sonner"
@@ -19,6 +19,8 @@ interface AssignmentFormData {
   title: string
   content: string
   level: string
+  due_date: string
+  max_submissions: number
   attachment_url?: string
 }
 
@@ -28,13 +30,15 @@ export default function AssignmentEditor() {
     title: "",
     content: "",
     level: "",
+    due_date: "",
+    max_submissions: 0,
     attachment_url: "",
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [previewMode, setPreviewMode] = useState(false)
   const [uploadingFile, setUploadingFile] = useState(false)
 
-  const handleInputChange = (field: keyof AssignmentFormData, value: string) => {
+  const handleInputChange = (field: keyof AssignmentFormData, value: string | number) => {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
@@ -86,24 +90,24 @@ export default function AssignmentEditor() {
       toast.error("난이도를 선택해주세요.")
       return
     }
+    if (!formData.due_date) {
+      toast.error("마감일을 선택해주세요.")
+      return
+    }
+    if (formData.max_submissions <= 0) {
+      toast.error("최대 제출 인원을 입력해주세요.")
+      return
+    }
 
     setIsSubmitting(true)
 
     try {
-      // 현재 사용자 정보 가져오기
       const currentUser = await getCurrentUser()
       if (!currentUser) {
         toast.error("로그인이 필요합니다.")
         return
       }
 
-      console.log("📝 과제 등록 시작:", {
-        title: formData.title,
-        level: formData.level,
-        author_id: currentUser.id,
-      })
-
-      // 과제 등록 API 호출
       const response = await fetch("/api/assignments", {
         method: "POST",
         headers: {
@@ -114,26 +118,23 @@ export default function AssignmentEditor() {
           content: formData.content.trim(),
           description: formData.content.trim().substring(0, 200),
           class_level: formData.level,
+          due_date: formData.due_date,
+          max_submissions: formData.max_submissions,
           author_id: currentUser.id,
-          due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           attachment_url: formData.attachment_url || null,
         }),
       })
 
       if (response.ok) {
         const result = await response.json()
-        console.log("✅ 과제 등록 성공:", result)
         toast.success("과제가 성공적으로 등록되었습니다!")
-
-        // 과제 게시판으로 이동
         router.push("/board")
       } else {
         const errorData = await response.json()
-        console.error("❌ 과제 등록 실패:", errorData)
         toast.error(errorData.error || "과제 등록에 실패했습니다.")
       }
     } catch (error) {
-      console.error("💥 과제 등록 오류:", error)
+      console.error("과제 등록 오류:", error)
       toast.error("과제 등록 중 오류가 발생했습니다.")
     } finally {
       setIsSubmitting(false)
@@ -167,7 +168,15 @@ export default function AssignmentEditor() {
     )
   }
 
-  const isFormValid = formData.title.trim() && formData.content.trim() && formData.level
+  const isFormValid =
+    formData.title.trim() &&
+    formData.content.trim() &&
+    formData.level &&
+    formData.due_date &&
+    formData.max_submissions > 0
+
+  // 최소 마감일 (현재 시간 + 1시간)
+  const minDateTime = new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16)
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -258,6 +267,52 @@ export default function AssignmentEditor() {
                   <span className="tracking-wide">{getLevelInfo(formData.level).description}</span>
                 </div>
               )}
+            </div>
+
+            {/* 마감일과 제출 현황 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* 마감일 */}
+              <div className="space-y-3">
+                <Label
+                  htmlFor="due_date"
+                  className="text-sm font-light tracking-widest uppercase flex items-center gap-2"
+                >
+                  <Calendar className="h-4 w-4" />
+                  DUE DATE *
+                </Label>
+                <Input
+                  id="due_date"
+                  type="datetime-local"
+                  min={minDateTime}
+                  value={formData.due_date}
+                  onChange={(e) => handleInputChange("due_date", e.target.value)}
+                  className="border-black focus:border-black focus:ring-0 font-light tracking-wide"
+                  style={{ borderRadius: "0" }}
+                />
+              </div>
+
+              {/* 최대 제출 인원 */}
+              <div className="space-y-3">
+                <Label
+                  htmlFor="max_submissions"
+                  className="text-sm font-light tracking-widest uppercase flex items-center gap-2"
+                >
+                  <Users className="h-4 w-4" />
+                  MAX SUBMISSIONS *
+                </Label>
+                <Input
+                  id="max_submissions"
+                  type="number"
+                  min="1"
+                  max="1000"
+                  placeholder="0"
+                  value={formData.max_submissions || ""}
+                  onChange={(e) => handleInputChange("max_submissions", Number.parseInt(e.target.value) || 0)}
+                  className="border-black focus:border-black focus:ring-0 font-light tracking-wide"
+                  style={{ borderRadius: "0" }}
+                />
+                <p className="text-xs text-gray-500 tracking-wide">MAXIMUM NUMBER OF STUDENTS WHO CAN SUBMIT</p>
+              </div>
             </div>
           </CardContent>
         </Card>
