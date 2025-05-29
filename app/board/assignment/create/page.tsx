@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Save, Calendar, Users, Upload, CheckCircle } from "lucide-react"
+import { ArrowLeft, Save, Calendar, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -13,7 +13,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useRouter } from "next/navigation"
-import { getCurrentUser } from "@/lib/auth"
 import { toast } from "sonner"
 
 export default function CreateAssignmentPage() {
@@ -24,39 +23,8 @@ export default function CreateAssignmentPage() {
     level: "",
     due_date: "",
     max_submissions: 0,
-    attachment_url: "",
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [uploadingFile, setUploadingFile] = useState(false)
-
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    setUploadingFile(true)
-    try {
-      const formData = new FormData()
-      formData.append("file", file)
-
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      })
-
-      if (response.ok) {
-        const { url } = await response.json()
-        setFormData((prev) => ({ ...prev, attachment_url: url }))
-        toast.success("파일이 업로드되었습니다!")
-      } else {
-        toast.error("파일 업로드에 실패했습니다.")
-      }
-    } catch (error) {
-      console.error("파일 업로드 오류:", error)
-      toast.error("파일 업로드 중 오류가 발생했습니다.")
-    } finally {
-      setUploadingFile(false)
-    }
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -75,13 +43,6 @@ export default function CreateAssignmentPage() {
     setIsSubmitting(true)
 
     try {
-      // 현재 사용자 정보 가져오기
-      const currentUser = await getCurrentUser()
-      if (!currentUser) {
-        toast.error("로그인이 필요합니다.")
-        return
-      }
-
       const response = await fetch("/api/assignments", {
         method: "POST",
         headers: {
@@ -94,8 +55,6 @@ export default function CreateAssignmentPage() {
           class_level: formData.level,
           due_date: formData.due_date,
           max_submissions: formData.max_submissions,
-          author_id: currentUser.id,
-          attachment_url: formData.attachment_url || null,
         }),
       })
 
@@ -265,54 +224,6 @@ export default function CreateAssignmentPage() {
                     style={{ borderRadius: "0" }}
                     required
                   />
-                </div>
-
-                {/* 파일 업로드 */}
-                <div className="space-y-3">
-                  <Label htmlFor="file-upload" className="text-sm font-light tracking-widest uppercase">
-                    ATTACHMENT (OPTIONAL)
-                  </Label>
-                  <div className="flex items-center gap-4">
-                    <div className="relative">
-                      <input
-                        id="file-upload"
-                        type="file"
-                        onChange={handleFileUpload}
-                        className="hidden"
-                        accept=".pdf,.doc,.docx,.txt,.zip,.rar"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => document.getElementById("file-upload")?.click()}
-                        disabled={uploadingFile}
-                        className="flex items-center gap-2 border-black text-black bg-white hover:bg-black hover:text-white tracking-widest uppercase font-light"
-                        style={{ borderRadius: "0" }}
-                      >
-                        <Upload className="h-4 w-4" />
-                        {uploadingFile ? "UPLOADING..." : "SELECT FILE"}
-                      </Button>
-                    </div>
-                    {formData.attachment_url && (
-                      <div className="flex items-center gap-2 text-sm text-green-600">
-                        <CheckCircle className="h-4 w-4" />
-                        <span className="tracking-wide">FILE UPLOADED SUCCESSFULLY</span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setFormData((prev) => ({ ...prev, attachment_url: "" }))}
-                          className="text-red-500 hover:text-red-700 tracking-widest uppercase"
-                          style={{ borderRadius: "0" }}
-                        >
-                          REMOVE
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-500 tracking-wide">
-                    SUPPORTED FORMATS: PDF, DOC, DOCX, TXT, ZIP, RAR (MAX 10MB)
-                  </p>
                 </div>
 
                 {/* 제출 버튼 */}
