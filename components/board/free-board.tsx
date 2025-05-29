@@ -21,10 +21,10 @@ export default function FreeBoard() {
 
   // 올바른 카테고리 정의: 자유, 질문, 공유
   const categories = [
-    { value: "all", label: "전체" },
-    { value: "general", label: "자유" },
-    { value: "open", label: "질문" },
-    { value: "sharing", label: "공유" },
+    { value: "all", label: "ALL" },
+    { value: "general", label: "FREE" },
+    { value: "open", label: "QUESTION" },
+    { value: "sharing", label: "SHARE" },
   ]
 
   // 실제 데이터베이스에서 게시글 가져오기
@@ -73,14 +73,14 @@ export default function FreeBoard() {
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
           <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-            <div className="w-full sm:w-[180px] h-10 bg-gray-200 animate-pulse rounded"></div>
-            <div className="w-full sm:w-[300px] h-10 bg-gray-200 animate-pulse rounded"></div>
+            <div className="w-full sm:w-[180px] h-10 bg-gray-200 animate-pulse"></div>
+            <div className="w-full sm:w-[300px] h-10 bg-gray-200 animate-pulse"></div>
           </div>
-          <div className="w-full sm:w-auto h-10 bg-gray-200 animate-pulse rounded"></div>
+          <div className="w-full sm:w-auto h-10 bg-gray-200 animate-pulse"></div>
         </div>
         <div className="space-y-4">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-32 bg-gray-200 animate-pulse rounded-lg"></div>
+            <div key={i} className="h-32 bg-gray-200 animate-pulse"></div>
           ))}
         </div>
       </div>
@@ -92,12 +92,12 @@ export default function FreeBoard() {
       <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
         <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
           <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-full sm:w-[240px] h-11 bg-white border-2 border-gray-200 hover:border-gray-300 focus:border-blue-500 transition-colors">
-              <SelectValue placeholder="카테고리 선택" />
+            <SelectTrigger className="w-full sm:w-[240px] h-11 bg-white border border-black hover:bg-gray-50 focus:border-black transition-colors">
+              <SelectValue placeholder="CATEGORY" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="border border-black">
               {categories.map((category) => (
-                <SelectItem key={category.value} value={category.value} className="py-3">
+                <SelectItem key={category.value} value={category.value} className="py-3 tracking-wider font-light">
                   {category.label}
                 </SelectItem>
               ))}
@@ -105,20 +105,23 @@ export default function FreeBoard() {
           </Select>
 
           <div className="relative w-full sm:w-[320px]">
-            <Search className="absolute left-3 top-3.5 h-4 w-4 text-gray-500" />
+            <Search className="absolute left-3 top-3.5 h-4 w-4 text-black" />
             <Input
               type="search"
-              placeholder="게시글 검색..."
-              className="pl-10 h-11 bg-white border-2 border-gray-200 hover:border-gray-300 focus:border-blue-500 transition-colors"
+              placeholder="SEARCH"
+              className="pl-10 h-11 bg-white border border-black hover:bg-gray-50 focus:border-black transition-colors tracking-wider font-light"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
         </div>
 
-        <Button onClick={() => router.push("/board/create")} className="w-full sm:w-auto h-11 px-6">
+        <Button
+          onClick={() => router.push("/board/create")}
+          className="w-full sm:w-auto h-11 px-6 bg-black hover:bg-gray-800 text-white tracking-wider font-light"
+        >
           <Plus className="mr-2 h-4 w-4" />
-          글쓰기
+          WRITE
         </Button>
       </div>
 
@@ -129,18 +132,27 @@ export default function FreeBoard() {
           ))}
         </div>
       ) : (
-        <Card>
+        <Card className="border border-black">
           <CardContent className="flex flex-col items-center justify-center py-10">
-            <p className="text-center text-gray-500 mb-4">
-              {searchQuery ? "검색 결과가 없습니다." : "아직 게시글이 없습니다."}
+            <p className="text-center text-gray-500 mb-4 tracking-wider font-light">
+              {searchQuery ? "NO RESULTS FOUND" : "NO POSTS YET"}
             </p>
             <div className="flex gap-2">
               {searchQuery && (
-                <Button onClick={() => setSearchQuery("")} variant="outline">
-                  검색 초기화
+                <Button
+                  onClick={() => setSearchQuery("")}
+                  variant="outline"
+                  className="border border-black hover:bg-gray-50 tracking-wider font-light"
+                >
+                  RESET SEARCH
                 </Button>
               )}
-              <Button onClick={() => router.push("/board/create")}>첫 번째 글 작성하기</Button>
+              <Button
+                onClick={() => router.push("/board/create")}
+                className="bg-black hover:bg-gray-800 text-white tracking-wider font-light"
+              >
+                WRITE FIRST POST
+              </Button>
             </div>
           </CardContent>
         </Card>
