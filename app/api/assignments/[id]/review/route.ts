@@ -22,6 +22,10 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       .eq("id", user.id)
       .single()
 
+    // 사용자 정보를 저장할 변수
+    let userId: string
+    let userRole: string
+
     if (userError || !dbUser) {
       // 사용자가 users 테이블에 없다면 이메일로 찾기
       const { data: userByEmail, error: emailError } = await supabase
@@ -35,12 +39,16 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       }
 
       // 이메일로 찾은 사용자 정보 사용
-      dbUser.id = userByEmail.id
-      dbUser.role = userByEmail.role
+      userId = userByEmail.id
+      userRole = userByEmail.role
+    } else {
+      // 기존 사용자 정보 사용
+      userId = dbUser.id
+      userRole = dbUser.role
     }
 
     // 권한 확인 (관리자 또는 강사만 검수 가능)
-    if (!["admin", "instructor", "teacher"].includes(dbUser.role)) {
+    if (!["admin", "instructor", "teacher"].includes(userRole)) {
       return NextResponse.json({ error: "검수 권한이 없습니다." }, { status: 403 })
     }
 
@@ -64,7 +72,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
     // 검수 완료 시 검수자와 검수일 기록
     if (newStatus === "completed") {
-      updateData.reviewed_by = dbUser.id
+      updateData.reviewed_by = userId
       updateData.reviewed_at = new Date().toISOString()
     } else {
       updateData.reviewed_by = null
