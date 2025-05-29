@@ -2,162 +2,110 @@
 
 import type React from "react"
 
-import { useState, useRef } from "react"
-import { useRouter } from "next/navigation"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
-import { FileText, Upload, X, Loader2, Lock } from "lucide-react"
-import { Card } from "@/components/ui/card"
-import { uploadFile } from "@/lib/upload-client"
-import RichTextEditor from "@/components/rich-text-editor"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Textarea } from "@/components/ui/textarea"
+import { Upload, Save, AlertCircle, CheckCircle, Calendar, Users } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { getCurrentUser } from "@/lib/auth"
+import { toast } from "sonner"
 
-interface AssignmentEditorProps {
-  onSubmit?: (formData: FormData) => void
-  isSubmitting?: boolean
-  initialData?: {
-    title?: string
-    level?: string
-    content?: string
-    completed?: boolean
-    reviewerNote?: string
-    password?: string
-  }
-  isAdmin?: boolean
-  currentUserId?: string
+interface AssignmentFormData {
+  title: string
+  content: string
+  level: string
+  due_date: string
+  max_submissions: number
+  attachment_url?: string
 }
 
-export function AssignmentEditor({
-  onSubmit,
-  isSubmitting: externalIsSubmitting,
-  initialData,
-  isAdmin = false,
-  currentUserId,
-}: AssignmentEditorProps) {
-  const [title, setTitle] = useState(initialData?.title || "")
-  const [level, setLevel] = useState(initialData?.level || "")
-  const [content, setContent] = useState(initialData?.content || "")
-  const [richContent, setRichContent] = useState(initialData?.content || "")
-  const [useRichEditor, setUseRichEditor] = useState(true)
-  const [reviewerNote, setReviewerNote] = useState(initialData?.reviewerNote || "")
-  const [password, setPassword] = useState(initialData?.password || "")
-  const [file, setFile] = useState<File | null>(null)
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [uploadingFile, setUploadingFile] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+export default function AssignmentEditor() {
   const router = useRouter()
+  const [formData, setFormData] = useState<AssignmentFormData>({
+    title: "",
+    content: "",
+    level: "",
+    due_date: "",
+    max_submissions: 0,
+    attachment_url: "",
+  })
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [previewMode, setPreviewMode] = useState(false)
+  const [uploadingFile, setUploadingFile] = useState(false)
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const selectedFile = e.target.files[0]
-      const allowedTypes = [".pdf", ".hwp", ".txt", ".doc", ".docx"]
-      const fileExtension = selectedFile.name.substring(selectedFile.name.lastIndexOf(".")).toLowerCase()
-
-      if (!allowedTypes.includes(fileExtension)) {
-        setErrors({ ...errors, file: "PDF, HWP, TXT, DOC, DOCX 파일만 업로드 가능합니다" })
-        return
-      }
-
-      if (selectedFile.size > 10 * 1024 * 1024) {
-        setErrors({ ...errors, file: "파일 크기는 10MB 이하여야 합니다" })
-        return
-      }
-
-      setFile(selectedFile)
-      setErrors({ ...errors, file: "" })
-    }
+  const handleInputChange = (field: keyof AssignmentFormData, value: string | number) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }))
   }
 
-  const removeFile = () => {
-    setFile(null)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setUploadingFile(true)
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (response.ok) {
+        const { url } = await response.json()
+        handleInputChange("attachment_url", url)
+        toast.success("파일이 업로드되었습니다!")
+      } else {
+        toast.error("파일 업로드에 실패했습니다.")
+      }
+    } catch (error) {
+      console.error("파일 업로드 오류:", error)
+      toast.error("파일 업로드 중 오류가 발생했습니다.")
+    } finally {
+      setUploadingFile(false)
     }
-  }
-
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {}
-
-    if (!title.trim()) {
-      newErrors.title = "제목을 입력해주세요"
-    }
-
-    if (!level) {
-      newErrors.level = "난이도를 선택해주세요"
-    }
-
-    if (!useRichEditor && !content.trim()) {
-      newErrors.content = "내용을 입력해주세요"
-    }
-
-    if (useRichEditor && !richContent.trim()) {
-      newErrors.richContent = "내용을 입력해주세요"
-    }
-
-    if (!password.trim()) {
-      newErrors.password = "과제 비밀번호를 입력해주세요"
-    }
-
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!validateForm()) {
+    // 필수 필드 검증
+    if (!formData.title.trim()) {
+      toast.error("제목을 입력해주세요.")
+      return
+    }
+    if (!formData.content.trim()) {
+      toast.error("내용을 입력해주세요.")
+      return
+    }
+    if (!formData.level) {
+      toast.error("난이도를 선택해주세요.")
+      return
+    }
+    if (!formData.due_date) {
+      toast.error("마감일을 선택해주세요.")
+      return
+    }
+    if (formData.max_submissions <= 0) {
+      toast.error("최대 제출 인원을 입력해주세요.")
       return
     }
 
-    if (onSubmit) {
-      const formData = new FormData()
-      formData.append("title", title)
-      formData.append("level", level)
-      formData.append("content", useRichEditor ? richContent : content)
-      formData.append("password", password)
-      formData.append("useRichEditor", useRichEditor.toString())
-
-      if (isAdmin && reviewerNote) {
-        formData.append("reviewerNote", reviewerNote)
-      }
-
-      if (file) {
-        formData.append("attachment", file)
-      }
-
-      onSubmit(formData)
-      return
-    }
-
-    // 기본 제출 로직
     setIsSubmitting(true)
 
     try {
-      let attachmentUrl = null
-
-      // 파일 업로드
-      if (file) {
-        setUploadingFile(true)
-        const uploadResult = await uploadFile(file, { folder: "assignments" })
-        if (uploadResult.success && uploadResult.data) {
-          attachmentUrl = uploadResult.data.publicUrl
-        }
-        setUploadingFile(false)
-      }
-
-      // 과제 저장
-      const assignmentData = {
-        title,
-        content: useRichEditor ? richContent : content,
-        level,
-        password,
-        author_id: currentUserId || "c3d4e5f6-a7b8-6c7d-0e1f-2a3b4c5d6e7f", // 임시 ID
-        reviewer_note: isAdmin ? reviewerNote : null,
-        attachment_url: attachmentUrl,
+      const currentUser = await getCurrentUser()
+      if (!currentUser) {
+        toast.error("로그인이 필요합니다.")
+        return
       }
 
       const response = await fetch("/api/assignments", {
@@ -165,187 +113,346 @@ export function AssignmentEditor({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(assignmentData),
+        body: JSON.stringify({
+          title: formData.title.trim(),
+          content: formData.content.trim(),
+          description: formData.content.trim().substring(0, 200),
+          class_level: formData.level,
+          due_date: formData.due_date,
+          max_submissions: formData.max_submissions,
+          author_id: currentUser.id,
+          attachment_url: formData.attachment_url || null,
+        }),
       })
 
-      if (!response.ok) {
+      if (response.ok) {
+        const result = await response.json()
+        toast.success("과제가 성공적으로 등록되었습니다!")
+        router.push("/board")
+      } else {
         const errorData = await response.json()
-        throw new Error(errorData.error || "과제 저장에 실패했습니다")
+        toast.error(errorData.error || "과제 등록에 실패했습니다.")
       }
-
-      const newAssignment = await response.json()
-      console.log("새 과제 저장됨:", newAssignment)
-
-      // 성공 시 게시판으로 리다이렉트
-      router.push("/board")
     } catch (error) {
-      console.error("과제 저장 오류:", error)
-      setErrors({ submit: error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다" })
+      console.error("과제 등록 오류:", error)
+      toast.error("과제 등록 중 오류가 발생했습니다.")
     } finally {
       setIsSubmitting(false)
-      setUploadingFile(false)
     }
   }
 
-  const submitting = externalIsSubmitting || isSubmitting
+  const getLevelInfo = (level: string) => {
+    const levelMap = {
+      beginner: {
+        label: "BASIC",
+        color: "bg-white text-black border border-black",
+        description: "프로그래밍 입문자를 위한 기초 과제",
+      },
+      intermediate: {
+        label: "INTERMEDIATE",
+        color: "bg-black text-white border border-black",
+        description: "기본기를 다진 학습자를 위한 중급 과제",
+      },
+      advanced: {
+        label: "ADVANCED",
+        color: "bg-gray-800 text-white border border-gray-800",
+        description: "고급 개발자를 위한 심화 과제",
+      },
+    }
+    return (
+      levelMap[level as keyof typeof levelMap] || {
+        label: level,
+        color: "bg-gray-100 text-gray-800 border border-gray-300",
+        description: "",
+      }
+    )
+  }
+
+  const isFormValid =
+    formData.title.trim() &&
+    formData.content.trim() &&
+    formData.level &&
+    formData.due_date &&
+    formData.max_submissions > 0
+
+  // 최소 마감일 (현재 시간 + 1시간)
+  const minDateTime = new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16)
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {errors.submit && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">{errors.submit}</div>
-      )}
-
-      <div className="space-y-2">
-        <Label htmlFor="title">
-          제목 <span className="text-red-500">*</span>
-        </Label>
-        <Input
-          id="title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="과제 제목을 입력하세요"
-          className={errors.title ? "border-red-500" : ""}
-        />
-        {errors.title && <p className="text-sm text-red-500">{errors.title}</p>}
+    <div className="max-w-4xl mx-auto space-y-8">
+      {/* 헤더 */}
+      <div className="text-center">
+        <h1 className="text-4xl font-light text-black mb-4 tracking-widest uppercase">NEW ASSIGNMENT</h1>
+        <p className="text-gray-600 tracking-wide">CREATE A NEW ASSIGNMENT FOR STUDENTS</p>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="level">
-          난이도 <span className="text-red-500">*</span>
-        </Label>
-        <Select value={level} onValueChange={setLevel}>
-          <SelectTrigger id="level" className={errors.level ? "border-red-500" : ""}>
-            <SelectValue placeholder="난이도를 선택하세요" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="beginner">기초반</SelectItem>
-            <SelectItem value="intermediate">중급반</SelectItem>
-            <SelectItem value="advanced">전문반</SelectItem>
-          </SelectContent>
-        </Select>
-        {errors.level && <p className="text-sm text-red-500">{errors.level}</p>}
-      </div>
+      <form onSubmit={handleSubmit} className="space-y-8">
+        {/* 기본 정보 */}
+        <Card className="border-black" style={{ borderRadius: "0" }}>
+          <CardHeader className="border-b border-black">
+            <CardTitle className="flex items-center gap-3 text-xl font-light tracking-widest uppercase">
+              BASIC INFORMATION
+              {isFormValid && <CheckCircle className="h-5 w-5 text-black" />}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6 p-8">
+            {/* 제목 */}
+            <div className="space-y-3">
+              <Label htmlFor="title" className="text-sm font-light tracking-widest uppercase">
+                ASSIGNMENT TITLE *
+              </Label>
+              <Input
+                id="title"
+                placeholder="ENTER ASSIGNMENT TITLE"
+                value={formData.title}
+                onChange={(e) => handleInputChange("title", e.target.value)}
+                className="text-lg border-black focus:border-black focus:ring-0 font-light tracking-wide"
+                style={{ borderRadius: "0" }}
+              />
+            </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="password">
-          <Lock className="inline h-4 w-4 mr-1" />
-          과제 비밀번호 <span className="text-red-500">*</span>
-        </Label>
-        <Input
-          id="password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="과제를 보기 위한 비밀번호를 설정하세요"
-          className={errors.password ? "border-red-500" : ""}
-        />
-        {errors.password && <p className="text-sm text-red-500">{errors.password}</p>}
-        <p className="text-xs text-gray-500">학생들이 과제를 보려면 이 비밀번호를 입력해야 합니다.</p>
-      </div>
+            {/* 난이도 선택 */}
+            <div className="space-y-3">
+              <Label htmlFor="level" className="text-sm font-light tracking-widest uppercase">
+                DIFFICULTY LEVEL *
+              </Label>
+              <Select value={formData.level} onValueChange={(value) => handleInputChange("level", value)}>
+                <SelectTrigger className="border-black focus:border-black focus:ring-0" style={{ borderRadius: "0" }}>
+                  <SelectValue placeholder="SELECT DIFFICULTY LEVEL" />
+                </SelectTrigger>
+                <SelectContent style={{ borderRadius: "0" }}>
+                  <SelectItem value="beginner">
+                    <div className="flex items-center gap-3">
+                      <Badge
+                        className="bg-white text-black border border-black tracking-widest"
+                        style={{ borderRadius: "0" }}
+                      >
+                        BASIC
+                      </Badge>
+                      <span className="tracking-wide">FOR PROGRAMMING BEGINNERS</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="intermediate">
+                    <div className="flex items-center gap-3">
+                      <Badge
+                        className="bg-black text-white border border-black tracking-widest"
+                        style={{ borderRadius: "0" }}
+                      >
+                        INTERMEDIATE
+                      </Badge>
+                      <span className="tracking-wide">FOR INTERMEDIATE LEARNERS</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="advanced">
+                    <div className="flex items-center gap-3">
+                      <Badge
+                        className="bg-gray-800 text-white border border-gray-800 tracking-widest"
+                        style={{ borderRadius: "0" }}
+                      >
+                        ADVANCED
+                      </Badge>
+                      <span className="tracking-wide">FOR ADVANCED DEVELOPERS</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              {formData.level && (
+                <div className="flex items-center gap-3 text-sm text-gray-600">
+                  <Badge
+                    className={getLevelInfo(formData.level).color + " tracking-widest"}
+                    style={{ borderRadius: "0" }}
+                  >
+                    {getLevelInfo(formData.level).label}
+                  </Badge>
+                  <span className="tracking-wide">{getLevelInfo(formData.level).description}</span>
+                </div>
+              )}
+            </div>
 
-      <div className="space-y-2">
+            {/* 마감일과 제출 현황 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* 마감일 */}
+              <div className="space-y-3">
+                <Label
+                  htmlFor="due_date"
+                  className="text-sm font-light tracking-widest uppercase flex items-center gap-2"
+                >
+                  <Calendar className="h-4 w-4" />
+                  DUE DATE *
+                </Label>
+                <Input
+                  id="due_date"
+                  type="datetime-local"
+                  min={minDateTime}
+                  value={formData.due_date}
+                  onChange={(e) => handleInputChange("due_date", e.target.value)}
+                  className="border-black focus:border-black focus:ring-0 font-light tracking-wide"
+                  style={{ borderRadius: "0" }}
+                />
+              </div>
+
+              {/* 최대 제출 인원 */}
+              <div className="space-y-3">
+                <Label
+                  htmlFor="max_submissions"
+                  className="text-sm font-light tracking-widest uppercase flex items-center gap-2"
+                >
+                  <Users className="h-4 w-4" />
+                  MAX SUBMISSIONS *
+                </Label>
+                <Input
+                  id="max_submissions"
+                  type="number"
+                  min="1"
+                  max="1000"
+                  placeholder="0"
+                  value={formData.max_submissions || ""}
+                  onChange={(e) => handleInputChange("max_submissions", Number.parseInt(e.target.value) || 0)}
+                  className="border-black focus:border-black focus:ring-0 font-light tracking-wide"
+                  style={{ borderRadius: "0" }}
+                />
+                <p className="text-xs text-gray-500 tracking-wide">MAXIMUM NUMBER OF STUDENTS WHO CAN SUBMIT</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 과제 내용 */}
+        <Card className="border-black" style={{ borderRadius: "0" }}>
+          <CardHeader className="border-b border-black">
+            <CardTitle className="flex items-center justify-between text-xl font-light tracking-widest uppercase">
+              ASSIGNMENT CONTENT
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  variant={previewMode ? "outline" : "default"}
+                  size="sm"
+                  onClick={() => setPreviewMode(!previewMode)}
+                  className="border-black text-black bg-white hover:bg-black hover:text-white tracking-widest uppercase font-light"
+                  style={{ borderRadius: "0" }}
+                >
+                  {previewMode ? "EDIT" : "PREVIEW"}
+                </Button>
+              </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-8">
+            {previewMode ? (
+              <div className="min-h-[200px] p-6 border border-gray-300 bg-gray-50" style={{ borderRadius: "0" }}>
+                <div className="prose max-w-none">
+                  <h3 className="font-light tracking-wide">{formData.title || "ASSIGNMENT TITLE"}</h3>
+                  <div className="whitespace-pre-wrap tracking-wide font-light">
+                    {formData.content || "ENTER ASSIGNMENT CONTENT..."}
+                  </div>
+                  {formData.attachment_url && (
+                    <div className="mt-6 p-4 bg-blue-50 border border-blue-200" style={{ borderRadius: "0" }}>
+                      <p className="text-sm font-light tracking-widest uppercase text-blue-800">ATTACHMENT</p>
+                      <a
+                        href={formData.attachment_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline tracking-wide"
+                      >
+                        {formData.attachment_url}
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <Textarea
+                  placeholder="ENTER ASSIGNMENT DESCRIPTION, REQUIREMENTS, SUBMISSION GUIDELINES..."
+                  value={formData.content}
+                  onChange={(e) => handleInputChange("content", e.target.value)}
+                  className="min-h-[200px] resize-none border-black focus:border-black focus:ring-0 font-light tracking-wide"
+                  style={{ borderRadius: "0" }}
+                />
+
+                {/* 파일 업로드 */}
+                <div className="space-y-3">
+                  <Label htmlFor="file-upload" className="text-sm font-light tracking-widest uppercase">
+                    ATTACHMENT (OPTIONAL)
+                  </Label>
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      <input
+                        id="file-upload"
+                        type="file"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                        accept=".pdf,.doc,.docx,.txt,.zip,.rar"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => document.getElementById("file-upload")?.click()}
+                        disabled={uploadingFile}
+                        className="flex items-center gap-2 border-black text-black bg-white hover:bg-black hover:text-white tracking-widest uppercase font-light"
+                        style={{ borderRadius: "0" }}
+                      >
+                        <Upload className="h-4 w-4" />
+                        {uploadingFile ? "UPLOADING..." : "SELECT FILE"}
+                      </Button>
+                    </div>
+                    {formData.attachment_url && (
+                      <div className="flex items-center gap-2 text-sm text-green-600">
+                        <CheckCircle className="h-4 w-4" />
+                        <span className="tracking-wide">FILE UPLOADED SUCCESSFULLY</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleInputChange("attachment_url", "")}
+                          className="text-red-500 hover:text-red-700 tracking-widest uppercase"
+                          style={{ borderRadius: "0" }}
+                        >
+                          REMOVE
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-500 tracking-wide">
+                    SUPPORTED FORMATS: PDF, DOC, DOCX, TXT, ZIP, RAR (MAX 10MB)
+                  </p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 제출 버튼 */}
         <div className="flex justify-between items-center">
-          <Label htmlFor="content">
-            내용 <span className="text-red-500">*</span>
-          </Label>
-          <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-500">리치 에디터 사용</span>
-            <Switch checked={useRichEditor} onCheckedChange={setUseRichEditor} />
-          </div>
-        </div>
-
-        {useRichEditor ? (
-          <div className="border rounded-md">
-            <RichTextEditor initialContent={richContent} onChange={setRichContent} />
-            {errors.richContent && <p className="text-sm text-red-500 mt-1">{errors.richContent}</p>}
-          </div>
-        ) : (
-          <>
-            <Textarea
-              id="content"
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="과제 내용을 입력하세요"
-              className={`min-h-[200px] ${errors.content ? "border-red-500" : ""}`}
-            />
-            {errors.content && <p className="text-sm text-red-500">{errors.content}</p>}
-          </>
-        )}
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="attachment">첨부파일</Label>
-        <div className="flex items-center gap-2">
-          <Input
-            ref={fileInputRef}
-            id="attachment"
-            type="file"
-            onChange={handleFileChange}
-            className="hidden"
-            accept=".pdf,.hwp,.txt,.doc,.docx"
-          />
           <Button
             type="button"
             variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-2"
-            disabled={uploadingFile}
+            onClick={() => router.back()}
+            disabled={isSubmitting}
+            className="border-black text-black bg-white hover:bg-black hover:text-white tracking-widest uppercase font-light"
+            style={{ borderRadius: "0" }}
           >
-            <Upload size={16} />
-            {uploadingFile ? "업로드 중..." : "파일 업로드"}
+            CANCEL
           </Button>
-          <span className="text-sm text-gray-500">지원 파일: PDF, HWP, TXT, DOC, DOCX (최대 10MB)</span>
-        </div>
-        {errors.file && <p className="text-sm text-red-500">{errors.file}</p>}
-        {file && (
-          <Card className="p-3 mt-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FileText size={16} />
-                <span className="text-sm font-medium">{file.name}</span>
-                <span className="text-xs text-gray-500">({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+
+          <div className="flex gap-4 items-center">
+            {!isFormValid && (
+              <div className="flex items-center gap-2 text-amber-600">
+                <AlertCircle className="h-4 w-4" />
+                <span className="text-sm tracking-wide">PLEASE FILL ALL REQUIRED FIELDS</span>
               </div>
-              <Button type="button" variant="ghost" size="sm" onClick={removeFile} className="h-8 w-8 p-0">
-                <X size={16} />
-              </Button>
-            </div>
-          </Card>
-        )}
-      </div>
-
-      {isAdmin && (
-        <div className="space-y-2 pt-4 border-t">
-          <Label htmlFor="reviewerNote">검토자 노트 (관리자 전용)</Label>
-          <Textarea
-            id="reviewerNote"
-            value={reviewerNote}
-            onChange={(e) => setReviewerNote(e.target.value)}
-            placeholder="이 과제에 대한 노트나 피드백을 추가하세요"
-            className="min-h-[100px]"
-          />
+            )}
+            <Button
+              type="submit"
+              disabled={!isFormValid || isSubmitting}
+              className="flex items-center gap-2 min-w-[150px] bg-black text-white hover:bg-gray-800 tracking-widest uppercase font-light"
+              style={{ borderRadius: "0" }}
+            >
+              <Save className="h-4 w-4" />
+              {isSubmitting ? "CREATING..." : "CREATE ASSIGNMENT"}
+            </Button>
+          </div>
         </div>
-      )}
-
-      <div className="flex items-center justify-between pt-4">
-        <Button type="button" variant="outline" onClick={() => router.back()}>
-          취소
-        </Button>
-        <Button type="submit" disabled={submitting || uploadingFile}>
-          {submitting ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              등록 중...
-            </>
-          ) : (
-            "과제 등록"
-          )}
-        </Button>
-      </div>
-    </form>
+      </form>
+    </div>
   )
-}
-
-// Add default export for direct import
-export default function StandaloneAssignmentEditor() {
-  return <AssignmentEditor />
 }

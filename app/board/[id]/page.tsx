@@ -1,10 +1,12 @@
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowLeft, Heart, MessageCircle, Share2 } from "lucide-react"
+import { ArrowLeft, Heart, MessageCircle } from "lucide-react"
 import { getBoardPost, getBoardComments } from "@/lib/api/board"
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
 import CommentSection from "@/components/board/comment-section"
-import { Button } from "@/components/ui/button"
+import PostActions from "@/components/board/post-actions"
 
 interface BoardPostPageProps {
   params: {
@@ -12,14 +14,72 @@ interface BoardPostPageProps {
   }
 }
 
+async function checkIfAssignment(id: string) {
+  const supabase = createServerComponentClient({ cookies })
+
+  try {
+    const { data: assignmentData, error } = await supabase.from("assignments").select("id").eq("id", id).single()
+
+    return !error && assignmentData
+  } catch (error) {
+    console.error("Error checking assignments:", error)
+    return false
+  }
+}
+
+async function getCurrentUser() {
+  const supabase = createServerComponentClient({ cookies })
+
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) return null
+
+    const { data: dbUser } = await supabase.from("users").select("id, role").eq("id", user.id).single()
+
+    return dbUser
+  } catch (error) {
+    console.error("Error getting current user:", error)
+    return null
+  }
+}
+
 export default async function BoardPostPage({ params }: BoardPostPageProps) {
-  const post = await getBoardPost(params.id)
+  // 먼저 board_posts 테이블에서 찾기
+  let post
+  try {
+    post = await getBoardPost(params.id)
+  } catch (error) {
+    console.error("Error getting board post:", error)
+    post = null
+  }
+
+  // board_posts에서 찾지 못했다면 assignments 테이블에서 확인
+  if (!post) {
+    const isAssignment = await checkIfAssignment(params.id)
+
+    if (isAssignment) {
+      // assignments 데이터라면 과제 상세 페이지로 리다이렉트
+      redirect(`/board/assignment/${params.id}`)
+    }
+  }
 
   if (!post) {
     notFound()
   }
 
-  const comments = await getBoardComments(params.id)
+  let comments = []
+  try {
+    comments = await getBoardComments(params.id)
+  } catch (error) {
+    console.error("Error getting comments:", error)
+    comments = []
+  }
+
+  // 현재 사용자 정보 가져오기
+  const currentUser = await getCurrentUser()
 
   const formattedDate = new Date(post.created_at).toLocaleDateString("ko-KR", {
     year: "numeric",
@@ -32,26 +92,30 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
   const getCategoryLabel = (category: string) => {
     switch (category) {
       case "general":
-        return "일반"
+        return "FREE"
       case "sharing":
-        return "공유"
+        return "SHARE"
       case "open":
-        return "자유주제"
+        return "QUESTION"
+      case "tech":
+        return "TECH"
+      case "design":
+        return "DESIGN"
       default:
-        return category
+        return category.toUpperCase()
     }
   }
 
   const getTypeLabel = (type: string) => {
     switch (type) {
       case "free":
-        return "자유게시판"
+        return "FREE BOARD"
       case "notice":
-        return "공지사항"
+        return "NOTICE"
       case "qna":
         return "Q&A"
       default:
-        return type
+        return type.toUpperCase()
     }
   }
 
@@ -60,34 +124,29 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
       <div className="container mx-auto py-24 px-4 max-w-4xl">
         {/* 뒤로가기 버튼 */}
         <div className="mb-8">
-          <Link href="/board" className="inline-flex items-center text-gray-600 hover:text-black transition-colors">
+          <Link
+            href="/board"
+            className="inline-flex items-center text-gray-600 hover:text-black transition-colors tracking-wider font-light"
+          >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            게시판으로 돌아가기
+            BACK TO BOARD
           </Link>
         </div>
 
         {/* 게시글 헤더 */}
-        <div className="border-b border-gray-200 pb-6 mb-8">
+        <div className="border-b border-black pb-6 mb-8">
           <div className="flex items-center mb-4">
-            <span
-              className={`text-xs px-3 py-1 rounded-full mr-3 ${
-                post.category === "general"
-                  ? "bg-blue-100 text-blue-800"
-                  : post.category === "sharing"
-                    ? "bg-green-100 text-green-800"
-                    : "bg-purple-100 text-purple-800"
-              }`}
-            >
+            <span className="text-xs px-3 py-1 bg-white text-black border border-black mr-3 tracking-wider font-light">
               {getCategoryLabel(post.category)}
             </span>
-            <span className="text-sm text-gray-500">{getTypeLabel(post.type)}</span>
+            <span className="text-sm text-gray-500 tracking-wider font-light">{getTypeLabel(post.type)}</span>
           </div>
 
-          <h1 className="text-3xl font-light tracking-wider mb-4">{post.title}</h1>
+          <h1 className="text-3xl font-light tracking-widest mb-4 uppercase">{post.title}</h1>
 
           <div className="flex items-center justify-between">
             <div className="flex items-center">
-              <div className="relative w-10 h-10 rounded-full overflow-hidden mr-3">
+              <div className="relative w-10 h-10 overflow-hidden mr-3">
                 <Image
                   src={post.author?.avatar || "/placeholder.svg?height=40&width=40"}
                   alt={post.author?.name || "Author"}
@@ -96,20 +155,20 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
                 />
               </div>
               <div>
-                <p className="font-medium">{post.author?.name}</p>
-                <p className="text-sm text-gray-500">{formattedDate}</p>
+                <p className="font-light tracking-wider">{post.author?.name}</p>
+                <p className="text-sm text-gray-500 tracking-wider font-light">{formattedDate}</p>
               </div>
             </div>
 
             <div className="flex items-center space-x-4 text-sm text-gray-500">
-              <span>조회 {post.views}</span>
+              <span className="tracking-wider font-light">VIEWS {post.views}</span>
               <div className="flex items-center">
                 <Heart className="h-4 w-4 mr-1" />
-                <span>{post.likes}</span>
+                <span className="tracking-wider font-light">{post.likes}</span>
               </div>
               <div className="flex items-center">
                 <MessageCircle className="h-4 w-4 mr-1" />
-                <span>{post.comments_count}</span>
+                <span className="tracking-wider font-light">{post.comments_count}</span>
               </div>
             </div>
           </div>
@@ -117,38 +176,27 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
 
         {/* 게시글 내용 */}
         <div className="prose prose-lg max-w-none mb-12">
-          <div className="whitespace-pre-wrap text-gray-800 leading-relaxed">{post.content}</div>
+          <div className="whitespace-pre-wrap text-gray-800 leading-relaxed font-light">{post.content}</div>
 
           {post.image_url && (
             <div className="mt-8">
               <div className="relative w-full h-96">
-                <Image
-                  src={post.image_url || "/placeholder.svg"}
-                  alt="Post image"
-                  fill
-                  className="object-cover rounded-lg"
-                />
+                <Image src={post.image_url || "/placeholder.svg"} alt="Post image" fill className="object-cover" />
               </div>
             </div>
           )}
         </div>
 
         {/* 액션 버튼들 */}
-        <div className="flex items-center justify-between border-t border-b border-gray-200 py-4 mb-8">
-          <div className="flex items-center space-x-4">
-            <Button variant="outline" size="sm" className="flex items-center">
-              <Heart className="h-4 w-4 mr-2" />
-              좋아요 {post.likes}
-            </Button>
-            <Button variant="outline" size="sm" className="flex items-center">
-              <Share2 className="h-4 w-4 mr-2" />
-              공유하기
-            </Button>
-          </div>
-        </div>
+        <PostActions post={post} currentUserId={currentUser?.id} isAdmin={currentUser?.role === "admin"} />
 
         {/* 댓글 섹션 */}
-        <CommentSection postId={params.id} initialComments={comments} />
+        <CommentSection
+          postId={params.id}
+          initialComments={comments}
+          currentUserId={currentUser?.id}
+          isAdmin={currentUser?.role === "admin"}
+        />
       </div>
     </main>
   )

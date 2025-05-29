@@ -4,7 +4,7 @@ import { getFAQs } from "@/lib/api/faqs"
 
 async function FaqContent() {
   try {
-    const faqs = await getFAQs(true) // published only
+    const faqs = await getFAQs() // removed publishedOnly parameter
 
     return <FaqSection faqs={faqs} />
   } catch (error) {

@@ -1,11 +1,13 @@
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import { supabase } from "@/lib/supabase/client"
+import { cookies } from "next/headers"
 
 export interface BoardPost {
   id: string
   title: string
   content: string
   category: string
-  type: "free" | "assignment"
+  type: "free" | "assignment" | "qna"
   author_id: string
   author?: {
     name: string
@@ -35,7 +37,7 @@ export interface BoardComment {
   updated_at: string
 }
 
-// 자유게시판 게시글 가져오기
+// 자유게시판 게시글 가져오기 (클라이언트용)
 export async function getFreeBoardPosts(category = "all", limit = 20) {
   try {
     let query = supabase
@@ -70,49 +72,64 @@ export async function getFreeBoardPosts(category = "all", limit = 20) {
   }
 }
 
-// 과제게시판 게시글 가져오기 (권한 체크 포함)
+// 과제게시판 게시글 가져오기 (클라이언트용)
 export async function getAssignmentPosts(userRole: string, userClassLevel?: string, limit = 20) {
   try {
+    console.log("🔍 getAssignmentPosts 호출됨:", { userRole, userClassLevel, limit })
+
     let query = supabase
       .from("board_posts")
       .select(`
         *,
+        assignments(*),
         author:users!author_id(name, email)
       `)
-      .eq("type", "assignment")
+      .in("type", ["assignment", "qna"])
       .order("created_at", { ascending: false })
       .limit(limit)
 
     // 권한에 따른 필터링
     if (userRole === "user" && userClassLevel) {
-      // 학생은 자신의 반만 볼 수 있음
       query = query.eq("category", userClassLevel)
     } else if (userRole === "instructor" && userClassLevel) {
-      // 강사도 자신의 담당 반만 볼 수 있음
       query = query.eq("category", userClassLevel)
     }
-    // 관리자는 모든 과제를 볼 수 있음
 
     const { data, error } = await query
 
-    if (error) throw error
+    if (error) {
+      console.error("🔴 과제 조회 오류:", error)
+      throw error
+    }
 
-    return data.map((post) => ({
-      ...post,
-      author: {
-        name: post.author?.name || "Anonymous",
-        avatar: `/placeholder.svg?height=32&width=32&query=${post.author?.name || "user"}`,
-      },
-    }))
+    console.log("✅ 과제 조회 결과:", data?.length || 0, "개")
+
+    return data.map((post) => {
+      const passwordMatch = post.content.match(/🔒 PASSWORD:(.+)/)
+      const password = passwordMatch ? passwordMatch[1].trim() : null
+      const cleanContent = post.content.replace(/\n\n🔒 PASSWORD:.+$/, "")
+
+      return {
+        ...post,
+        content: cleanContent,
+        password,
+        author: {
+          name: post.author?.name || "Anonymous",
+          avatar: `/placeholder.svg?height=32&width=32&query=${post.author?.name || "user"}`,
+        },
+      }
+    })
   } catch (error) {
     console.error("Error fetching assignment posts:", error)
     return []
   }
 }
 
-// 게시글 상세 가져오기
+// 게시글 상세 가져오기 (서버 컴포넌트용)
 export async function getBoardPost(id: string) {
   try {
+    const supabase = createServerComponentClient({ cookies })
+
     const { data, error } = await supabase
       .from("board_posts")
       .select(`
@@ -122,7 +139,10 @@ export async function getBoardPost(id: string) {
       .eq("id", id)
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error("Error fetching board post:", error)
+      return null
+    }
 
     // 조회수 증가
     await supabase
@@ -143,9 +163,11 @@ export async function getBoardPost(id: string) {
   }
 }
 
-// 댓글 가져오기
+// 댓글 가져오기 (서버 컴포넌트용)
 export async function getBoardComments(postId: string) {
   try {
+    const supabase = createServerComponentClient({ cookies })
+
     const { data, error } = await supabase
       .from("comments")
       .select(`
@@ -155,7 +177,10 @@ export async function getBoardComments(postId: string) {
       .eq("post_id", postId)
       .order("created_at", { ascending: true })
 
-    if (error) throw error
+    if (error) {
+      console.error("Error fetching comments:", error)
+      return []
+    }
 
     return data.map((comment) => ({
       ...comment,
@@ -170,10 +195,9 @@ export async function getBoardComments(postId: string) {
   }
 }
 
-// 게시글 좋아요 토글
+// 게시글 좋아요 토글 (클라이언트용)
 export async function togglePostLike(postId: string, userId: string) {
   try {
-    // 현재 좋아요 상태 확인
     const { data: existingLike } = await supabase
       .from("post_likes")
       .select("id")
@@ -182,16 +206,10 @@ export async function togglePostLike(postId: string, userId: string) {
       .single()
 
     if (existingLike) {
-      // 좋아요 취소
       await supabase.from("post_likes").delete().eq("post_id", postId).eq("user_id", userId)
-
-      // 게시글 좋아요 수 감소
       await supabase.rpc("decrement_post_likes", { post_id: postId })
     } else {
-      // 좋아요 추가
       await supabase.from("post_likes").insert({ post_id: postId, user_id: userId })
-
-      // 게시글 좋아요 수 증가
       await supabase.rpc("increment_post_likes", { post_id: postId })
     }
 
@@ -202,7 +220,7 @@ export async function togglePostLike(postId: string, userId: string) {
   }
 }
 
-// 댓글 작성
+// 댓글 작성 (클라이언트용)
 export async function createComment(postId: string, content: string, authorId: string) {
   try {
     const { data, error } = await supabase
@@ -217,7 +235,6 @@ export async function createComment(postId: string, content: string, authorId: s
 
     if (error) throw error
 
-    // 댓글 수 증가
     await supabase.rpc("increment_post_comments", { post_id: postId })
 
     return data
@@ -227,7 +244,7 @@ export async function createComment(postId: string, content: string, authorId: s
   }
 }
 
-// 댓글 삭제
+// 댓글 삭제 (클라이언트용)
 export async function deleteComment(commentId: string) {
   try {
     const { error } = await supabase.from("comments").delete().eq("id", commentId)
@@ -241,10 +258,9 @@ export async function deleteComment(commentId: string) {
   }
 }
 
-// 댓글 좋아요 토글
+// 댓글 좋아요 토글 (클라이언트용)
 export async function toggleCommentLike(commentId: string, userId: string) {
   try {
-    // 현재 좋아요 상태 확인
     const { data: existingLike } = await supabase
       .from("comment_likes")
       .select("id")
@@ -253,14 +269,10 @@ export async function toggleCommentLike(commentId: string, userId: string) {
       .single()
 
     if (existingLike) {
-      // 좋아요 취소
       await supabase.from("comment_likes").delete().eq("comment_id", commentId).eq("user_id", userId)
-
       return false
     } else {
-      // 좋아요 추가
       await supabase.from("comment_likes").insert({ comment_id: commentId, user_id: userId })
-
       return true
     }
   } catch (error) {
