@@ -1,13 +1,6 @@
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
-import { redirect } from "next/navigation"
+import { supabase } from "@/lib/supabase/client"
 
-export async function getServerSession() {
-  const cookieStore = cookies()
-  const supabase = createServerComponentClient({
-    cookies: () => cookieStore,
-  })
-
+export async function getSession() {
   try {
     const {
       data: { session },
@@ -19,17 +12,29 @@ export async function getServerSession() {
   }
 }
 
-export async function getServerUser() {
-  const session = await getServerSession()
-  return session?.user || null
+export async function getUserDetails() {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) return null
+
+    const { data } = await supabase.from("users").select("*").eq("id", user.id).single()
+
+    return data
+  } catch (error) {
+    console.error("Error getting user details:", error)
+    return null
+  }
 }
 
-export async function requireAuth() {
-  const session = await getServerSession()
-
-  if (!session) {
-    redirect("/login")
+export async function isAdmin() {
+  try {
+    const user = await getUserDetails()
+    return user?.role === "admin"
+  } catch (error) {
+    console.error("Error checking admin status:", error)
+    return false
   }
-
-  return session
 }

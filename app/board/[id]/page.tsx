@@ -3,8 +3,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { ArrowLeft, Heart, MessageCircle } from "lucide-react"
 import { getBoardPost, getBoardComments } from "@/lib/api/board"
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
+import { supabase } from "@/lib/supabase/client"
 import CommentSection from "@/components/board/comment-section"
 import PostActions from "@/components/board/post-actions"
 
@@ -15,8 +14,6 @@ interface BoardPostPageProps {
 }
 
 async function checkIfAssignment(id: string) {
-  const supabase = createServerComponentClient({ cookies })
-
   try {
     const { data: assignmentData, error } = await supabase.from("assignments").select("id").eq("id", id).single()
 
@@ -28,8 +25,6 @@ async function checkIfAssignment(id: string) {
 }
 
 async function getCurrentUser() {
-  const supabase = createServerComponentClient({ cookies })
-
   try {
     const {
       data: { user },

@@ -6,36 +6,33 @@ export interface FAQ {
   answer: string
   category: string
   order_index?: number
+  is_published?: boolean
   created_at?: string
   updated_at?: string
 }
 
-// Get all FAQs
 export async function getFAQs() {
   const { data, error } = await supabase
     .from("faqs")
     .select("*")
+    .eq("is_published", true)
     .order("order_index", { ascending: true })
-    .order("created_at", { ascending: false })
 
   if (error) {
-    console.error("Error fetching FAQs:", error)
-    throw new Error("Failed to fetch FAQs")
+    throw error
   }
 
-  return data as FAQ[]
+  return data || []
 }
 
-// Get a single FAQ by ID
 export async function getFAQ(id: string) {
   const { data, error } = await supabase.from("faqs").select("*").eq("id", id).single()
 
   if (error) {
-    console.error("Error fetching FAQ:", error)
-    throw new Error("Failed to fetch FAQ")
+    throw error
   }
 
-  return data as FAQ
+  return data
 }
 
 // Create a new FAQ
@@ -47,7 +44,7 @@ export async function createFAQ(faq: Omit<FAQ, "id" | "created_at" | "updated_at
     throw new Error("Failed to create FAQ")
   }
 
-  return data[0] as FAQ
+  return data[0]
 }
 
 // Update an existing FAQ
@@ -63,7 +60,7 @@ export async function updateFAQ(id: string, faq: Partial<Omit<FAQ, "id" | "creat
     throw new Error("Failed to update FAQ")
   }
 
-  return data[0] as FAQ
+  return data[0]
 }
 
 // Delete a FAQ

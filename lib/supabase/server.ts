@@ -1,35 +1,27 @@
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
-import { createClient } from "@supabase/supabase-js"
-import { cookies } from "next/headers"
-import type { Database } from "@/types/supabase"
+import { supabase } from "./client"
 
-// Create a Supabase client for server components
-export function createServerClient() {
-  const cookieStore = cookies()
+export { supabase }
 
-  return createServerComponentClient<Database>({
-    cookies: () => cookieStore,
-    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  })
-}
-
-// Admin client with service role key for admin operations
-export const getAdminSupabaseClient = () => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY as string
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error("Missing Supabase environment variables for admin client")
+export async function getServerSession() {
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    return session
+  } catch (error) {
+    console.error("Error getting server session:", error)
+    return null
   }
-
-  return createClient<Database>(supabaseUrl, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  })
 }
 
-// Add this export at the end of the file
-export { createServerClient as createClient }
+export async function getServerUser() {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    return user
+  } catch (error) {
+    console.error("Error getting server user:", error)
+    return null
+  }
+}
