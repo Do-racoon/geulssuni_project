@@ -1,11 +1,12 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
+import { createClient } from "@supabase/supabase-js"
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
     const { id } = params
+
+    // 서버 사이드 Supabase 클라이언트 생성
+    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
     // 조회수 증가
     await supabase.rpc("increment_assignment_views", { assignment_id: id })
@@ -14,9 +15,10 @@ export async function GET(request: Request, { params }: { params: { id: string }
     const { data: assignment, error } = await supabase
       .from("assignments")
       .select(`
-        *,
-        author:users!author_id(name, email),
-        instructor:users!instructor_id(name, email)
+        id, title, content, description, class_level, due_date, 
+        max_submissions, current_submissions, views, created_at, updated_at,
+        author:users!author_id(id, name, email),
+        instructor:users!instructor_id(id, name, email)
       `)
       .eq("id", id)
       .single()
@@ -26,34 +28,15 @@ export async function GET(request: Request, { params }: { params: { id: string }
       return NextResponse.json({ error: "과제를 찾을 수 없습니다." }, { status: 404 })
     }
 
-    // 제출 목록 조회
-    const { data: submissions, error: submissionsError } = await supabase
-      .from("assignment_submissions")
-      .select(`
-        *,
-        student:users!student_id(name, email)
-      `)
-      .eq("assignment_id", id)
-      .order("submitted_at", { ascending: false })
-
-    if (submissionsError) {
-      console.error("제출 목록 조회 오류:", submissionsError)
-    }
-
-    // 비밀번호 정보 처리
-    const processedAssignment = {
-      ...assignment,
-      has_password: !!assignment.password,
-      password: undefined, // 클라이언트에 비밀번호 자체는 전송하지 않음
-      submissions: submissions || [],
-    }
-
-    return NextResponse.json(processedAssignment)
+    return NextResponse.json(assignment)
   } catch (error) {
-    console.error("과제 상세 조회 API 오류:", error)
+    console.error("과제 API 오류:", error)
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 })
   }
 }
+
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   try {
