@@ -5,7 +5,7 @@ export interface BoardPost {
   title: string
   content: string
   category: string
-  type: "free" | "assignment"
+  type: "free" | "assignment" | "qna" // 타입에 "qna" 추가
   author_id: string
   author?: {
     name: string
@@ -73,13 +73,16 @@ export async function getFreeBoardPosts(category = "all", limit = 20) {
 // 과제게시판 게시글 가져오기 (권한 체크 포함)
 export async function getAssignmentPosts(userRole: string, userClassLevel?: string, limit = 20) {
   try {
+    console.log("🔍 getAssignmentPosts 호출됨:", { userRole, userClassLevel, limit })
+
     let query = supabase
       .from("board_posts")
       .select(`
         *,
+        assignments(*),
         author:users!author_id(name, email)
       `)
-      .eq("type", "assignment")
+      .in("type", ["assignment", "qna"]) // 두 타입 모두 확인하도록 수정
       .order("created_at", { ascending: false })
       .limit(limit)
 
@@ -95,15 +98,34 @@ export async function getAssignmentPosts(userRole: string, userClassLevel?: stri
 
     const { data, error } = await query
 
-    if (error) throw error
+    if (error) {
+      console.error("🔴 과제 조회 오류:", error)
+      throw error
+    }
 
-    return data.map((post) => ({
-      ...post,
-      author: {
-        name: post.author?.name || "Anonymous",
-        avatar: `/placeholder.svg?height=32&width=32&query=${post.author?.name || "user"}`,
-      },
-    }))
+    console.log("✅ 과제 조회 결과:", data?.length || 0, "개")
+
+    // 각 데이터의 타입 확인
+    data?.forEach((post, index) => {
+      console.log(`${index + 1}. ID: ${post.id}, Type: ${post.type}, Title: ${post.title}`)
+    })
+
+    return data.map((post) => {
+      // 비밀번호 추출 및 content에서 제거
+      const passwordMatch = post.content.match(/🔒 PASSWORD:(.+)/)
+      const password = passwordMatch ? passwordMatch[1].trim() : null
+      const cleanContent = post.content.replace(/\n\n🔒 PASSWORD:.+$/, "")
+
+      return {
+        ...post,
+        content: cleanContent,
+        password,
+        author: {
+          name: post.author?.name || "Anonymous",
+          avatar: `/placeholder.svg?height=32&width=32&query=${post.author?.name || "user"}`,
+        },
+      }
+    })
   } catch (error) {
     console.error("Error fetching assignment posts:", error)
     return []
@@ -117,6 +139,7 @@ export async function getBoardPost(id: string) {
       .from("board_posts")
       .select(`
         *,
+        assignments(*),
         author:users!author_id(name, email)
       `)
       .eq("id", id)
@@ -130,8 +153,15 @@ export async function getBoardPost(id: string) {
       .update({ views: (data.views || 0) + 1 })
       .eq("id", id)
 
+    // 비밀번호 추출 및 content에서 제거
+    const passwordMatch = data.content.match(/🔒 PASSWORD:(.+)/)
+    const password = passwordMatch ? passwordMatch[1].trim() : null
+    const cleanContent = data.content.replace(/\n\n🔒 PASSWORD:.+$/, "")
+
     return {
       ...data,
+      content: cleanContent,
+      password,
       author: {
         name: data.author?.name || "Anonymous",
         avatar: `/placeholder.svg?height=32&width=32&query=${data.author?.name || "user"}`,

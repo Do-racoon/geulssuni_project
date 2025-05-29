@@ -1,287 +1,195 @@
-"use client"
-
-import Link from "next/link"
-import { ArrowLeft, Calendar, User, CheckSquare, Edit, Trash2, Download, Square } from "lucide-react"
-import { getAssignmentPost } from "@/data/board-posts"
-import { useState } from "react"
+import type { Metadata } from "next"
+import { notFound } from "next/navigation"
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Calendar, User, Users, CheckCircle, Clock } from "lucide-react"
+import Link from "next/link"
 
-export default function AssignmentDetailPage({ params }: { params: { id: string } }) {
-  const [assignment, setAssignment] = useState(getAssignmentPost(params.id))
-  const [isCompleted, setIsCompleted] = useState(assignment?.isCompleted || false)
+export const metadata: Metadata = {
+  title: "과제 상세",
+  description: "과제 상세 페이지입니다.",
+}
+
+async function getAssignment(id: string) {
+  const supabase = createServerComponentClient({ cookies })
+
+  try {
+    // assignments 테이블에서 과제 정보 가져오기
+    const { data: assignment, error } = await supabase
+      .from("assignments")
+      .select(`
+        *,
+        instructor:users!instructor_id(name, email)
+      `)
+      .eq("id", id)
+      .single()
+
+    if (error) {
+      console.error("과제를 찾을 수 없습니다:", error)
+      return null
+    }
+
+    return assignment
+  } catch (error) {
+    console.error("과제 조회 중 오류:", error)
+    return null
+  }
+}
+
+export default async function AssignmentPage({ params }: { params: { id: string } }) {
+  const assignment = await getAssignment(params.id)
 
   if (!assignment) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-light mb-4">Assignment not found</h1>
-          <Link href="/board" className="text-sm underline">
-            Return to board
-          </Link>
-        </div>
-      </div>
-    )
+    notFound()
   }
 
-  const formattedDate = new Date(assignment.createdAt).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  })
-
-  const formattedReviewDate = assignment.reviewDate
-    ? new Date(assignment.reviewDate).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : null
-
-  // Mock current user - in a real app, this would come from authentication
-  const currentUser = {
-    id: "user-1",
-    isInstructor: true,
-  }
-
-  const canEdit = currentUser.isInstructor
-  const canDelete = currentUser.isInstructor
-
-  const toggleCompleted = () => {
-    // In a real app, this would update the database
-    setIsCompleted(!isCompleted)
-
-    // This would be an API call in a real application
-    console.log(`Assignment ${assignment.id} marked as ${!isCompleted ? "completed" : "incomplete"}`)
-
-    // For demo purposes, we'll update the local state
-    setAssignment({
-      ...assignment,
-      isCompleted: !isCompleted,
-    })
-  }
-
-  // Add this component before the return statement
-  function MemoEditor({ assignmentId }: { assignmentId: string }) {
-    const [isEditing, setIsEditing] = useState(false)
-    const [memo, setMemo] = useState("")
-
-    const handleSave = () => {
-      // In a real app, this would save to a database
-      console.log(`Saving memo for assignment ${assignmentId}: ${memo}`)
-
-      // Auto-mark as completed when instructor adds a memo
-      setIsCompleted(true)
-
-      // Update the assignment with the new memo and completed status
-      setAssignment({
-        ...assignment,
-        instructorMemo: memo,
-        isCompleted: true,
-      })
-
-      alert(
-        "Memo saved successfully! Assignment marked as completed. (This is a demo - in a real app, this would save to a database)",
-      )
-      setIsEditing(false)
-    }
-
-    if (isEditing) {
-      return (
-        <div className="space-y-4">
-          <textarea
-            value={memo}
-            onChange={(e) => setMemo(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded-md"
-            rows={4}
-            placeholder="Enter instructor memo here..."
-          />
-          <div className="flex justify-end space-x-2">
-            <button
-              onClick={() => setIsEditing(false)}
-              className="px-3 py-1 text-sm border border-gray-200 hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button onClick={handleSave} className="px-3 py-1 text-sm bg-black text-white hover:bg-gray-800">
-              Save Memo
-            </button>
-          </div>
-        </div>
-      )
-    }
-
-    return (
-      <div className="flex items-center justify-between">
-        <p className="text-gray-500 italic">No memo added yet.</p>
-        <button onClick={() => setIsEditing(true)} className="text-sm underline">
-          Add Memo
-        </button>
-      </div>
-    )
-  }
-
-  // Function to determine file type icon and extension
-  const getFileInfo = (filename: string) => {
-    if (!filename) return { icon: Download, ext: "file" }
-
-    const ext = filename.split(".").pop()?.toLowerCase()
-
-    switch (ext) {
-      case "pdf":
-        return { icon: Download, ext: "PDF" }
-      case "hwp":
-        return { icon: Download, ext: "HWP" }
-      case "txt":
-        return { icon: Download, ext: "TXT" }
+  const getLevelText = (level: string) => {
+    switch (level) {
+      case "beginner":
+        return "기초반"
+      case "intermediate":
+        return "중급반"
+      case "advanced":
+        return "전문반"
       default:
-        return { icon: Download, ext: "file" }
+        return level
     }
   }
 
-  // Mock file attachment
-  const fileAttachment = assignment.file || "assignment-document.pdf"
-  const { icon: FileIcon, ext: fileExt } = getFileInfo(fileAttachment)
+  const getLevelColor = (level: string) => {
+    switch (level) {
+      case "beginner":
+        return "bg-green-100 text-green-800"
+      case "intermediate":
+        return "bg-yellow-100 text-yellow-800"
+      case "advanced":
+        return "bg-red-100 text-red-800"
+      default:
+        return "bg-gray-100 text-gray-800"
+    }
+  }
+
+  const isOverdue = new Date(assignment.due_date) < new Date()
+  const daysUntilDue = Math.ceil(
+    (new Date(assignment.due_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24),
+  )
 
   return (
-    <main className="min-h-screen bg-white">
-      <div className="container mx-auto py-12 px-4">
-        <Link href="/board" className="inline-flex items-center text-sm mb-8 hover:underline">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to assignments
-        </Link>
+    <div className="container mx-auto py-8 px-4">
+      <div className="max-w-4xl mx-auto">
+        {/* 뒤로가기 버튼 */}
+        <div className="mb-6">
+          <Button asChild variant="outline">
+            <Link href="/board">← 게시판으로 돌아가기</Link>
+          </Button>
+        </div>
 
-        <article className="max-w-3xl mx-auto">
-          <header className="mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <span
-                className={`text-xs px-2 py-1 ${
-                  assignment.classLevel === "beginner"
-                    ? "bg-gray-100"
-                    : assignment.classLevel === "intermediate"
-                      ? "bg-gray-200"
-                      : "bg-gray-800 text-white"
-                }`}
-              >
-                {assignment.classLevel.charAt(0).toUpperCase() + assignment.classLevel.slice(1)}
-              </span>
-              <div className="text-sm text-gray-500">{formattedDate}</div>
-            </div>
-
-            <h1 className="text-3xl font-light tracking-wider mb-6">{assignment.title}</h1>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div className="flex items-center">
-                <Calendar className="h-5 w-5 mr-3 text-gray-500" />
-                <div>
-                  <div className="text-xs text-gray-500 uppercase">Due Date</div>
-                  <div>{assignment.dueDate}</div>
+        {/* 과제 정보 카드 */}
+        <Card className="mb-8">
+          <CardHeader>
+            <div className="flex justify-between items-start">
+              <div className="flex-1">
+                <CardTitle className="text-2xl mb-2">{assignment.title}</CardTitle>
+                <div className="flex items-center gap-4 text-sm text-gray-600">
+                  <div className="flex items-center gap-1">
+                    <User className="h-4 w-4" />
+                    <span>강사: {assignment.instructor?.name || "알 수 없음"}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Calendar className="h-4 w-4" />
+                    <span>등록일: {new Date(assignment.created_at).toLocaleDateString()}</span>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center">
-                <User className="h-5 w-5 mr-3 text-gray-500" />
-                <div>
-                  <div className="text-xs text-gray-500 uppercase">Assigned By</div>
-                  <div>{assignment.instructor}</div>
+              <div className="flex items-center gap-2">
+                <Badge className={getLevelColor(assignment.class_level)}>{getLevelText(assignment.class_level)}</Badge>
+                {assignment.is_completed && (
+                  <Badge className="bg-green-100 text-green-800">
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    완료됨
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="prose max-w-none mb-6">
+              <p className="text-gray-700 leading-relaxed">{assignment.description}</p>
+            </div>
+
+            {/* 마감일 정보 */}
+            <div className="bg-gray-50 rounded-lg p-4 mb-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-gray-600" />
+                  <span className="font-medium">마감일</span>
+                </div>
+                <div className="text-right">
+                  <div className={`font-medium ${isOverdue ? "text-red-600" : "text-gray-900"}`}>
+                    {new Date(assignment.due_date).toLocaleDateString()}{" "}
+                    {new Date(assignment.due_date).toLocaleTimeString()}
+                  </div>
+                  <div
+                    className={`text-sm ${isOverdue ? "text-red-500" : daysUntilDue <= 3 ? "text-orange-500" : "text-gray-500"}`}
+                  >
+                    {isOverdue
+                      ? `${Math.abs(daysUntilDue)}일 지남`
+                      : daysUntilDue === 0
+                        ? "오늘 마감"
+                        : `${daysUntilDue}일 남음`}
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center mb-6">
-              {isCompleted ? (
-                <Badge
-                  variant="outline"
-                  className="flex items-center gap-1 bg-green-50 text-green-700 border-green-200"
-                >
-                  <CheckSquare className="h-4 w-4" />
-                  <span>Completed</span>
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="flex items-center gap-1">
-                  <span>In Progress</span>
-                </Badge>
-              )}
-              {formattedReviewDate && (
-                <span className="ml-4 text-sm text-gray-500">Reviewed on {formattedReviewDate}</span>
-              )}
-            </div>
-
-            {/* File attachment */}
-            {fileAttachment && (
-              <div className="mb-6">
-                <Button
-                  variant="outline"
-                  className="flex items-center gap-2 border-dashed"
-                  onClick={() => alert("Downloading file... (This is a demo)")}
-                >
-                  <FileIcon className="h-4 w-4" />
-                  <span>Download {fileExt} File</span>
-                </Button>
+            {/* 제출 현황 */}
+            <div className="bg-blue-50 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-blue-600" />
+                  <span className="font-medium">제출 현황</span>
+                </div>
+                <div className="text-right">
+                  <div className="font-medium text-blue-900">
+                    {assignment.submissions_count} / {assignment.total_students}
+                  </div>
+                  <div className="text-sm text-blue-600">
+                    {assignment.total_students > 0
+                      ? `${Math.round((assignment.submissions_count / assignment.total_students) * 100)}% 완료`
+                      : "학생 없음"}
+                  </div>
+                </div>
               </div>
-            )}
-          </header>
-
-          <div className="prose max-w-none mb-8">
-            <h2 className="text-xl font-light tracking-wider mb-4">Description</h2>
-            <div dangerouslySetInnerHTML={{ __html: assignment.descriptionHtml || assignment.description }} />
-          </div>
-
-          {currentUser.isInstructor && (
-            <div className="mb-8 p-6 bg-gray-50 border-l-2 border-gray-300">
-              <h2 className="text-xl font-light tracking-wider mb-4">Instructor Memo</h2>
-              {assignment.instructorMemo ? (
-                <p>{assignment.instructorMemo}</p>
-              ) : (
-                <MemoEditor assignmentId={assignment.id} />
+              {assignment.total_students > 0 && (
+                <div className="mt-3">
+                  <div className="w-full bg-blue-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${(assignment.submissions_count / assignment.total_students) * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
               )}
             </div>
-          )}
+          </CardContent>
+        </Card>
 
-          <div className="flex items-center justify-between py-4 border-t border-gray-200 mb-8">
-            <div className="flex items-center">
-              {currentUser.isInstructor && (
-                <Button
-                  onClick={toggleCompleted}
-                  variant={isCompleted ? "default" : "outline"}
-                  className={`flex items-center gap-2 ${isCompleted ? "bg-black hover:bg-gray-800" : ""}`}
-                >
-                  {isCompleted ? (
-                    <>
-                      <CheckSquare className="h-4 w-4" />
-                      Completed
-                    </>
-                  ) : (
-                    <>
-                      <Square className="h-4 w-4" />
-                      Mark as Complete
-                    </>
-                  )}
-                </Button>
-              )}
+        {/* 과제 제출 섹션 */}
+        <Card>
+          <CardHeader>
+            <CardTitle>과제 제출</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-8">
+              <p className="text-gray-500 mb-4">과제 제출 기능은 준비 중입니다.</p>
+              <Button disabled>과제 제출하기</Button>
             </div>
-
-            <div className="flex items-center space-x-2">
-              {canEdit && (
-                <Link
-                  href={`/board/assignment/edit/${assignment.id}`}
-                  className="flex items-center px-3 py-1 text-sm border border-gray-200 hover:bg-gray-50"
-                >
-                  <Edit className="h-4 w-4 mr-1" />
-                  Edit
-                </Link>
-              )}
-              {canDelete && (
-                <button className="flex items-center px-3 py-1 text-sm border border-gray-200 hover:bg-gray-50 text-red-500">
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  Delete
-                </button>
-              )}
-            </div>
-          </div>
-        </article>
+          </CardContent>
+        </Card>
       </div>
-    </main>
+    </div>
   )
 }

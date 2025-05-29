@@ -21,17 +21,9 @@ export default function CreateAssignmentPage() {
           게시판으로 돌아가기
         </Link>
 
-        <div className="max-w-4xl mx-auto">
-          {/* 헤더 */}
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">새 과제 등록</h1>
-            <p className="text-gray-600">학생들에게 새로운 과제를 등록해보세요</p>
-          </div>
-
-          {/* 에디터 카드 */}
-          <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
-            <AssignmentEditor />
-          </div>
+        {/* 에디터 카드 */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
+          <AssignmentEditor />
         </div>
       </div>
     </main>
