@@ -78,13 +78,16 @@ export async function POST(request: Request) {
       content: body.content,
       class_level: body.class_level,
       due_date: body.due_date,
+      max_submissions: body.max_submissions || 0,
+      current_submissions: 0,
       author_id: authorId,
       instructor_id: authorId,
       review_status: "pending",
       views: 0,
       submissions_count: 0,
-      total_students: body.total_students || 0,
+      total_students: body.total_students || body.max_submissions || 0,
       is_completed: false,
+      attachment_url: body.attachment_url,
     }
 
     const { data, error } = await supabase
