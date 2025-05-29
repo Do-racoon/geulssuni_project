@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle, Circle, FileText, Calendar, User, Download } from "lucide-react"
+import { CheckCircle, Circle, FileText, Calendar, User, Download, MessageSquare } from "lucide-react"
 import { toast } from "sonner"
 
 interface Submission {
@@ -15,6 +15,7 @@ interface Submission {
   is_checked: boolean
   checked_by: string | null
   checked_at: string | null
+  comment?: string
 }
 
 interface AssignmentSubmissionListProps {
@@ -114,7 +115,7 @@ export default function AssignmentSubmissionList({ assignmentId, currentUser }: 
           className="border border-black p-6 bg-white hover:bg-gray-50 transition-colors"
           style={{ borderRadius: "0" }}
         >
-          <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex-1">
               <div className="flex flex-wrap items-center gap-4 mb-3">
                 <div className="flex items-center gap-2">
@@ -153,6 +154,17 @@ export default function AssignmentSubmissionList({ assignmentId, currentUser }: 
                 </div>
               </div>
 
+              {/* 코멘트 표시 */}
+              {submission.comment && (
+                <div className="bg-gray-50 p-3 border border-gray-200 mb-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <MessageSquare className="h-4 w-4 text-gray-600" />
+                    <span className="text-sm font-light tracking-widest uppercase text-gray-600">COMMENT</span>
+                  </div>
+                  <p className="text-sm text-gray-700 font-light">{submission.comment}</p>
+                </div>
+              )}
+
               {submission.is_checked && submission.checked_at && (
                 <p className="text-xs text-green-600 tracking-wide">
                   CHECKED ON: {new Date(submission.checked_at).toLocaleString()}
@@ -160,31 +172,34 @@ export default function AssignmentSubmissionList({ assignmentId, currentUser }: 
               )}
             </div>
 
-            <Button
-              onClick={() => handleCheckToggle(submission.id, submission.is_checked)}
-              disabled={checkingIds.has(submission.id)}
-              variant="outline"
-              className={`border-black tracking-widest uppercase font-light ${
-                submission.is_checked
-                  ? "bg-green-100 text-green-800 hover:bg-green-200"
-                  : "bg-white text-black hover:bg-black hover:text-white"
-              }`}
-              style={{ borderRadius: "0" }}
-            >
-              {checkingIds.has(submission.id) ? (
-                "UPDATING..."
-              ) : submission.is_checked ? (
-                <>
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  UNCHECK
-                </>
-              ) : (
-                <>
-                  <Circle className="h-4 w-4 mr-2" />
-                  CHECK
-                </>
+            {currentUser &&
+              (currentUser.role === "admin" || currentUser.role === "instructor" || currentUser.role === "teacher") && (
+                <Button
+                  onClick={() => handleCheckToggle(submission.id, submission.is_checked)}
+                  disabled={checkingIds.has(submission.id)}
+                  variant="outline"
+                  className={`border-black tracking-widest uppercase font-light ${
+                    submission.is_checked
+                      ? "bg-green-100 text-green-800 hover:bg-green-200"
+                      : "bg-white text-black hover:bg-black hover:text-white"
+                  }`}
+                  style={{ borderRadius: "0" }}
+                >
+                  {checkingIds.has(submission.id) ? (
+                    "UPDATING..."
+                  ) : submission.is_checked ? (
+                    <>
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      UNCHECK
+                    </>
+                  ) : (
+                    <>
+                      <Circle className="h-4 w-4 mr-2" />
+                      CHECK
+                    </>
+                  )}
+                </Button>
               )}
-            </Button>
           </div>
         </div>
       ))}

@@ -75,10 +75,10 @@ export default function AssignmentBoard() {
   const [passwordInput, setPasswordInput] = useState("")
   const [passwordError, setPasswordError] = useState(false)
 
-  // 사용자 권한 관련 변수들
+  // 사용자 권한 관련 변수들 - 모든 사용자가 과제 관리 가능하도록 변경
   const isInstructor =
     currentUser?.role === "instructor" || currentUser?.role === "admin" || currentUser?.role === "teacher"
-  const canCreateAssignment = isInstructor
+  const canCreateAssignment = true // 모든 사용자가 과제 생성 가능
   const canSelectLevel = isInstructor
 
   useEffect(() => {
@@ -236,6 +236,8 @@ export default function AssignmentBoard() {
 
       if (response.ok) {
         setPasswordDialogOpen(false)
+        // 비밀번호 인증 성공 시 세션 스토리지에 저장
+        sessionStorage.setItem(`assignment_${selectedAssignment.id}_authenticated`, "true")
         window.location.href = `/board/assignment/${selectedAssignment.id}`
       } else {
         setPasswordError(true)
@@ -527,31 +529,29 @@ export default function AssignmentBoard() {
                     </div>
                   </div>
 
-                  {/* 관리 버튼 */}
+                  {/* 관리 버튼 - 모든 사용자가 볼 수 있도록 변경 */}
                   <div className="col-span-1 flex items-center justify-center">
-                    {(isInstructor || assignment.author_id === currentUser?.id) && (
-                      <div className="flex gap-1">
-                        <Button
-                          asChild
-                          variant="outline"
-                          size="sm"
-                          className="h-8 w-8 p-0 border-gray-300 hover:border-blue-500 hover:bg-blue-500 hover:text-white transition-all duration-300"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Link href={`/board/assignment/${assignment.id}/edit`}>
-                            <Edit className="h-3 w-3" />
-                          </Link>
-                        </Button>
-                        <Button
-                          onClick={(e) => handleDelete(assignment.id, e)}
-                          variant="outline"
-                          size="sm"
-                          className="h-8 w-8 p-0 border-gray-300 hover:border-red-500 hover:bg-red-500 hover:text-white transition-all duration-300"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    )}
+                    <div className="flex gap-1">
+                      <Button
+                        asChild
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0 border-gray-300 hover:border-blue-500 hover:bg-blue-500 hover:text-white transition-all duration-300"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Link href={`/board/assignment/${assignment.id}/edit`}>
+                          <Edit className="h-3 w-3" />
+                        </Link>
+                      </Button>
+                      <Button
+                        onClick={(e) => handleDelete(assignment.id, e)}
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0 border-gray-300 hover:border-red-500 hover:bg-red-500 hover:text-white transition-all duration-300"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -597,28 +597,27 @@ export default function AssignmentBoard() {
                         {assignment.title}
                       </h3>
                     </div>
-                    {(isInstructor || assignment.author_id === currentUser?.id) && (
-                      <div className="flex gap-2 ml-4">
-                        <Button
-                          asChild
-                          variant="outline"
-                          size="sm"
-                          className="h-8 w-8 p-0 border-gray-300 hover:border-blue-500 hover:bg-blue-500 hover:text-white transition-all duration-300"
-                        >
-                          <Link href={`/board/assignment/${assignment.id}/edit`}>
-                            <Edit className="h-3 w-3" />
-                          </Link>
-                        </Button>
-                        <Button
-                          onClick={(e) => handleDelete(assignment.id, e)}
-                          variant="outline"
-                          size="sm"
-                          className="h-8 w-8 p-0 border-gray-300 hover:border-red-500 hover:bg-red-500 hover:text-white transition-all duration-300"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    )}
+                    {/* 모든 사용자가 관리 버튼을 볼 수 있도록 변경 */}
+                    <div className="flex gap-2 ml-4">
+                      <Button
+                        asChild
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0 border-gray-300 hover:border-blue-500 hover:bg-blue-500 hover:text-white transition-all duration-300"
+                      >
+                        <Link href={`/board/assignment/${assignment.id}/edit`}>
+                          <Edit className="h-3 w-3" />
+                        </Link>
+                      </Button>
+                      <Button
+                        onClick={(e) => handleDelete(assignment.id, e)}
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0 border-gray-300 hover:border-red-500 hover:bg-red-500 hover:text-white transition-all duration-300"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">

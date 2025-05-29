@@ -1,12 +1,11 @@
 import { notFound } from "next/navigation"
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
-import { ArrowLeft, Calendar, FileText, User, Users } from "lucide-react"
+import { ArrowLeft, Calendar, FileText, Users } from "lucide-react"
 import Link from "next/link"
 import { Separator } from "@/components/ui/separator"
-import AssignmentSubmissionForm from "@/components/board/assignment-submission-form"
+import AssignmentSubmissionModal from "@/components/board/assignment-submission-modal"
 import AssignmentSubmissionList from "@/components/board/assignment-submission-list"
-import AssignmentPasswordModal from "@/components/board/assignment-password-modal"
 
 interface AssignmentDetailPageProps {
   params: {
@@ -109,9 +108,6 @@ export default async function AssignmentDetailPage({ params }: AssignmentDetailP
           </Link>
         </div>
 
-        {/* 비밀번호 보호 모달 (클라이언트 컴포넌트) */}
-        {isPasswordProtected && !canAccessWithoutPassword && <AssignmentPasswordModal assignmentId={params.id} />}
-
         {/* 과제 헤더 */}
         <div className="border-b border-black pb-6 mb-8">
           <div className="flex items-center mb-4">
@@ -157,44 +153,25 @@ export default async function AssignmentDetailPage({ params }: AssignmentDetailP
 
         <Separator className="my-12" />
 
-        {/* 제출 섹션 */}
+        {/* 제출 섹션 - 로그인 여부와 상관없이 제출 버튼 표시 */}
         <div className="mb-12">
           <h2 className="text-2xl font-light tracking-widest mb-6 uppercase">SUBMISSIONS</h2>
 
-          {currentUser ? (
-            <>
-              <div className="bg-gray-50 p-6 mb-8 border border-gray-200">
-                <h3 className="text-lg font-light tracking-widest mb-4 uppercase">SUBMIT YOUR ASSIGNMENT</h3>
-                <AssignmentSubmissionForm
-                  assignmentId={params.id}
-                  currentUser={currentUser}
-                  isOverdue={isOverdue}
-                  maxSubmissions={assignment.max_submissions}
-                  currentSubmissions={assignment.current_submissions}
-                />
-              </div>
+          <div className="bg-gray-50 p-6 mb-8 border border-gray-200">
+            <h3 className="text-lg font-light tracking-widest mb-4 uppercase">SUBMIT YOUR ASSIGNMENT</h3>
+            <AssignmentSubmissionModal
+              assignmentId={params.id}
+              currentUser={currentUser}
+              isOverdue={isOverdue}
+              maxSubmissions={assignment.max_submissions}
+              currentSubmissions={assignment.current_submissions}
+            />
+          </div>
 
-              {(isAdmin || isInstructor) && (
-                <div className="mt-8">
-                  <h3 className="text-lg font-light tracking-widest mb-4 uppercase">ALL SUBMISSIONS</h3>
-                  <AssignmentSubmissionList assignmentId={params.id} currentUser={currentUser} />
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="text-center py-8 bg-gray-50 border border-gray-200">
-              <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500 tracking-widest uppercase mb-2">LOGIN REQUIRED</p>
-              <p className="text-gray-500">Please login to submit your assignment.</p>
-              <div className="mt-4">
-                <Link
-                  href="/login"
-                  className="inline-block px-6 py-2 bg-black text-white hover:bg-gray-800 transition-colors tracking-widest uppercase font-light"
-                  style={{ borderRadius: "0" }}
-                >
-                  LOGIN
-                </Link>
-              </div>
+          {(isAdmin || isInstructor) && (
+            <div className="mt-8">
+              <h3 className="text-lg font-light tracking-widest mb-4 uppercase">ALL SUBMISSIONS</h3>
+              <AssignmentSubmissionList assignmentId={params.id} currentUser={currentUser} />
             </div>
           )}
         </div>
