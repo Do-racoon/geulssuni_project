@@ -25,16 +25,16 @@ export default function BoardTabs() {
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
       <div className="mb-8">
-        <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 bg-white border-2 border-black p-0 h-14">
+        <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 bg-white border-2 border-black p-0 h-14 rounded-none">
           <TabsTrigger
             value="free"
-            className="h-14 text-base font-light tracking-widest uppercase transition-all duration-200 data-[state=active]:bg-black data-[state=active]:text-white data-[state=inactive]:text-black data-[state=inactive]:hover:bg-gray-100 border-r border-black last:border-r-0"
+            className="h-14 text-base font-light tracking-widest uppercase transition-all duration-200 rounded-none data-[state=active]:bg-black data-[state=active]:text-white data-[state=inactive]:text-black data-[state=inactive]:hover:bg-gray-100 border-r border-black last:border-r-0 focus:outline-none focus:ring-0 focus:ring-offset-0"
           >
             FREE BOARD
           </TabsTrigger>
           <TabsTrigger
             value="assignment"
-            className="h-14 text-base font-light tracking-widest uppercase transition-all duration-200 data-[state=active]:bg-black data-[state=active]:text-white data-[state=inactive]:text-black data-[state=inactive]:hover:bg-gray-100"
+            className="h-14 text-base font-light tracking-widest uppercase transition-all duration-200 rounded-none data-[state=active]:bg-black data-[state=active]:text-white data-[state=inactive]:text-black data-[state=inactive]:hover:bg-gray-100 focus:outline-none focus:ring-0 focus:ring-offset-0"
           >
             ASSIGNMENTS
           </TabsTrigger>
