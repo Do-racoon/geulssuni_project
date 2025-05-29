@@ -1,9 +1,8 @@
 "use client"
-
 import type React from "react"
 
 import { useState } from "react"
-import { CheckCircle, Circle, Users, Lock } from "lucide-react"
+import { CheckCircle, Circle, Users, Lock, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -15,6 +14,7 @@ interface Assignment {
   title: string
   content: string
   category: string
+  author_id: string
   author?: {
     name: string
     avatar?: string
@@ -29,13 +29,22 @@ interface Assignment {
   password?: string
 }
 
+interface User {
+  id: string
+  name: string
+  email: string
+  role: string
+  class_level?: string
+}
+
 interface AssignmentCardProps {
   assignment: Assignment
   onComplete: (id: string) => void
   isInstructor: boolean
+  currentUser?: User | null
 }
 
-export default function AssignmentCard({ assignment, onComplete, isInstructor }: AssignmentCardProps) {
+export default function AssignmentCard({ assignment, onComplete, isInstructor, currentUser }: AssignmentCardProps) {
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
   const [passwordInput, setPasswordInput] = useState("")
   const [passwordError, setPasswordError] = useState("")
@@ -73,11 +82,38 @@ export default function AssignmentCard({ assignment, onComplete, isInstructor }:
     }
   }
 
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+
+    if (!confirm("이 과제를 삭제하시겠습니까?")) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/board-posts/${assignment.id}`, {
+        method: "DELETE",
+      })
+
+      if (response.ok) {
+        // 페이지 새로고침하여 삭제된 과제 제거
+        window.location.reload()
+      } else {
+        alert("과제 삭제에 실패했습니다.")
+      }
+    } catch (error) {
+      console.error("Error deleting assignment:", error)
+      alert("과제 삭제 중 오류가 발생했습니다.")
+    }
+  }
+
   const formattedDate = new Date(assignment.created_at).toLocaleDateString("ko-KR", {
     year: "numeric",
     month: "short",
     day: "numeric",
   })
+
+  const canDelete =
+    currentUser?.role === "admin" || (currentUser?.role === "instructor" && assignment.author_id === currentUser.id)
 
   return (
     <>
@@ -102,7 +138,19 @@ export default function AssignmentCard({ assignment, onComplete, isInstructor }:
                 {assignment.content.replace(/📎 첨부파일:.*|📝 검토자 노트:.*/g, "").trim()}
               </p>
             </div>
-            <div className="text-xs text-gray-500 ml-4">{formattedDate}</div>
+            <div className="flex items-center gap-2 ml-4">
+              <div className="text-xs text-gray-500">{formattedDate}</div>
+              {canDelete && (
+                <Button
+                  onClick={handleDelete}
+                  variant="ghost"
+                  size="sm"
+                  className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center justify-between">
