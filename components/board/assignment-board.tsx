@@ -78,6 +78,8 @@ export default function AssignmentBoard() {
   // 사용자 권한 관련 변수들 - 관리자, 강사만 관리 기능 사용 가능
   const isInstructor =
     currentUser?.role === "instructor" || currentUser?.role === "admin" || currentUser?.role === "teacher"
+  const isLoggedInStudent = currentUser?.role === "user"
+  const isLoggedIn = !!currentUser
   const canCreateAssignment = isInstructor // 관리자, 강사만 과제 생성 가능
   const canSelectLevel = isInstructor
   const canManageAssignments = isInstructor // 관리자, 강사만 수정/삭제 가능
@@ -137,6 +139,16 @@ export default function AssignmentBoard() {
   }
 
   const handleReviewToggle = async (assignmentId: string) => {
+    // 권한 체크 - 관리자, 강사만 가능
+    if (!isInstructor) {
+      toast({
+        title: "권한 없음",
+        description: "검수 상태를 변경할 권한이 없습니다.",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       const response = await fetch(`/api/assignments/${assignmentId}/review`, {
         method: "PATCH",
@@ -174,6 +186,16 @@ export default function AssignmentBoard() {
 
   const handleDelete = async (assignmentId: string, event: React.MouseEvent) => {
     event.stopPropagation()
+
+    // 권한 체크 - 관리자, 강사만 가능
+    if (!isInstructor) {
+      toast({
+        title: "권한 없음",
+        description: "과제를 삭제할 권한이 없습니다.",
+        variant: "destructive",
+      })
+      return
+    }
 
     if (!confirm("정말로 이 과제를 삭제하시겠습니까?")) {
       return
@@ -265,8 +287,9 @@ export default function AssignmentBoard() {
       matchesLevel = assignment.class_level === selectedLevel
     }
 
-    // 검수 상태 필터링
+    // 검수 상태 필터링 - 관리자/강사만 필터링 가능
     const matchesReview =
+      !isInstructor ||
       reviewFilter === "all" ||
       (reviewFilter === "pending" && assignment.review_status === "pending") ||
       (reviewFilter === "completed" && assignment.review_status === "completed")
@@ -277,7 +300,7 @@ export default function AssignmentBoard() {
   const getLevelText = (level: string) => {
     switch (level) {
       case "beginner":
-        return "BASIC"
+        return "BEGINNER" // "BASIC"에서 "BEGINNER"로 변경
       case "intermediate":
         return "INTERMEDIATE"
       case "advanced":
@@ -336,6 +359,7 @@ export default function AssignmentBoard() {
             <RefreshCw className="h-4 w-4 mr-2" />
             REFRESH
           </Button>
+          {/* 관리자, 강사만 NEW ASSIGNMENT 버튼 표시 */}
           {canCreateAssignment && (
             <Button
               asChild
@@ -377,7 +401,7 @@ export default function AssignmentBoard() {
           />
         </div>
 
-        {/* 레벨 필터 */}
+        {/* 레벨 필터 - 관리자/강사만 모든 레벨 선택 가능 */}
         {canSelectLevel ? (
           <Select value={selectedLevel} onValueChange={setSelectedLevel}>
             <SelectTrigger className="border-gray-300 focus:border-black font-light tracking-wider">
@@ -385,7 +409,7 @@ export default function AssignmentBoard() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">ALL LEVELS</SelectItem>
-              <SelectItem value="beginner">BASIC</SelectItem>
+              <SelectItem value="beginner">BEGINNER</SelectItem> // "BASIC"에서 "BEGINNER"로 변경
               <SelectItem value="intermediate">INTERMEDIATE</SelectItem>
               <SelectItem value="advanced">ADVANCED</SelectItem>
             </SelectContent>
@@ -396,17 +420,23 @@ export default function AssignmentBoard() {
           </div>
         )}
 
-        {/* 검수 상태 필터 */}
-        <Select value={reviewFilter} onValueChange={setReviewFilter}>
-          <SelectTrigger className="border-gray-300 focus:border-black font-light tracking-wider">
-            <SelectValue placeholder="REVIEW STATUS" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">ALL STATUS</SelectItem>
-            <SelectItem value="pending">PENDING</SelectItem>
-            <SelectItem value="completed">COMPLETED</SelectItem>
-          </SelectContent>
-        </Select>
+        {/* 검수 상태 필터 - 관리자/강사만 표시 */}
+        {isInstructor ? (
+          <Select value={reviewFilter} onValueChange={setReviewFilter}>
+            <SelectTrigger className="border-gray-300 focus:border-black font-light tracking-wider">
+              <SelectValue placeholder="REVIEW STATUS" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">ALL STATUS</SelectItem>
+              <SelectItem value="pending">PENDING</SelectItem>
+              <SelectItem value="completed">COMPLETED</SelectItem>
+            </SelectContent>
+          </Select>
+        ) : (
+          <div className="h-11 px-4 py-2 border border-gray-300 bg-gray-50 flex items-center text-sm text-gray-600 font-light tracking-wider">
+            STUDENT VIEW
+          </div>
+        )}
       </div>
 
       {/* 게시글 목록 - 반응형 개선 */}
@@ -436,9 +466,18 @@ export default function AssignmentBoard() {
                 <div className="col-span-4">TITLE</div>
                 <div className="col-span-2">INSTRUCTOR</div>
                 <div className="col-span-2">DATE</div>
-                <div className="col-span-2">STATUS</div>
-                <div className="col-span-1">STATS</div>
-                {canManageAssignments && <div className="col-span-1">ACTIONS</div>}
+                {/* 관리자/강사만 STATUS, ACTIONS 컬럼 표시 */}
+                {isInstructor ? (
+                  <>
+                    <div className="col-span-2">STATUS</div>
+                    <div className="col-span-1">STATS</div>
+                    <div className="col-span-1">ACTIONS</div>
+                  </>
+                ) : isLoggedInStudent ? (
+                  <div className="col-span-4">STUDENT INFO</div>
+                ) : (
+                  <div className="col-span-4">GUEST INFO</div>
+                )}
               </div>
 
               {/* 과제 목록 */}
@@ -488,71 +527,111 @@ export default function AssignmentBoard() {
                     </div>
                   </div>
 
-                  {/* 검수상태 */}
-                  <div className="col-span-2 flex flex-col justify-center">
-                    <div className="flex items-center gap-2 mb-2">
-                      {assignment.review_status === "completed" ? (
-                        <Badge className="bg-green-50 text-green-700 border border-green-200 text-xs font-light tracking-wider">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          COMPLETED
-                        </Badge>
-                      ) : (
-                        <Badge className="bg-gray-100 text-gray-700 border border-gray-200 text-xs font-light tracking-wider">
-                          <Clock className="h-3 w-3 mr-1" />
-                          PENDING
-                        </Badge>
-                      )}
-                    </div>
-                    {isInstructor && (
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleReviewToggle(assignment.id)
-                        }}
-                        variant="outline"
-                        size="sm"
-                        className="text-xs border-gray-300 hover:border-black hover:bg-black hover:text-white transition-all duration-300 font-light tracking-wider"
-                      >
-                        {assignment.review_status === "completed" ? "MARK PENDING" : "MARK COMPLETED"}
-                      </Button>
-                    )}
-                  </div>
-
-                  {/* 통계 */}
-                  <div className="col-span-1 flex flex-col justify-center">
-                    <div className="text-sm text-gray-700 font-light flex items-center">
-                      <Eye className="h-3 w-3 mr-1" />
-                      {assignment.views}
-                    </div>
-                    <div className="text-xs text-gray-400 font-light flex items-center mt-1">
-                      <Users className="h-3 w-3 mr-1" />
-                      {assignment.submissions_count}/{assignment.total_students}
-                    </div>
-                  </div>
-
-                  {/* 관리 버튼 - 관리자, 강사만 표시 */}
-                  {canManageAssignments && (
-                    <div className="col-span-1 flex items-center justify-center">
-                      <div className="flex gap-1">
+                  {/* 관리자/강사만 검수상태 및 관리 버튼 표시 */}
+                  {isInstructor ? (
+                    <>
+                      {/* 검수상태 */}
+                      <div className="col-span-2 flex flex-col justify-center">
+                        <div className="flex items-center gap-2 mb-2">
+                          {assignment.review_status === "completed" ? (
+                            <Badge className="bg-green-50 text-green-700 border border-green-200 text-xs font-light tracking-wider">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              COMPLETED
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-gray-100 text-gray-700 border border-gray-200 text-xs font-light tracking-wider">
+                              <Clock className="h-3 w-3 mr-1" />
+                              PENDING
+                            </Badge>
+                          )}
+                        </div>
                         <Button
-                          asChild
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleReviewToggle(assignment.id)
+                          }}
                           variant="outline"
                           size="sm"
-                          className="h-8 w-8 p-0 border-gray-300 hover:border-blue-500 hover:bg-blue-500 hover:text-white transition-all duration-300"
-                          onClick={(e) => e.stopPropagation()}
+                          className="text-xs border-gray-300 hover:border-black hover:bg-black hover:text-white transition-all duration-300 font-light tracking-wider"
                         >
-                          <Link href={`/board/assignment/${assignment.id}/edit`}>
-                            <Edit className="h-3 w-3" />
+                          {assignment.review_status === "completed" ? "MARK PENDING" : "MARK COMPLETED"}
+                        </Button>
+                      </div>
+
+                      {/* 통계 */}
+                      <div className="col-span-1 flex flex-col justify-center">
+                        <div className="text-sm text-gray-700 font-light flex items-center">
+                          <Eye className="h-3 w-3 mr-1" />
+                          {assignment.views}
+                        </div>
+                        <div className="text-xs text-gray-400 font-light flex items-center mt-1">
+                          <Users className="h-3 w-3 mr-1" />
+                          {assignment.submissions_count}/{assignment.total_students}
+                        </div>
+                      </div>
+
+                      {/* 관리 버튼 - 관리자, 강사만 표시 */}
+                      <div className="col-span-1 flex items-center justify-center">
+                        <div className="flex gap-1">
+                          <Button
+                            asChild
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0 border-gray-300 hover:border-blue-500 hover:bg-blue-500 hover:text-white transition-all duration-300"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Link href={`/board/assignment/${assignment.id}/edit`}>
+                              <Edit className="h-3 w-3" />
+                            </Link>
+                          </Button>
+                          <Button
+                            onClick={(e) => handleDelete(assignment.id, e)}
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0 border-gray-300 hover:border-red-500 hover:bg-red-500 hover:text-white transition-all duration-300"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </>
+                  ) : isLoggedInStudent ? (
+                    /* 학생용 정보 표시 */
+                    <div className="col-span-4 flex items-center">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center text-sm text-gray-500">
+                          <Eye className="h-3 w-3 mr-1" />
+                          <span>{assignment.views}</span>
+                        </div>
+                        <div className="flex items-center text-sm text-gray-500">
+                          <Calendar className="h-3 w-3 mr-1" />
+                          <span>Due: {new Date(assignment.due_date).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex items-center text-sm text-gray-500">
+                          <Users className="h-3 w-3 mr-1" />
+                          <span>
+                            {assignment.submissions_count}/{assignment.total_students}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* 비로그인 사용자용 정보 표시 */
+                    <div className="col-span-4 flex items-center">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center text-sm text-gray-500">
+                          <Eye className="h-3 w-3 mr-1" />
+                          <span>{assignment.views}</span>
+                        </div>
+                        <div className="flex items-center text-sm text-gray-500">
+                          <Calendar className="h-3 w-3 mr-1" />
+                          <span>Due: {new Date(assignment.due_date).toLocaleDateString()}</span>
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          <Link href="/login" className="text-blue-600 hover:underline">
+                            Login to view more
                           </Link>
-                        </Button>
-                        <Button
-                          onClick={(e) => handleDelete(assignment.id, e)}
-                          variant="outline"
-                          size="sm"
-                          className="h-8 w-8 p-0 border-gray-300 hover:border-red-500 hover:bg-red-500 hover:text-white transition-all duration-300"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -581,17 +660,18 @@ export default function AssignmentBoard() {
                             PROTECTED
                           </Badge>
                         )}
-                        {assignment.review_status === "completed" ? (
-                          <Badge className="bg-green-50 text-green-700 border border-green-200 text-xs font-light tracking-wider">
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            COMPLETED
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-gray-100 text-gray-700 border border-gray-200 text-xs font-light tracking-wider">
-                            <Clock className="h-3 w-3 mr-1" />
-                            PENDING
-                          </Badge>
-                        )}
+                        {isInstructor &&
+                          (assignment.review_status === "completed" ? (
+                            <Badge className="bg-green-50 text-green-700 border border-green-200 text-xs font-light tracking-wider">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              COMPLETED
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-gray-100 text-gray-700 border border-gray-200 text-xs font-light tracking-wider">
+                              <Clock className="h-3 w-3 mr-1" />
+                              PENDING
+                            </Badge>
+                          ))}
                       </div>
                       <h3
                         className="font-light text-lg tracking-wide cursor-pointer hover:text-gray-600 transition-colors duration-200"
@@ -659,6 +739,7 @@ export default function AssignmentBoard() {
                     </div>
                   </div>
 
+                  {/* 관리자/강사만 검수 상태 변경 버튼 표시 */}
                   {isInstructor && (
                     <div className="mt-4 pt-4 border-t border-gray-200">
                       <Button
@@ -684,12 +765,16 @@ export default function AssignmentBoard() {
           {filteredAssignments.length} OF {assignments.length} ASSIGNMENTS
         </div>
         <div className="flex flex-wrap gap-4 items-center">
-          <span className="flex items-center gap-2">
-            <span className="w-3 h-3 inline-block bg-green-500 rounded-sm"></span> COMPLETED
-          </span>
-          <span className="flex items-center gap-2">
-            <span className="w-3 h-3 inline-block bg-gray-400 rounded-sm"></span> PENDING
-          </span>
+          {isInstructor && (
+            <>
+              <span className="flex items-center gap-2">
+                <span className="w-3 h-3 inline-block bg-green-500 rounded-sm"></span> COMPLETED
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="w-3 h-3 inline-block bg-gray-400 rounded-sm"></span> PENDING
+              </span>
+            </>
+          )}
           <span className="flex items-center gap-2">
             <span className="w-3 h-3 inline-block bg-yellow-500 rounded-sm"></span> PROTECTED
           </span>

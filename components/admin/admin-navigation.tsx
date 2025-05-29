@@ -16,6 +16,7 @@ import {
   LogOut,
 } from "lucide-react"
 import type { AdminSection } from "./admin-dashboard"
+import { supabase } from "@/lib/supabaseClient"
 
 interface AdminNavigationProps {
   activeSection: AdminSection
@@ -29,10 +30,26 @@ export default function AdminNavigation({ activeSection, setActiveSection }: Adm
     setIsMobileMenuOpen(!isMobileMenuOpen)
   }
 
-  const handleLogout = () => {
-    // Clear the auth cookie
-    document.cookie = "adminAuth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict"
-    window.location.href = "/admin/login"
+  const handleLogout = async () => {
+    try {
+      // Clear localStorage
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("userRole")
+      }
+
+      // Clear admin auth cookie
+      document.cookie = "adminAuth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict"
+
+      // Sign out from Supabase
+      await supabase.auth.signOut()
+
+      // Force redirect
+      window.location.href = "/admin/login"
+    } catch (error) {
+      console.error("Error signing out:", error)
+      // Force redirect even if there's an error
+      window.location.href = "/admin/login"
+    }
   }
 
   const menuItems = [

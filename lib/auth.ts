@@ -79,10 +79,22 @@ export const auth = {
   // Sign out (최적화됨)
   signOut: async (): Promise<{ error: AuthError | null }> => {
     const supabaseClient = getSupabaseClient()
+
+    // Clear localStorage
     if (typeof window !== "undefined") {
       localStorage.removeItem("userRole")
     }
-    return await supabaseClient.auth.signOut()
+
+    const result = await supabaseClient.auth.signOut()
+
+    // Force page reload to clear any cached state
+    if (typeof window !== "undefined") {
+      setTimeout(() => {
+        window.location.reload()
+      }, 100)
+    }
+
+    return result
   },
 
   // Get current session

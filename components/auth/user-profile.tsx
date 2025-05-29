@@ -178,11 +178,39 @@ export default function UserProfile() {
 
   const handleLogout = async () => {
     try {
-      await supabase.auth.signOut()
-      router.push("/login")
-      router.refresh()
+      // Clear localStorage first
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("userRole")
+      }
+
+      // Sign out from Supabase
+      const { error } = await supabase.auth.signOut()
+
+      if (error) {
+        console.error("Logout error:", error)
+        toast({
+          title: "오류",
+          description: "로그아웃 중 오류가 발생했습니다.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Show success message
+      toast({
+        title: "성공",
+        description: "로그아웃되었습니다.",
+      })
+
+      // Force redirect to login page
+      window.location.href = "/login"
     } catch (error) {
       console.error("Error signing out:", error)
+      toast({
+        title: "오류",
+        description: "로그아웃에 실패했습니다.",
+        variant: "destructive",
+      })
     }
   }
 
