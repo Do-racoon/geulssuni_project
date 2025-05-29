@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
-import { Upload, Save, Eye, EyeOff, AlertCircle, CheckCircle } from "lucide-react"
+import { Upload, Save, AlertCircle, CheckCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { getCurrentUser } from "@/lib/auth"
 import { toast } from "sonner"
@@ -19,7 +19,6 @@ interface AssignmentFormData {
   title: string
   content: string
   level: string
-  password: string // This field will be removed later
   attachment_url?: string
 }
 
@@ -29,11 +28,9 @@ export default function AssignmentEditor() {
     title: "",
     content: "",
     level: "",
-    password: "", // This field will be removed later
     attachment_url: "",
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [showPassword, setShowPassword] = useState(false) // This state will be removed later
   const [previewMode, setPreviewMode] = useState(false)
   const [uploadingFile, setUploadingFile] = useState(false)
 
@@ -87,10 +84,6 @@ export default function AssignmentEditor() {
     }
     if (!formData.level) {
       toast.error("난이도를 선택해주세요.")
-      return
-    }
-    if (!formData.password.trim()) {
-      toast.error("과제 비밀번호를 입력해주세요.")
       return
     }
 
@@ -150,153 +143,160 @@ export default function AssignmentEditor() {
   const getLevelInfo = (level: string) => {
     const levelMap = {
       beginner: {
-        label: "기초반",
-        color: "bg-green-100 text-green-800",
+        label: "BASIC",
+        color: "bg-white text-black border border-black",
         description: "프로그래밍 입문자를 위한 기초 과제",
       },
       intermediate: {
-        label: "중급반",
-        color: "bg-blue-100 text-blue-800",
+        label: "INTERMEDIATE",
+        color: "bg-black text-white border border-black",
         description: "기본기를 다진 학습자를 위한 중급 과제",
       },
       advanced: {
-        label: "전문반",
-        color: "bg-purple-100 text-purple-800",
+        label: "ADVANCED",
+        color: "bg-gray-800 text-white border border-gray-800",
         description: "고급 개발자를 위한 심화 과제",
       },
     }
     return (
-      levelMap[level as keyof typeof levelMap] || { label: level, color: "bg-gray-100 text-gray-800", description: "" }
+      levelMap[level as keyof typeof levelMap] || {
+        label: level,
+        color: "bg-gray-100 text-gray-800 border border-gray-300",
+        description: "",
+      }
     )
   }
 
-  const isFormValid = formData.title.trim() && formData.content.trim() && formData.level && formData.password.trim()
+  const isFormValid = formData.title.trim() && formData.content.trim() && formData.level
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-8">
       {/* 헤더 */}
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">새 과제 등록</h1>
-        <p className="text-gray-600">학생들에게 새로운 과제를 등록해보세요</p>
+        <h1 className="text-4xl font-light text-black mb-4 tracking-widest uppercase">NEW ASSIGNMENT</h1>
+        <p className="text-gray-600 tracking-wide">CREATE A NEW ASSIGNMENT FOR STUDENTS</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-8">
         {/* 기본 정보 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              📝 기본 정보
-              {isFormValid && <CheckCircle className="h-5 w-5 text-green-500" />}
+        <Card className="border-black" style={{ borderRadius: "0" }}>
+          <CardHeader className="border-b border-black">
+            <CardTitle className="flex items-center gap-3 text-xl font-light tracking-widest uppercase">
+              BASIC INFORMATION
+              {isFormValid && <CheckCircle className="h-5 w-5 text-black" />}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6 p-8">
             {/* 제목 */}
-            <div className="space-y-2">
-              <Label htmlFor="title">과제 제목 *</Label>
+            <div className="space-y-3">
+              <Label htmlFor="title" className="text-sm font-light tracking-widest uppercase">
+                ASSIGNMENT TITLE *
+              </Label>
               <Input
                 id="title"
-                placeholder="예: React 컴포넌트 만들기"
+                placeholder="ENTER ASSIGNMENT TITLE"
                 value={formData.title}
                 onChange={(e) => handleInputChange("title", e.target.value)}
-                className="text-lg"
+                className="text-lg border-black focus:border-black focus:ring-0 font-light tracking-wide"
+                style={{ borderRadius: "0" }}
               />
             </div>
 
             {/* 난이도 선택 */}
-            <div className="space-y-2">
-              <Label htmlFor="level">난이도 *</Label>
+            <div className="space-y-3">
+              <Label htmlFor="level" className="text-sm font-light tracking-widest uppercase">
+                DIFFICULTY LEVEL *
+              </Label>
               <Select value={formData.level} onValueChange={(value) => handleInputChange("level", value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="난이도를 선택하세요" />
+                <SelectTrigger className="border-black focus:border-black focus:ring-0" style={{ borderRadius: "0" }}>
+                  <SelectValue placeholder="SELECT DIFFICULTY LEVEL" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent style={{ borderRadius: "0" }}>
                   <SelectItem value="beginner">
-                    <div className="flex items-center gap-2">
-                      <Badge className="bg-green-100 text-green-800">기초반</Badge>
-                      <span>프로그래밍 입문자</span>
+                    <div className="flex items-center gap-3">
+                      <Badge
+                        className="bg-white text-black border border-black tracking-widest"
+                        style={{ borderRadius: "0" }}
+                      >
+                        BASIC
+                      </Badge>
+                      <span className="tracking-wide">FOR PROGRAMMING BEGINNERS</span>
                     </div>
                   </SelectItem>
                   <SelectItem value="intermediate">
-                    <div className="flex items-center gap-2">
-                      <Badge className="bg-blue-100 text-blue-800">중급반</Badge>
-                      <span>기본기를 다진 학습자</span>
+                    <div className="flex items-center gap-3">
+                      <Badge
+                        className="bg-black text-white border border-black tracking-widest"
+                        style={{ borderRadius: "0" }}
+                      >
+                        INTERMEDIATE
+                      </Badge>
+                      <span className="tracking-wide">FOR INTERMEDIATE LEARNERS</span>
                     </div>
                   </SelectItem>
                   <SelectItem value="advanced">
-                    <div className="flex items-center gap-2">
-                      <Badge className="bg-purple-100 text-purple-800">전문반</Badge>
-                      <span>고급 개발자</span>
+                    <div className="flex items-center gap-3">
+                      <Badge
+                        className="bg-gray-800 text-white border border-gray-800 tracking-widest"
+                        style={{ borderRadius: "0" }}
+                      >
+                        ADVANCED
+                      </Badge>
+                      <span className="tracking-wide">FOR ADVANCED DEVELOPERS</span>
                     </div>
                   </SelectItem>
                 </SelectContent>
               </Select>
               {formData.level && (
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Badge className={getLevelInfo(formData.level).color}>{getLevelInfo(formData.level).label}</Badge>
-                  <span>{getLevelInfo(formData.level).description}</span>
+                <div className="flex items-center gap-3 text-sm text-gray-600">
+                  <Badge
+                    className={getLevelInfo(formData.level).color + " tracking-widest"}
+                    style={{ borderRadius: "0" }}
+                  >
+                    {getLevelInfo(formData.level).label}
+                  </Badge>
+                  <span className="tracking-wide">{getLevelInfo(formData.level).description}</span>
                 </div>
               )}
-            </div>
-
-            {/* 과제 비밀번호 */}
-            <div className="space-y-2">
-              <Label htmlFor="password">과제 비밀번호 *</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="학생들이 과제를 확인할 때 사용할 비밀번호"
-                  value={formData.password}
-                  onChange={(e) => handleInputChange("password", e.target.value)}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-2 top-1/2 -translate-y-1/2"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
-              <p className="text-sm text-gray-500">
-                💡 학생들이 과제 내용을 확인하기 위해 입력해야 하는 비밀번호입니다.
-              </p>
             </div>
           </CardContent>
         </Card>
 
         {/* 과제 내용 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              📋 과제 내용
-              <div className="flex gap-2">
+        <Card className="border-black" style={{ borderRadius: "0" }}>
+          <CardHeader className="border-b border-black">
+            <CardTitle className="flex items-center justify-between text-xl font-light tracking-widest uppercase">
+              ASSIGNMENT CONTENT
+              <div className="flex gap-3">
                 <Button
                   type="button"
                   variant={previewMode ? "outline" : "default"}
                   size="sm"
                   onClick={() => setPreviewMode(!previewMode)}
+                  className="border-black text-black bg-white hover:bg-black hover:text-white tracking-widest uppercase font-light"
+                  style={{ borderRadius: "0" }}
                 >
-                  {previewMode ? "편집" : "미리보기"}
+                  {previewMode ? "EDIT" : "PREVIEW"}
                 </Button>
               </div>
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-8">
             {previewMode ? (
-              <div className="min-h-[200px] p-4 border rounded-md bg-gray-50">
+              <div className="min-h-[200px] p-6 border border-gray-300 bg-gray-50" style={{ borderRadius: "0" }}>
                 <div className="prose max-w-none">
-                  <h3>{formData.title || "과제 제목"}</h3>
-                  <div className="whitespace-pre-wrap">{formData.content || "과제 내용을 입력하세요..."}</div>
+                  <h3 className="font-light tracking-wide">{formData.title || "ASSIGNMENT TITLE"}</h3>
+                  <div className="whitespace-pre-wrap tracking-wide font-light">
+                    {formData.content || "ENTER ASSIGNMENT CONTENT..."}
+                  </div>
                   {formData.attachment_url && (
-                    <div className="mt-4 p-3 bg-blue-50 rounded-md">
-                      <p className="text-sm font-medium text-blue-800">📎 첨부파일</p>
+                    <div className="mt-6 p-4 bg-blue-50 border border-blue-200" style={{ borderRadius: "0" }}>
+                      <p className="text-sm font-light tracking-widest uppercase text-blue-800">ATTACHMENT</p>
                       <a
                         href={formData.attachment_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline"
+                        className="text-blue-600 hover:underline tracking-wide"
                       >
                         {formData.attachment_url}
                       </a>
@@ -305,17 +305,20 @@ export default function AssignmentEditor() {
                 </div>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-6">
                 <Textarea
-                  placeholder="과제 설명, 요구사항, 제출 방법 등을 자세히 작성해주세요..."
+                  placeholder="ENTER ASSIGNMENT DESCRIPTION, REQUIREMENTS, SUBMISSION GUIDELINES..."
                   value={formData.content}
                   onChange={(e) => handleInputChange("content", e.target.value)}
-                  className="min-h-[200px] resize-none"
+                  className="min-h-[200px] resize-none border-black focus:border-black focus:ring-0 font-light tracking-wide"
+                  style={{ borderRadius: "0" }}
                 />
 
                 {/* 파일 업로드 */}
-                <div className="space-y-2">
-                  <Label htmlFor="file-upload">첨부파일 (선택사항)</Label>
+                <div className="space-y-3">
+                  <Label htmlFor="file-upload" className="text-sm font-light tracking-widest uppercase">
+                    ATTACHMENT (OPTIONAL)
+                  </Label>
                   <div className="flex items-center gap-4">
                     <div className="relative">
                       <input
@@ -330,29 +333,33 @@ export default function AssignmentEditor() {
                         variant="outline"
                         onClick={() => document.getElementById("file-upload")?.click()}
                         disabled={uploadingFile}
-                        className="flex items-center gap-2"
+                        className="flex items-center gap-2 border-black text-black bg-white hover:bg-black hover:text-white tracking-widest uppercase font-light"
+                        style={{ borderRadius: "0" }}
                       >
                         <Upload className="h-4 w-4" />
-                        {uploadingFile ? "업로드 중..." : "파일 선택"}
+                        {uploadingFile ? "UPLOADING..." : "SELECT FILE"}
                       </Button>
                     </div>
                     {formData.attachment_url && (
                       <div className="flex items-center gap-2 text-sm text-green-600">
                         <CheckCircle className="h-4 w-4" />
-                        <span>파일이 업로드되었습니다</span>
+                        <span className="tracking-wide">FILE UPLOADED SUCCESSFULLY</span>
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
                           onClick={() => handleInputChange("attachment_url", "")}
-                          className="text-red-500 hover:text-red-700"
+                          className="text-red-500 hover:text-red-700 tracking-widest uppercase"
+                          style={{ borderRadius: "0" }}
                         >
-                          제거
+                          REMOVE
                         </Button>
                       </div>
                     )}
                   </div>
-                  <p className="text-sm text-gray-500">지원 형식: PDF, DOC, DOCX, TXT, ZIP, RAR (최대 10MB)</p>
+                  <p className="text-sm text-gray-500 tracking-wide">
+                    SUPPORTED FORMATS: PDF, DOC, DOCX, TXT, ZIP, RAR (MAX 10MB)
+                  </p>
                 </div>
               </div>
             )}
@@ -361,24 +368,32 @@ export default function AssignmentEditor() {
 
         {/* 제출 버튼 */}
         <div className="flex justify-between items-center">
-          <Button type="button" variant="outline" onClick={() => router.back()} disabled={isSubmitting}>
-            취소
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => router.back()}
+            disabled={isSubmitting}
+            className="border-black text-black bg-white hover:bg-black hover:text-white tracking-widest uppercase font-light"
+            style={{ borderRadius: "0" }}
+          >
+            CANCEL
           </Button>
 
-          <div className="flex gap-2">
+          <div className="flex gap-4 items-center">
             {!isFormValid && (
               <div className="flex items-center gap-2 text-amber-600">
                 <AlertCircle className="h-4 w-4" />
-                <span className="text-sm">필수 항목을 모두 입력해주세요</span>
+                <span className="text-sm tracking-wide">PLEASE FILL ALL REQUIRED FIELDS</span>
               </div>
             )}
             <Button
               type="submit"
               disabled={!isFormValid || isSubmitting}
-              className="flex items-center gap-2 min-w-[120px]"
+              className="flex items-center gap-2 min-w-[150px] bg-black text-white hover:bg-gray-800 tracking-widest uppercase font-light"
+              style={{ borderRadius: "0" }}
             >
               <Save className="h-4 w-4" />
-              {isSubmitting ? "등록 중..." : "과제 등록"}
+              {isSubmitting ? "CREATING..." : "CREATE ASSIGNMENT"}
             </Button>
           </div>
         </div>

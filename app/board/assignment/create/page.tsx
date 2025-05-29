@@ -22,7 +22,7 @@ export default function CreateAssignmentPage() {
         </Link>
 
         {/* 에디터 카드 */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
+        <div className="bg-white shadow-lg border border-gray-100 p-6" style={{ borderRadius: "0" }}>
           <AssignmentEditor />
         </div>
       </div>
