@@ -1,13 +1,12 @@
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
+    const supabase = createRouteHandlerClient({ cookies })
     const { id: assignmentId } = params
     const { password } = await request.json()
-
-    // 서버 사이드 Supabase 클라이언트 생성
-    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
     // 과제 정보 조회
     const { data: assignment, error } = await supabase

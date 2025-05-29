@@ -1,41 +1,66 @@
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
-    const { id: assignmentId } = params
-    const { studentName } = await request.json()
+    const supabase = createRouteHandlerClient({ cookies })
+    const assignmentId = params.id
+    const body = await request.json()
+    const { studentId, studentName } = body
 
-    if (!studentName) {
-      return NextResponse.json({ error: "학생 이름이 필요합니다." }, { status: 400 })
+    // studentId가 없거나 "anonymous"인 경우
+    if (!studentId || studentId === "anonymous") {
+      // 학생 이름으로 검색 (로그인하지 않은 사용자의 경우)
+      if (studentName) {
+        const { data: submissions, error } = await supabase
+          .from("assignment_submissions")
+          .select("*")
+          .eq("assignment_id", assignmentId)
+          .eq("student_name", studentName)
+          .order("submitted_at", { ascending: false })
+          .limit(1)
+
+        if (error) {
+          console.error("제출 확인 오류:", error)
+          return NextResponse.json({ hasSubmitted: false })
+        }
+
+        if (submissions && submissions.length > 0) {
+          return NextResponse.json({
+            hasSubmitted: true,
+            submission: submissions[0],
+          })
+        }
+      }
+
+      return NextResponse.json({ hasSubmitted: false })
     }
 
-    // 서버 사이드 Supabase 클라이언트 생성
-    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-
-    // 이름으로 기존 제출 확인
-    const { data: existingSubmission, error } = await supabase
+    // 로그인한 사용자의 경우 student_id로 검색
+    const { data: submissions, error } = await supabase
       .from("assignment_submissions")
-      .select("id, student_name, submitted_at")
+      .select("*")
       .eq("assignment_id", assignmentId)
-      .eq("student_name", studentName)
-      .single()
+      .eq("student_id", studentId)
+      .order("submitted_at", { ascending: false })
+      .limit(1)
 
-    if (error && error.code !== "PGRST116") {
+    if (error) {
       console.error("제출 확인 오류:", error)
-      return NextResponse.json({ error: "제출 확인 중 오류가 발생했습니다." }, { status: 500 })
+      return NextResponse.json({ hasSubmitted: false })
     }
 
-    if (existingSubmission) {
+    if (submissions && submissions.length > 0) {
       return NextResponse.json({
         hasSubmitted: true,
-        submittedAt: existingSubmission.submitted_at,
+        submission: submissions[0],
       })
     }
 
     return NextResponse.json({ hasSubmitted: false })
   } catch (error) {
     console.error("제출 확인 API 오류:", error)
-    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 })
+    return NextResponse.json({ hasSubmitted: false })
   }
 }
