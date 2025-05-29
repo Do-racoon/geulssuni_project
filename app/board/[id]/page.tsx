@@ -3,7 +3,8 @@ import Image from "next/image"
 import Link from "next/link"
 import { ArrowLeft, Heart, MessageCircle, Share2 } from "lucide-react"
 import { getBoardPost, getBoardComments } from "@/lib/api/board"
-import { supabase } from "@/lib/supabase/client"
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
 import CommentSection from "@/components/board/comment-section"
 import { Button } from "@/components/ui/button"
 
@@ -13,28 +14,36 @@ interface BoardPostPageProps {
   }
 }
 
+async function checkIfAssignment(id: string) {
+  const supabase = createServerComponentClient({ cookies })
+
+  try {
+    const { data: assignmentData, error } = await supabase.from("assignments").select("id").eq("id", id).single()
+
+    return !error && assignmentData
+  } catch (error) {
+    console.error("Error checking assignments:", error)
+    return false
+  }
+}
+
 export default async function BoardPostPage({ params }: BoardPostPageProps) {
   // 먼저 board_posts 테이블에서 찾기
-  const post = await getBoardPost(params.id)
+  let post
+  try {
+    post = await getBoardPost(params.id)
+  } catch (error) {
+    console.error("Error getting board post:", error)
+    post = null
+  }
 
-  // board_posts에서 찾지 못했다면 assignments 테이블에서 찾기
+  // board_posts에서 찾지 못했다면 assignments 테이블에서 확인
   if (!post) {
-    try {
-      const { data: assignmentData, error } = await supabase
-        .from("assignments")
-        .select(`
-          *,
-          author:users!author_id(name, email)
-        `)
-        .eq("id", params.id)
-        .single()
+    const isAssignment = await checkIfAssignment(params.id)
 
-      if (!error && assignmentData) {
-        // assignments 데이터라면 과제 상세 페이지로 리다이렉트
-        redirect(`/board/assignment/${params.id}`)
-      }
-    } catch (error) {
-      console.error("Error checking assignments:", error)
+    if (isAssignment) {
+      // assignments 데이터라면 과제 상세 페이지로 리다이렉트
+      redirect(`/board/assignment/${params.id}`)
     }
   }
 
@@ -42,7 +51,13 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
     notFound()
   }
 
-  const comments = await getBoardComments(params.id)
+  let comments = []
+  try {
+    comments = await getBoardComments(params.id)
+  } catch (error) {
+    console.error("Error getting comments:", error)
+    comments = []
+  }
 
   const formattedDate = new Date(post.created_at).toLocaleDateString("ko-KR", {
     year: "numeric",
@@ -156,7 +171,7 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
             <Button
               variant="outline"
               size="sm"
-              className="flex items-center bg-white text-black border-black hover:bg-black hover:text-white tracking-wider font-light"
+              className="flex items-center bg-white text-black border-black hover:bg-black hover:text-white tracking-wider font-light rounded-none"
             >
               <Heart className="h-4 w-4 mr-2" />
               LIKE {post.likes}
@@ -164,7 +179,7 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
             <Button
               variant="outline"
               size="sm"
-              className="flex items-center bg-white text-black border-black hover:bg-black hover:text-white tracking-wider font-light"
+              className="flex items-center bg-white text-black border-black hover:bg-black hover:text-white tracking-wider font-light rounded-none"
             >
               <Share2 className="h-4 w-4 mr-2" />
               SHARE
