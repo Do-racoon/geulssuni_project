@@ -26,7 +26,7 @@ import { toast } from "sonner"
 
 interface RichTextEditorProps {
   initialContent?: string
-  initialValue?: string
+  initialValue?: string // 추가: initialValue도 지원
   onChange?: (content: string) => void
   placeholder?: string
 }
@@ -182,6 +182,7 @@ export default function RichTextEditor({
   onChange,
   placeholder = "내용을 입력하세요...",
 }: RichTextEditorProps) {
+  // initialValue 또는 initialContent 사용
   const [content, setContent] = useState(initialValue || initialContent)
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [showFontSizes, setShowFontSizes] = useState(false)
@@ -199,6 +200,7 @@ export default function RichTextEditor({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
 
+  // 초기 내용 설정
   useEffect(() => {
     const initialData = initialValue || initialContent
     if (editorRef.current && initialData && editorRef.current.innerHTML !== initialData) {
@@ -217,6 +219,7 @@ export default function RichTextEditor({
     }
   }, [onChange, isComposing])
 
+  // 한글 입력 처리를 위한 별도 핸들러
   const handleInput = useCallback(
     (e: React.FormEvent<HTMLDivElement>) => {
       if (!isComposing) {
@@ -226,6 +229,7 @@ export default function RichTextEditor({
     [handleContentChange, isComposing],
   )
 
+  // 선택 영역 저장
   const saveSelection = () => {
     const selection = window.getSelection()
     if (selection && selection.rangeCount > 0) {
@@ -233,6 +237,7 @@ export default function RichTextEditor({
     }
   }
 
+  // 선택 영역 복원
   const restoreSelection = () => {
     if (savedSelection) {
       const selection = window.getSelection()
@@ -274,8 +279,8 @@ export default function RichTextEditor({
         throw new Error(result.error || "업로드 실패")
       }
 
-      // Enhanced image insertion with proper error handling and CORS
-      const img = `<img src="${result.data.publicUrl}" alt="업로드된 이미지" style="max-width: 100%; height: auto; margin: 10px 0; display: block; border-radius: 4px;" crossorigin="anonymous" loading="lazy" onload="this.style.opacity='1'; this.style.filter='none';" onerror="console.error('Image failed to load:', this.src); this.style.display='none';" />`
+      // 완전한 이미지 스타일로 삽입
+      const img = `<img src="${result.data.publicUrl}" alt="업로드된 이미지" style="max-width: 100%; height: auto; margin: 10px 0; cursor: pointer; display: block; resize: both; overflow: hidden;" draggable="false" />`
 
       if (editorRef.current) {
         editorRef.current.focus()
@@ -432,11 +437,13 @@ export default function RichTextEditor({
     }
   }
 
+  // 이미지 클릭 핸들러
   useEffect(() => {
     const handleImageClick = (e: Event) => {
       const target = e.target as HTMLElement
       if (target.tagName === "IMG") {
         setSelectedImage(target as HTMLImageElement)
+        // 이미지 선택 표시
         document.querySelectorAll("img").forEach((img) => {
           img.style.border = ""
         })
@@ -457,6 +464,7 @@ export default function RichTextEditor({
     }
   }, [])
 
+  // 드롭다운 외부 클릭 시 닫기
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement
@@ -483,6 +491,15 @@ export default function RichTextEditor({
     if (editorRef.current && onChange) {
       const content = editorRef.current.innerHTML
       onChange(content)
+    }
+  }
+
+  const insertImageUrl = () => {
+    const url = prompt("이미지 URL을 입력하세요:")
+    if (url) {
+      const img = `<img src="${url}" alt="업로드된 이미지" style="max-width: 100%; height: auto; cursor: pointer; display: block; margin: 10px 0; resize: both; overflow: hidden;" draggable="false">`
+      document.execCommand("insertHTML", false, img)
+      handleContentChange()
     }
   }
 
@@ -826,19 +843,13 @@ export default function RichTextEditor({
           max-width: 100%;
           height: auto;
           cursor: pointer;
-          transition: all 0.2s ease;
-          border-radius: 4px;
-          opacity: 0.8;
-          filter: blur(1px);
-        }
-        
-        [contenteditable] img[style*="opacity: 1"] {
-          opacity: 1;
-          filter: none;
+          transition: border 0.2s ease;
+          resize: both;
+          overflow: hidden;
         }
         
         [contenteditable] img:hover {
-          opacity: 0.9;
+          opacity: 0.8;
         }
       `}</style>
     </div>

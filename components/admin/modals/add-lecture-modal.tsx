@@ -24,7 +24,7 @@ interface AddLectureModalProps {
   children: React.ReactNode
 }
 
-export default function AddLectureModal({ courseId, children }: AddLectureModalProps) {
+export function AddLectureModal({ courseId, children }: AddLectureModalProps) {
   const [title, setTitle] = useState("")
   const [videoUrl, setVideoUrl] = useState("")
   const [isPending, setIsPending] = useState(false)

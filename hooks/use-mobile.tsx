@@ -1,42 +1,19 @@
-"use client"
+import * as React from "react"
 
-import { useState, useEffect } from "react"
+const MOBILE_BREAKPOINT = 768
 
-export function useMobile() {
-  const [isMobile, setIsMobile] = useState(false)
-  const [isIOS, setIsIOS] = useState(false)
-  const [isAndroid, setIsAndroid] = useState(false)
+export function useIsMobile() {
+  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)
 
-  useEffect(() => {
-    const checkMobile = () => {
-      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera || ""
-
-      // Check if mobile
-      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent)
-
-      // Check if iOS
-      const isIOSDevice = /iPhone|iPad|iPod/i.test(userAgent) && !(window as any).MSStream
-
-      // Check if Android
-      const isAndroidDevice = /Android/i.test(userAgent)
-
-      setIsMobile(isMobileDevice)
-      setIsIOS(isIOSDevice)
-      setIsAndroid(isAndroidDevice)
+  React.useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
+    const onChange = () => {
+      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
     }
-
-    checkMobile()
-
-    // Also check on resize in case of device orientation changes
-    window.addEventListener("resize", checkMobile)
-
-    return () => {
-      window.removeEventListener("resize", checkMobile)
-    }
+    mql.addEventListener("change", onChange)
+    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+    return () => mql.removeEventListener("change", onChange)
   }, [])
 
-  return { isMobile, isIOS, isAndroid }
+  return !!isMobile
 }
-
-// Add the missing export as an alias to the existing function
-export const useIsMobile = useMobile

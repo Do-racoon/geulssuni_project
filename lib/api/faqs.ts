@@ -5,18 +5,20 @@ export interface FAQ {
   question: string
   answer: string
   category: string
-  order_index?: number
+  is_published: boolean
   created_at?: string
   updated_at?: string
 }
 
 // Get all FAQs
-export async function getFAQs() {
-  const { data, error } = await supabase
-    .from("faqs")
-    .select("*")
-    .order("order_index", { ascending: true })
-    .order("created_at", { ascending: false })
+export async function getFAQs(publishedOnly = false) {
+  let query = supabase.from("faqs").select("*")
+
+  if (publishedOnly) {
+    query = query.eq("is_published", true)
+  }
+
+  const { data, error } = await query.order("created_at", { ascending: false })
 
   if (error) {
     console.error("Error fetching FAQs:", error)

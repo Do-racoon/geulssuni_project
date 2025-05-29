@@ -29,40 +29,40 @@ export default function PostCard({ post, onLike, isAdmin = false, onDelete, onTo
     if (type === "free") {
       switch (category) {
         case "general":
-          return "FREE"
+          return "일반"
         case "sharing":
-          return "SHARE"
+          return "공유"
         case "open":
-          return "QUESTION"
+          return "자유주제"
         case "tech":
-          return "TECH"
+          return "기술"
         case "design":
-          return "DESIGN"
+          return "디자인"
         default:
-          return category.toUpperCase()
+          return category
       }
     }
-    return category.toUpperCase()
+    return category
   }
 
   const getCategoryColor = (category: string, type: string) => {
     if (type === "free") {
       switch (category) {
         case "general":
-          return "bg-white text-black border border-black"
+          return "bg-blue-100 text-blue-800"
         case "sharing":
-          return "bg-white text-black border border-black"
+          return "bg-green-100 text-green-800"
         case "open":
-          return "bg-white text-black border border-black"
+          return "bg-purple-100 text-purple-800"
         case "tech":
-          return "bg-white text-black border border-black"
+          return "bg-orange-100 text-orange-800"
         case "design":
-          return "bg-white text-black border border-black"
+          return "bg-pink-100 text-pink-800"
         default:
-          return "bg-white text-black border border-black"
+          return "bg-gray-100 text-gray-800"
       }
     }
-    return "bg-white text-black border border-black"
+    return "bg-gray-100 text-gray-800"
   }
 
   const handleDelete = async () => {
@@ -111,19 +111,17 @@ export default function PostCard({ post, onLike, isAdmin = false, onDelete, onTo
   }
 
   return (
-    <div className="border border-black bg-white hover:shadow-md transition-shadow">
+    <div className="border border-gray-200 bg-white hover:shadow-md transition-shadow">
       <div className="p-6">
         <div className="flex justify-between items-start mb-4">
           <div className="flex-1">
             <div className="flex items-center mb-2">
               {post.is_pinned && (
-                <span className="mr-2 text-black">
+                <span className="mr-2 text-gray-500">
                   <Pin className="h-4 w-4" />
                 </span>
               )}
-              <span
-                className={`text-xs px-2 py-1 ${getCategoryColor(post.category, post.type)} tracking-wider font-light`}
-              >
+              <span className={`text-xs px-2 py-1 rounded-full ${getCategoryColor(post.category, post.type)}`}>
                 {getCategoryLabel(post.category, post.type)}
               </span>
             </div>
@@ -132,26 +130,22 @@ export default function PostCard({ post, onLike, isAdmin = false, onDelete, onTo
             </Link>
           </div>
           <div className="flex items-center gap-2">
-            <div className="text-xs text-gray-500 tracking-wider">{formattedDate}</div>
+            <div className="text-xs text-gray-500">{formattedDate}</div>
             {isAdmin && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-gray-100">
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                     <MoreVertical className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="border border-black">
-                  <DropdownMenuItem onClick={handleTogglePin} className="tracking-wider font-light">
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleTogglePin}>
                     <Pin className="h-4 w-4 mr-2" />
-                    {post.is_pinned ? "UNPIN" : "PIN"}
+                    {post.is_pinned ? "고정 해제" : "상단 고정"}
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={handleDelete}
-                    disabled={isDeleting}
-                    className="text-red-600 tracking-wider font-light"
-                  >
+                  <DropdownMenuItem onClick={handleDelete} disabled={isDeleting} className="text-red-600">
                     <Trash2 className="h-4 w-4 mr-2" />
-                    {isDeleting ? "DELETING..." : "DELETE"}
+                    {isDeleting ? "삭제 중..." : "삭제"}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -161,7 +155,7 @@ export default function PostCard({ post, onLike, isAdmin = false, onDelete, onTo
 
         <Link href={`/board/${post.id}`} className="block">
           <div className="mb-4">
-            <p className="text-gray-700 line-clamp-3 font-light">{post.content}</p>
+            <p className="text-gray-700 line-clamp-3">{post.content}</p>
           </div>
 
           {post.image_url && (
@@ -175,14 +169,14 @@ export default function PostCard({ post, onLike, isAdmin = false, onDelete, onTo
 
         <div className="flex items-center justify-between">
           <div className="flex items-center">
-            <div className="relative w-8 h-8 overflow-hidden mr-2">
+            <div className="relative w-8 h-8 rounded-full overflow-hidden mr-2">
               <Image
                 src={post.author?.avatar || "/placeholder.svg?height=32&width=32"}
                 alt={post.author?.name || "Author"}
                 fill
               />
             </div>
-            <span className="text-sm tracking-wider font-light">{post.author?.name}</span>
+            <span className="text-sm">{post.author?.name}</span>
           </div>
 
           <div className="flex items-center space-x-4">
@@ -192,15 +186,15 @@ export default function PostCard({ post, onLike, isAdmin = false, onDelete, onTo
                 e.stopPropagation()
                 onLike(post.id)
               }}
-              className={`flex items-center text-sm ${post.isLiked ? "text-black" : "text-gray-500"} hover:text-black transition-colors`}
+              className={`flex items-center text-sm ${post.isLiked ? "text-red-500" : "text-gray-500"} hover:text-red-500 transition-colors`}
               aria-label={post.isLiked ? "좋아요 취소" : "좋아요"}
             >
-              <Heart className={`h-4 w-4 mr-1 ${post.isLiked ? "fill-black" : ""}`} />
-              <span className="tracking-wider font-light">{post.likes}</span>
+              <Heart className={`h-4 w-4 mr-1 ${post.isLiked ? "fill-red-500" : ""}`} />
+              <span>{post.likes}</span>
             </button>
             <div className="flex items-center text-sm text-gray-500">
               <MessageCircle className="h-4 w-4 mr-1" />
-              <span className="tracking-wider font-light">{post.comments_count || 0}</span>
+              <span>{post.comments_count || 0}</span>
             </div>
           </div>
         </div>

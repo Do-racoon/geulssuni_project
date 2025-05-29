@@ -1,126 +1,151 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
-import { NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from "next/server"
+import { supabase } from "@/lib/supabase/client"
 
-export async function GET() {
+export async function POST(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const body = await request.json()
+    const { title, content, level, author_id, reviewer_note, attachment_url, password } = body
 
-    const { data: assignments, error } = await supabase
-      .from("assignments")
-      .select(`
-        *,
-        author:users!author_id(name, email)
-      `)
-      .order("created_at", { ascending: false })
-
-    if (error) {
-      console.error("과제 조회 오류:", error)
-      return NextResponse.json({ error: "과제를 불러올 수 없습니다." }, { status: 500 })
+    // 필수 필드 검증
+    if (!title || !content || !level || !author_id || !password) {
+      return NextResponse.json({ error: "제목, 내용, 난이도, 작성자, 비밀번호는 필수입니다" }, { status: 400 })
     }
 
-    // 비밀번호 정보 처리
-    const processedAssignments = assignments.map((assignment: any) => ({
-      ...assignment,
-      has_password: !!assignment.password,
-      password: undefined, // 클라이언트에 비밀번호 자체는 전송하지 않음
-    }))
+    // 난이도를 유효한 카테고리로 매핑
+    const categoryMap: Record<string, string> = {
+      beginner: "general",
+      intermediate: "tech",
+      advanced: "design",
+    }
 
-    return NextResponse.json(processedAssignments || [])
+    const category = categoryMap[level] || "general"
+
+    // 첨부파일이나 검토자 노트가 있으면 content에 추가
+    let finalContent = content
+    if (attachment_url) {
+      finalContent += `\n\n📎 첨부파일: ${attachment_url}`
+    }
+    if (reviewer_note) {
+      finalContent += `\n\n📝 검토자 노트: ${reviewer_note}`
+    }
+    // 비밀번호 정보도 content에 숨겨서 저장 (실제로는 별도 테이블에 저장하는 것이 좋음)
+    finalContent += `\n\n🔒 PASSWORD:${password}`
+
+    // 1. board_posts 테이블에 게시글 생성
+    const { data: boardPost, error: boardError } = await supabase
+      .from("board_posts")
+      .insert({
+        title,
+        content: finalContent,
+        category, // 매핑된 유효한 카테고리 사용
+        type: "qna", // 과제는 QnA 타입으로 분류
+        author_id,
+        is_pinned: false,
+        likes: 0,
+        comments_count: 0,
+        views: 0,
+      })
+      .select()
+      .single()
+
+    if (boardError) {
+      console.error("Board post creation error:", boardError)
+      return NextResponse.json({ error: "과제 게시글 저장에 실패했습니다" }, { status: 500 })
+    }
+
+    // 2. assignments 테이블에 과제 상세 정보 저장 (실제 존재하는 컬럼만 사용)
+    const { data: assignment, error: assignmentError } = await supabase
+      .from("assignments")
+      .insert({
+        post_id: boardPost.id,
+        class_level: level, // 원본 level 값 저장
+        due_date: null,
+        is_completed: false,
+        submissions_count: 0,
+        total_students: 0,
+      })
+      .select()
+      .single()
+
+    if (assignmentError) {
+      console.error("Assignment creation error:", assignmentError)
+      // 게시글도 롤백
+      await supabase.from("board_posts").delete().eq("id", boardPost.id)
+      return NextResponse.json({ error: "과제 정보 저장에 실패했습니다" }, { status: 500 })
+    }
+
+    // 3. 작성자 정보와 함께 반환
+    const { data: authorData } = await supabase.from("users").select("name, email").eq("id", author_id).single()
+
+    const result = {
+      ...boardPost,
+      assignment: assignment,
+      author: {
+        name: authorData?.name || "Anonymous",
+        avatar: `/placeholder.svg?height=32&width=32&query=${authorData?.name || "user"}`,
+      },
+    }
+
+    return NextResponse.json(result, { status: 201 })
   } catch (error) {
-    console.error("과제 API 오류:", error)
-    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 })
+    console.error("Assignment API error:", error)
+    return NextResponse.json({ error: "서버 오류가 발생했습니다" }, { status: 500 })
   }
 }
 
-export async function POST(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
-    const body = await request.json()
+    const { searchParams } = new URL(request.url)
+    const level = searchParams.get("level")
 
-    // 현재 사용자 정보 가져오기
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 })
+    // 난이도를 카테고리로 매핑
+    const categoryMap: Record<string, string> = {
+      beginner: "general",
+      intermediate: "tech",
+      advanced: "design",
     }
 
-    // 사용자가 users 테이블에 존재하는지 확인
-    const { data: dbUser, error: userError } = await supabase
-      .from("users")
-      .select("id, role")
-      .eq("id", user.id)
-      .single()
-
-    let authorId = user.id
-
-    if (userError || !dbUser) {
-      // 사용자가 users 테이블에 없다면 이메일로 찾기
-      const { data: userByEmail, error: emailError } = await supabase
-        .from("users")
-        .select("id, role")
-        .eq("email", user.email)
-        .single()
-
-      if (emailError || !userByEmail) {
-        return NextResponse.json({ error: "사용자 정보를 찾을 수 없습니다." }, { status: 404 })
-      }
-
-      authorId = userByEmail.id
-    }
-
-    // 권한 확인 (관리자, 강사, 교사만 과제 생성 가능)
-    const userRole =
-      dbUser?.role || (await supabase.from("users").select("role").eq("id", authorId).single()).data?.role
-
-    if (!["admin", "instructor", "teacher"].includes(userRole)) {
-      return NextResponse.json({ error: "과제 생성 권한이 없습니다." }, { status: 403 })
-    }
-
-    const assignmentData = {
-      title: body.title,
-      description: body.description,
-      content: body.content,
-      class_level: body.class_level,
-      due_date: body.due_date,
-      max_submissions: body.max_submissions || 0,
-      current_submissions: 0,
-      author_id: authorId,
-      instructor_id: authorId,
-      review_status: "pending",
-      views: 0,
-      submissions_count: 0,
-      total_students: body.total_students || body.max_submissions || 0,
-      is_completed: false,
-      password: body.password || null, // 비밀번호 필드만 유지
-    }
-
-    const { data, error } = await supabase
-      .from("assignments")
-      .insert([assignmentData])
+    let query = supabase
+      .from("board_posts")
       .select(`
         *,
+        assignments(*),
         author:users!author_id(name, email)
       `)
-      .single()
+      .eq("type", "qna")
+      .order("created_at", { ascending: false })
+
+    if (level && categoryMap[level]) {
+      query = query.eq("category", categoryMap[level])
+    }
+
+    const { data, error } = await query
 
     if (error) {
-      console.error("과제 생성 오류:", error)
-      return NextResponse.json({ error: "과제를 생성할 수 없습니다." }, { status: 500 })
+      console.error("Assignments fetch error:", error)
+      return NextResponse.json({ error: "과제 목록을 불러오는데 실패했습니다" }, { status: 500 })
     }
 
-    // 비밀번호 정보 처리
-    const processedData = {
-      ...data,
-      has_password: !!data.password,
-      password: undefined,
-    }
+    const formattedData = data.map((post) => {
+      // 비밀번호 추출 및 content에서 제거
+      const passwordMatch = post.content.match(/🔒 PASSWORD:(.+)/)
+      const password = passwordMatch ? passwordMatch[1].trim() : null
+      const cleanContent = post.content.replace(/\n\n🔒 PASSWORD:.+$/, "")
 
-    return NextResponse.json(processedData, { status: 201 })
+      return {
+        ...post,
+        content: cleanContent,
+        password,
+        author: {
+          name: post.author?.name || "Anonymous",
+          avatar: `/placeholder.svg?height=32&width=32&query=${post.author?.name || "user"}`,
+        },
+      }
+    })
+
+    return NextResponse.json(formattedData)
   } catch (error) {
-    console.error("과제 생성 API 오류:", error)
-    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 })
+    console.error("Assignments GET error:", error)
+    return NextResponse.json({ error: "서버 오류가 발생했습니다" }, { status: 500 })
   }
 }

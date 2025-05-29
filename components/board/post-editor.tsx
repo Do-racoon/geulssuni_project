@@ -13,7 +13,7 @@ export default function PostEditor() {
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
   const [richContent, setRichContent] = useState("")
-  const [category, setCategory] = useState<"general" | "sharing" | "open">("general") // 올바른 카테고리로 제한
+  const [category, setCategory] = useState<"general" | "sharing" | "open" | "tech" | "design">("general")
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [useRichEditor, setUseRichEditor] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -32,7 +32,7 @@ export default function PostEditor() {
         title,
         content: useRichEditor ? richContent : content,
         category,
-        type: "free",
+        type: "free", // Changed from "general" to "free"
         author_id: authorId,
       }
 
@@ -82,13 +82,15 @@ export default function PostEditor() {
         <select
           id="category"
           value={category}
-          onChange={(e) => setCategory(e.target.value as "general" | "sharing" | "open")}
+          onChange={(e) => setCategory(e.target.value as "general" | "sharing" | "open" | "tech" | "design")}
           className="w-full border border-gray-200 p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
           required
         >
-          <option value="general">자유</option>
-          <option value="open">질문</option>
+          <option value="general">일반</option>
           <option value="sharing">공유</option>
+          <option value="open">자유주제</option>
+          <option value="tech">기술</option>
+          <option value="design">디자인</option>
         </select>
       </div>
 

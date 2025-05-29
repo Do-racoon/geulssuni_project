@@ -5,21 +5,6 @@ import Image from "next/image"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { Eye, BookOpen, Clock } from "lucide-react"
-import { supabase } from "@/lib/supabase/client"
-
-interface PopularContentItem {
-  id: string
-  content_type: "lecture" | "book"
-  content_id: string
-  title: string
-  author: string
-  thumbnail_url: string
-  views: number
-  engagement: number
-  duration_minutes: number
-  pages: number
-  featured: boolean
-}
 
 type ContentType = "lecture" | "book"
 
@@ -35,14 +20,14 @@ interface ContentItem {
   featured: boolean
 }
 
-// Sample data - in a real application, this would come from an API
-const contentItemsOriginal: ContentItem[] = [
+// Sample data - using this as the primary data source
+const contentItems: ContentItem[] = [
   {
     id: 1,
     type: "lecture",
     title: "The Art of Minimalism",
     author: "Alexandra Reeves",
-    thumbnail: "/images/lecture-1.jpg",
+    thumbnail: "/placeholder.svg?height=240&width=400&text=The+Art+of+Minimalism",
     views: 12450,
     engagement: 89,
     duration: "45 min",
@@ -53,7 +38,7 @@ const contentItemsOriginal: ContentItem[] = [
     type: "book",
     title: "Design Principles",
     author: "Thomas Noir",
-    thumbnail: "/images/book-1.jpg",
+    thumbnail: "/placeholder.svg?height=240&width=400&text=Design+Principles",
     views: 9870,
     engagement: 92,
     duration: "320 pages",
@@ -64,7 +49,7 @@ const contentItemsOriginal: ContentItem[] = [
     type: "lecture",
     title: "Creative Direction",
     author: "Elise Laurent",
-    thumbnail: "/images/lecture-2.jpg",
+    thumbnail: "/placeholder.svg?height=240&width=400&text=Creative+Direction",
     views: 8540,
     engagement: 78,
     duration: "60 min",
@@ -75,7 +60,7 @@ const contentItemsOriginal: ContentItem[] = [
     type: "book",
     title: "Modern Typography",
     author: "Marcus Chen",
-    thumbnail: "/images/book-2.jpg",
+    thumbnail: "/placeholder.svg?height=240&width=400&text=Modern+Typography",
     views: 7650,
     engagement: 85,
     duration: "280 pages",
@@ -86,7 +71,7 @@ const contentItemsOriginal: ContentItem[] = [
     type: "lecture",
     title: "Visual Storytelling",
     author: "Alexandra Reeves",
-    thumbnail: "/images/lecture-3.jpg",
+    thumbnail: "/placeholder.svg?height=240&width=400&text=Visual+Storytelling",
     views: 6980,
     engagement: 91,
     duration: "50 min",
@@ -97,7 +82,7 @@ const contentItemsOriginal: ContentItem[] = [
     type: "book",
     title: "The Essence of Form",
     author: "Thomas Noir",
-    thumbnail: "/images/book-3.jpg",
+    thumbnail: "/placeholder.svg?height=240&width=400&text=The+Essence+of+Form",
     views: 5430,
     engagement: 87,
     duration: "210 pages",
@@ -106,38 +91,24 @@ const contentItemsOriginal: ContentItem[] = [
 ]
 
 export default function PopularContent() {
-  const [contentItems, setContentItems] = useState<PopularContentItem[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<ContentType | "all">("all")
-  const [sortedContent, setSortedContent] = useState<ContentItem[]>([])
 
   useEffect(() => {
-    async function fetchPopularContent() {
-      try {
-        const { data, error } = await supabase
-          .from("popular_content")
-          .select("*")
-          .order("views", { ascending: false })
-          .order("featured", { ascending: false })
+    // Simulate loading time
+    const timer = setTimeout(() => {
+      setLoading(false)
+    }, 500)
 
-        if (error) throw error
-        setContentItems(data || [])
-      } catch (error) {
-        console.error("Error fetching popular content:", error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchPopularContent()
+    return () => clearTimeout(timer)
   }, [])
 
   // Function to get the correct detail page URL based on content type
-  const getDetailPageUrl = (item: PopularContentItem) => {
-    return item.content_type === "lecture" ? `/lectures/${item.content_id}` : `/books/${item.content_id}`
+  const getDetailPageUrl = (item: ContentItem) => {
+    return item.type === "lecture" ? `/lectures/${item.id}` : `/books/${item.id}`
   }
 
-  const filteredContent = filter === "all" ? contentItems : contentItems.filter((item) => item.content_type === filter)
+  const filteredContent = filter === "all" ? contentItems : contentItems.filter((item) => item.type === filter)
 
   return (
     <section className="py-24 px-4 bg-white">
@@ -180,7 +151,7 @@ export default function PopularContent() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: index * 0.1 }}
                 whileHover={{ y: -5 }}
-                className="bg-white border border-gray-100 shadow-sm card-hover h-full"
+                className="bg-white border border-gray-100 shadow-sm hover:shadow-lg transition-all duration-300 h-full"
                 style={{
                   display: "flex",
                   flexDirection: "column",
@@ -196,14 +167,14 @@ export default function PopularContent() {
                     }}
                   >
                     <Image
-                      src={item.thumbnail_url || "/placeholder.svg"}
+                      src={item.thumbnail || "/placeholder.svg"}
                       alt={item.title}
                       fill
-                      className="object-cover monochrome"
+                      className="object-cover transition-transform duration-300 hover:scale-105"
                       style={{ objectPosition: "center" }}
                     />
                     <div className="absolute top-3 right-3 bg-white px-3 py-1 text-xs uppercase tracking-widest">
-                      {item.content_type}
+                      {item.type}
                     </div>
                   </div>
                   <div className="p-6 flex flex-col flex-grow">
@@ -220,14 +191,8 @@ export default function PopularContent() {
                       </div>
 
                       <div className="flex items-center gap-1">
-                        {item.content_type === "lecture" ? (
-                          <Clock className="h-4 w-4" />
-                        ) : (
-                          <BookOpen className="h-4 w-4" />
-                        )}
-                        <span>
-                          {item.content_type === "lecture" ? `${item.duration_minutes} min` : `${item.pages} pages`}
-                        </span>
+                        {item.type === "lecture" ? <Clock className="h-4 w-4" /> : <BookOpen className="h-4 w-4" />}
+                        <span>{item.duration}</span>
                       </div>
 
                       <div className="flex items-center gap-1">
