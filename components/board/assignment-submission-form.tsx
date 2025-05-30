@@ -95,6 +95,17 @@ export default function AssignmentSubmissionForm({
     setSubmitting(true)
 
     try {
+      // 제출 직전 인원 재확인
+      const { data: latestAssignment } = await fetch(`/api/assignments/${assignmentId}`).then((res) => res.json())
+
+      if (
+        latestAssignment.max_submissions > 0 &&
+        latestAssignment.current_submissions >= latestAssignment.max_submissions
+      ) {
+        toast.error("제출 인원이 마감되었습니다.")
+        return
+      }
+
       // 파일 업로드
       setUploading(true)
       const formData = new FormData()

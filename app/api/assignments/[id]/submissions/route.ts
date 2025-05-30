@@ -55,6 +55,20 @@ export async function POST(request: Request, { params }: { params: { id: string 
     // 서버 사이드 Supabase 클라이언트 생성
     const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
+    // 현재 제출 수 다시 확인 (동시성 문제 방지)
+    const { data: currentAssignment } = await supabase
+      .from("assignments")
+      .select("max_submissions, current_submissions")
+      .eq("id", assignmentId)
+      .single()
+
+    if (
+      currentAssignment?.max_submissions &&
+      currentAssignment.current_submissions >= currentAssignment.max_submissions
+    ) {
+      return NextResponse.json({ error: "제출 인원이 마감되었습니다." }, { status: 400 })
+    }
+
     // 파일 업로드
     const fileExt = file.name.split(".").pop()
     const fileName = `assignments/${assignmentId}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
@@ -94,6 +108,16 @@ export async function POST(request: Request, { params }: { params: { id: string 
     if (submissionError) {
       console.error("제출 정보 저장 오류:", submissionError)
       return NextResponse.json({ error: "제출 정보 저장에 실패했습니다." }, { status: 500 })
+    }
+
+    // 제출 정보 저장 후 current_submissions 증가
+    if (submission) {
+      await supabase
+        .from("assignments")
+        .update({
+          current_submissions: (currentAssignment?.current_submissions || 0) + 1,
+        })
+        .eq("id", assignmentId)
     }
 
     return NextResponse.json({ success: true, submission })

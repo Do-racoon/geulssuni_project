@@ -37,43 +37,96 @@ export async function POST(request: Request) {
     // Hash the password for storage in our database
     const hashedPassword = await bcrypt.hash(password, 12)
 
-    // Create user with Supabase Auth
-    const { data, error } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: {
-        name,
-        role,
-      },
-    })
+    // 개발 환경에서는 이메일 확인 건너뛰기, 프로덕션에서는 이메일 인증 사용
+    const isDevelopment = process.env.NODE_ENV === "development"
 
-    if (error) throw error
-
-    // Create user in our users table with hashed password
-    const { error: insertError } = await supabaseAdmin.from("users").insert([
-      {
-        id: data.user.id,
+    try {
+      // Create user with Supabase Auth
+      const { data, error } = await supabaseAdmin.auth.admin.createUser({
         email,
-        name,
-        role,
-        password_hash: hashedPassword,
-        is_active: true,
-        email_verified: true,
-      },
-    ])
+        password,
+        email_confirm: isDevelopment, // 개발환경에서만 자동 확인
+        user_metadata: {
+          name,
+          role,
+        },
+      })
 
-    if (insertError) throw insertError
+      if (error) throw error
 
-    return NextResponse.json({
-      success: true,
-      message: "User created successfully with confirmed email",
-      userId: data.user.id,
-      credentials: {
-        email,
-        password, // 응답에 평문 비밀번호 포함 (개발용)
-      },
-    })
+      // Create user in our users table with hashed password
+      const { error: insertError } = await supabaseAdmin.from("users").insert([
+        {
+          id: data.user.id,
+          email,
+          name,
+          role,
+          password_hash: hashedPassword,
+          is_active: true,
+          email_verified: isDevelopment, // 개발환경에서만 자동 확인
+        },
+      ])
+
+      if (insertError) throw insertError
+
+      return NextResponse.json({
+        success: true,
+        message: isDevelopment
+          ? "User created successfully (development mode - email verification skipped)"
+          : "User created successfully. Please check your email for verification.",
+        userId: data.user.id,
+        requiresEmailVerification: !isDevelopment,
+        credentials: isDevelopment
+          ? {
+              email,
+              password, // 개발환경에서만 비밀번호 반환
+            }
+          : undefined,
+      })
+    } catch (authError: any) {
+      // 이메일 발송 오류인 경우 개발 모드로 폴백
+      if (authError.message?.includes("email") || authError.message?.includes("confirmation")) {
+        console.log("Email sending failed, falling back to development mode")
+
+        const { data, error } = await supabaseAdmin.auth.admin.createUser({
+          email,
+          password,
+          email_confirm: true, // 강제로 확인된 상태로 생성
+          user_metadata: {
+            name,
+            role,
+          },
+        })
+
+        if (error) throw error
+
+        const { error: insertError } = await supabaseAdmin.from("users").insert([
+          {
+            id: data.user.id,
+            email,
+            name,
+            role,
+            password_hash: hashedPassword,
+            is_active: true,
+            email_verified: true,
+          },
+        ])
+
+        if (insertError) throw insertError
+
+        return NextResponse.json({
+          success: true,
+          message: "User created successfully (email verification temporarily disabled)",
+          userId: data.user.id,
+          credentials: {
+            email,
+            password,
+          },
+        })
+      }
+
+      throw authError
+    }
   } catch (error) {
     console.error("Error creating user:", error)
     return NextResponse.json(

@@ -1,79 +1,41 @@
+import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs"
 
-export async function middleware(request: NextRequest) {
-  // Get the pathname of the request
-  const path = request.nextUrl.pathname
-
-  // Create a Supabase client for the middleware
+export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
-  const supabase = createMiddlewareClient({ req: request, res })
+  const supabase = createMiddlewareClient({ req, res })
 
-  // Refresh the session
   const {
     data: { session },
   } = await supabase.auth.getSession()
 
-  // Define paths that are protected (require authentication)
-  const isAuthPath = path === "/login" || path === "/register" || path === "/forgot-password"
-  const isProtectedPath = path.startsWith("/profile") || path.startsWith("/board/create")
-  const isAdminPath = (path.startsWith("/admin") && !path.startsWith("/admin/login")) || path === "/admin-direct"
-
-  // If the user is on an auth page but already logged in, redirect to profile
-  if (isAuthPath && session) {
-    return NextResponse.redirect(new URL("/profile", request.url))
-  }
-
-  // If the user is on a protected page but not logged in, redirect to login
-  if (isProtectedPath && !session) {
-    return NextResponse.redirect(new URL("/login", request.url))
-  }
-
-  // Admin path handling
-  if (isAdminPath) {
-    // First check if user is logged in
+  // Admin routes protection
+  if (req.nextUrl.pathname.startsWith("/admin")) {
     if (!session) {
-      return NextResponse.redirect(new URL("/admin/login", request.url))
+      return NextResponse.redirect(new URL("/admin/login", req.url))
     }
 
-    // Then check if user has admin role
-    try {
-      const { data: userData } = await supabase.from("users").select("role").eq("id", session.user.id).single()
+    // Check if user is admin
+    const { data: user } = await supabase.from("users").select("role").eq("id", session.user.id).single()
 
-      if (userData?.role !== "admin") {
-        return NextResponse.redirect(new URL("/admin/login", request.url))
-      }
+    if (!user || user.role !== "admin") {
+      return NextResponse.redirect(new URL("/about", req.url))
+    }
+  }
 
-      // Set admin cookie for future requests
-      res.cookies.set(
-        "adminAuth",
-        JSON.stringify({
-          isAuthenticated: true,
-          timestamp: Date.now(),
-        }),
-        {
-          maxAge: 4 * 60 * 60,
-          path: "/",
-        },
-      )
-    } catch (error) {
-      return NextResponse.redirect(new URL("/admin/login", request.url))
+  // Protected routes that require authentication
+  const protectedRoutes = ["/profile", "/board/create", "/board/assignment/create"]
+
+  if (protectedRoutes.some((route) => req.nextUrl.pathname.startsWith(route))) {
+    if (!session) {
+      return NextResponse.redirect(new URL("/login", req.url))
     }
   }
 
   return res
 }
 
-// Configure the middleware to run only on specific paths
 export const config = {
-  matcher: [
-    "/login",
-    "/register",
-    "/forgot-password",
-    "/profile/:path*",
-    "/board/create/:path*",
-    "/admin/:path*",
-    "/admin-direct",
-  ],
+  matcher: ["/admin/:path*", "/profile/:path*", "/board/create/:path*", "/board/assignment/create/:path*"],
 }

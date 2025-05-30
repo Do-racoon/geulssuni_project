@@ -4,8 +4,10 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
-import { Download, FileText, MessageCircle, Send, User, Calendar } from "lucide-react"
+import { Download, FileText, MessageCircle, Send, User, Calendar, Trash2, MoreVertical } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
+import { getCurrentUser } from "@/lib/auth"
 
 interface Submission {
   id: string
@@ -20,6 +22,7 @@ interface Submission {
 interface SubmissionComment {
   id: string
   author_name: string
+  author_id?: string
   content: string
   created_at: string
 }
@@ -44,7 +47,9 @@ export default function AssignmentSubmissionsDisplay({
   const [loading, setLoading] = useState(true)
   const [newComments, setNewComments] = useState<Record<string, string>>({})
   const [commentingOn, setCommentingOn] = useState<string | null>(null)
+  const [deletingComment, setDeletingComment] = useState<string | null>(null)
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
     loadCurrentUser()
@@ -53,14 +58,11 @@ export default function AssignmentSubmissionsDisplay({
 
   const loadCurrentUser = async () => {
     try {
-      const response = await fetch("/api/auth-status", {
-        cache: "no-store",
-      })
-      if (response.ok) {
-        const data = await response.json()
-        if (data.user) {
-          setCurrentUser(data.user)
-        }
+      const user = await getCurrentUser()
+      if (user) {
+        setCurrentUser(user)
+        // 관리자 권한 확인
+        setIsAdmin(user.role === "admin" || user.role === "instructor")
       }
     } catch (error) {
       console.error("사용자 정보 로딩 오류:", error)
@@ -89,19 +91,21 @@ export default function AssignmentSubmissionsDisplay({
     const content = newComments[submissionId]?.trim()
     if (!content) return
 
+    if (!currentUser) {
+      toast.error("댓글을 작성하려면 로그인이 필요합니다.")
+      return
+    }
+
     setCommentingOn(submissionId)
 
     try {
-      const authorName = currentUser?.name || "Anonymous"
-      const authorId = currentUser?.id || null
-
       const response = await fetch(`/api/assignments/submissions/${submissionId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           content,
-          author_name: authorName,
-          author_id: authorId,
+          author_name: currentUser.name,
+          author_id: currentUser.id,
         }),
       })
 
@@ -125,6 +129,46 @@ export default function AssignmentSubmissionsDisplay({
     } finally {
       setCommentingOn(null)
     }
+  }
+
+  const handleDeleteComment = async (commentId: string, submissionId: string) => {
+    if (!confirm("댓글을 삭제하시겠습니까?")) return
+
+    setDeletingComment(commentId)
+
+    try {
+      const response = await fetch(`/api/assignments/submissions/comments/${commentId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: currentUser?.id,
+          is_admin: isAdmin,
+        }),
+      })
+
+      if (response.ok) {
+        // 댓글 삭제 후 해당 제출물의 댓글 새로고침
+        const commentsResponse = await fetch(`/api/assignments/submissions/${submissionId}/comments`)
+        if (commentsResponse.ok) {
+          const comments = await commentsResponse.json()
+          setSubmissions((prev) => prev.map((sub) => (sub.id === submissionId ? { ...sub, comments } : sub)))
+        }
+
+        toast.success("댓글이 삭제되었습니다.")
+      } else {
+        const errorData = await response.json()
+        toast.error(errorData.error || "댓글 삭제에 실패했습니다.")
+      }
+    } catch (error) {
+      console.error("댓글 삭제 오류:", error)
+      toast.error("댓글 삭제 중 오류가 발생했습니다.")
+    } finally {
+      setDeletingComment(null)
+    }
+  }
+
+  const canDeleteComment = (comment: SubmissionComment) => {
+    return isAdmin || comment.author_id === currentUser?.id
   }
 
   if (loading) {
@@ -207,8 +251,36 @@ export default function AssignmentSubmissionsDisplay({
                   {submission.comments.map((comment) => (
                     <div key={comment.id} className="bg-gray-50 p-3 border border-gray-200">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium tracking-wider text-blue-600">{comment.author_name}</span>
-                        <span className="text-xs text-gray-500">{new Date(comment.created_at).toLocaleString()}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium tracking-wider text-blue-600">
+                            {comment.author_name}
+                          </span>
+                          {isAdmin && comment.author_id && (
+                            <span className="text-xs text-gray-400">({comment.author_id.slice(0, 8)}...)</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-500">{new Date(comment.created_at).toLocaleString()}</span>
+                          {canDeleteComment(comment) && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                  <MoreVertical className="h-3 w-3" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="border border-black rounded-none">
+                                <DropdownMenuItem
+                                  onClick={() => handleDeleteComment(comment.id, submission.id)}
+                                  disabled={deletingComment === comment.id}
+                                  className="text-red-600 focus:text-red-600 tracking-wider font-light"
+                                >
+                                  <Trash2 className="h-3 w-3 mr-2" />
+                                  {deletingComment === comment.id ? "DELETING..." : "DELETE"}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                        </div>
                       </div>
                       <p className="text-gray-700 font-light">{comment.content}</p>
                     </div>
@@ -218,10 +290,13 @@ export default function AssignmentSubmissionsDisplay({
 
               {/* 새 댓글 작성 */}
               <div className="space-y-2">
-                {currentUser && (
+                {currentUser ? (
                   <div className="text-sm text-gray-600 font-light">
                     댓글을 <span className="font-medium text-blue-600">{currentUser.name}</span>으로 작성합니다
+                    {isAdmin && <span className="ml-2 text-xs bg-red-100 text-red-600 px-2 py-1 rounded">ADMIN</span>}
                   </div>
+                ) : (
+                  <div className="text-sm text-red-600 font-light">댓글을 작성하려면 로그인이 필요합니다.</div>
                 )}
                 <div className="flex gap-2">
                   <Textarea
@@ -232,13 +307,14 @@ export default function AssignmentSubmissionsDisplay({
                         [submission.id]: e.target.value,
                       }))
                     }
-                    placeholder={currentUser ? `${currentUser.name}으로 댓글 작성...` : "댓글을 작성하세요..."}
+                    placeholder={currentUser ? `${currentUser.name}으로 댓글 작성...` : "로그인 후 댓글을 작성하세요"}
                     className="flex-1 border-gray-300 min-h-[60px]"
                     style={{ borderRadius: "0" }}
+                    disabled={!currentUser}
                   />
                   <Button
                     onClick={() => handleAddComment(submission.id)}
-                    disabled={!newComments[submission.id]?.trim() || commentingOn === submission.id}
+                    disabled={!newComments[submission.id]?.trim() || commentingOn === submission.id || !currentUser}
                     className="bg-black text-white hover:bg-gray-800 tracking-widest uppercase font-light px-4"
                     style={{ borderRadius: "0" }}
                   >

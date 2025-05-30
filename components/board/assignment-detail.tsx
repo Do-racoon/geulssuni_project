@@ -2,220 +2,194 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Calendar, FileText, Users } from "lucide-react"
-import { Separator } from "@/components/ui/separator"
-import AssignmentSubmissionList from "@/components/board/assignment-submission-list"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import AssignmentSubmissionPopup from "@/components/board/assignment-submission-popup"
-import AssignmentSubmissionsDisplay from "@/components/board/assignment-submissions-display"
+import { Edit, Lock, Users, Calendar, FileText } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { createClient } from "@/lib/supabase/client"
+import { toast } from "@/hooks/use-toast"
+import AssignmentSubmissionsDisplay from "./assignment-submissions-display"
+
+interface Assignment {
+  id: string
+  title: string
+  content: string
+  description: string
+  class_level: string
+  due_date: string | null
+  max_submissions: number | null
+  current_submissions: number
+  password: string | null
+  author_id: string
+  instructor_id: string
+  created_at: string
+  updated_at: string
+  author?: { id: string; name: string; email: string }
+  instructor?: { id: string; name: string; email: string }
+}
+
+interface User {
+  id: string
+  name: string
+  email: string
+  role: string
+}
 
 interface AssignmentDetailProps {
   assignmentId: string
 }
 
 export default function AssignmentDetail({ assignmentId }: AssignmentDetailProps) {
-  const [assignment, setAssignment] = useState<any>(null)
-  const [currentUser, setCurrentUser] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
-  const supabase = createClientComponentClient()
-  const [refreshSubmissions, setRefreshSubmissions] = useState(0)
+  const [assignment, setAssignment] = useState<Assignment | null>(null)
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        setLoading(true)
-
-        // 병렬로 데이터 로드
-        const [assignmentResult, userResult] = await Promise.all([
-          // 과제 정보와 조회수 증가를 병렬로 처리
-          Promise.all([
-            supabase
-              .from("assignments")
-              .select(`
-              id, title, content, description, class_level, due_date, 
-              max_submissions, current_submissions, views, created_at, updated_at, password,
-              author:users!author_id(id, name, email),
-              instructor:users!instructor_id(id, name, email)
-            `)
-              .eq("id", assignmentId)
-              .single(),
-            incrementViews(assignmentId),
-          ]),
-          // 현재 사용자 정보
-          supabase.auth.getUser(),
-        ])
-
-        const [assignmentData] = assignmentResult
-        const { data: assignmentInfo, error: assignmentError } = assignmentData
-
-        if (assignmentError) {
-          console.error("과제 조회 오류:", assignmentError)
-          setError("과제를 불러올 수 없습니다.")
-          return
-        }
-
-        // 사용자 정보 처리
-        const {
-          data: { user },
-        } = userResult
-        if (user) {
-          const { data: dbUser } = await supabase
-            .from("users")
-            .select("id, name, email, role, class_level")
-            .eq("id", user.id)
-            .single()
-          setCurrentUser(dbUser)
-        }
-
-        // 비밀번호 처리
-        const processedAssignment = {
-          ...assignmentInfo,
-          has_password: !!assignmentInfo.password,
-          password: undefined,
-        }
-
-        setAssignment(processedAssignment)
-      } catch (err) {
-        console.error("데이터 로딩 오류:", err)
-        setError("데이터를 불러오는 중 오류가 발생했습니다.")
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadData()
+    loadAssignmentAndUser()
   }, [assignmentId])
 
-  // 조회수 증가 함수 - 응답을 기다리지 않음
-  function incrementViews(id: string) {
-    return supabase.rpc("increment_assignment_views", { assignment_id: id })
+  const loadAssignmentAndUser = async () => {
+    try {
+      setIsLoading(true)
+      const supabase = createClient()
+
+      // 사용자 정보 가져오기
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (user) {
+        const { data: userData } = await supabase
+          .from("users")
+          .select("id, name, email, role")
+          .eq("id", user.id)
+          .single()
+        setCurrentUser(userData)
+      }
+
+      // 과제 정보 가져오기
+      const { data: assignmentData, error } = await supabase
+        .from("assignments")
+        .select(`
+          *,
+          author:users!author_id(id, name, email),
+          instructor:users!instructor_id(id, name, email)
+        `)
+        .eq("id", assignmentId)
+        .single()
+
+      if (error) {
+        console.error("Error loading assignment:", error)
+        throw error
+      }
+
+      setAssignment(assignmentData)
+    } catch (error) {
+      console.error("Error loading assignment:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load assignment details",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  if (loading) {
+  const handleEdit = () => {
+    router.push(`/board/assignment/${assignmentId}/edit`)
+  }
+
+  const canEdit =
+    currentUser &&
+    (currentUser.role === "admin" || (currentUser.role === "instructor" && assignment?.author_id === currentUser.id))
+
+  if (isLoading) {
     return (
-      <div className="text-center py-16">
-        <div className="animate-spin w-6 h-6 border-2 border-black border-t-transparent mx-auto mb-6"></div>
-        <p className="text-gray-600 font-light tracking-wider">LOADING ASSIGNMENT...</p>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
       </div>
     )
   }
 
-  if (error || !assignment) {
+  if (!assignment) {
     return (
-      <div className="text-center py-16">
-        <p className="text-red-600 font-light tracking-wider">{error || "과제를 찾을 수 없습니다."}</p>
+      <div className="text-center">
+        <h1 className="text-2xl font-light mb-4">Assignment not found</h1>
+        <p className="text-gray-600">The requested assignment does not exist or has been deleted.</p>
       </div>
     )
   }
 
-  const isAdmin = currentUser?.role === "admin"
-  const isInstructor = currentUser?.role === "instructor" || currentUser?.role === "teacher"
-  const isPasswordProtected = assignment.has_password
-  const canAccessWithoutPassword = isAdmin || isInstructor
-  const isOverdue = new Date(assignment.due_date) < new Date()
-
-  const formattedDueDate = new Date(assignment.due_date).toLocaleDateString("ko-KR", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
-
-  const formattedCreatedDate = new Date(assignment.created_at).toLocaleDateString("ko-KR", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  })
-
-  const handleSubmissionSuccess = () => {
-    setRefreshSubmissions((prev) => prev + 1)
+  const getLevelBadge = (level: string) => {
+    const levelMap: Record<string, { label: string; color: string }> = {
+      beginner: { label: "기초반", color: "bg-green-100 text-green-800" },
+      intermediate: { label: "중급반", color: "bg-yellow-100 text-yellow-800" },
+      advanced: { label: "전문반", color: "bg-red-100 text-red-800" },
+    }
+    const levelInfo = levelMap[level] || { label: level, color: "bg-gray-100 text-gray-800" }
+    return <Badge className={`${levelInfo.color} border-0`}>{levelInfo.label}</Badge>
   }
 
   return (
-    <>
-      {/* 과제 헤더 */}
-      <div className="border-b border-black pb-6 mb-8">
-        <div className="flex items-center mb-4">
-          <span className="text-xs px-3 py-1 bg-white text-black border border-black mr-3 tracking-wider font-light">
-            {assignment.class_level}
-          </span>
-          <span className="text-sm text-gray-500 tracking-wider font-light">ASSIGNMENT</span>
-        </div>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-start">
+            <div className="space-y-2">
+              <CardTitle className="text-2xl font-light tracking-wider">{assignment.title}</CardTitle>
 
-        <h1 className="text-3xl font-light tracking-widest mb-4 uppercase">{assignment.title}</h1>
+              <div className="flex items-center gap-2">
+                {getLevelBadge(assignment.class_level)}
 
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center">
-            <div className="mr-3">
-              <p className="font-light tracking-wider">{assignment.author?.name}</p>
-              <p className="text-sm text-gray-500 tracking-wider font-light">{formattedCreatedDate}</p>
+                {assignment.password && (
+                  <Badge className="bg-blue-100 text-blue-800 border-0 flex items-center gap-1">
+                    <Lock className="h-3 w-3" />
+                    Protected
+                  </Badge>
+                )}
+              </div>
             </div>
+
+            {canEdit && (
+              <div className="flex gap-2">
+                <Button onClick={handleEdit} variant="outline" size="sm" className="flex items-center gap-1">
+                  <Edit className="h-4 w-4" />
+                  Edit
+                </Button>
+              </div>
+            )}
           </div>
+        </CardHeader>
 
-          <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
-            <div className="flex items-center">
-              <Calendar className="h-4 w-4 mr-1" />
-              <span className="tracking-wider font-light">DUE: {formattedDueDate}</span>
+        <CardContent className="space-y-4">
+          <>
+            <p className="text-gray-700 whitespace-pre-wrap">{assignment.description}</p>
+
+            <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+              {assignment.due_date && (
+                <div className="flex items-center gap-1">
+                  <Calendar className="h-4 w-4" />
+                  Due: {new Date(assignment.due_date).toLocaleDateString()}
+                </div>
+              )}
+
+              <div className="flex items-center gap-1">
+                <Users className="h-4 w-4" />
+                Submissions: {assignment.current_submissions}/{assignment.max_submissions || "∞"}
+              </div>
+
+              <div className="flex items-center gap-1">
+                <FileText className="h-4 w-4" />
+                Author: {assignment.author?.name}
+              </div>
             </div>
-            <div className="flex items-center">
-              <Users className="h-4 w-4 mr-1" />
-              <span className="tracking-wider font-light">
-                {assignment.current_submissions}/{assignment.max_submissions > 0 ? assignment.max_submissions : "∞"}
-              </span>
-            </div>
-            <div className="flex items-center">
-              <FileText className="h-4 w-4 mr-1" />
-              <span className="tracking-wider font-light">VIEWS: {assignment.views}</span>
-            </div>
-          </div>
-        </div>
-      </div>
+          </>
+        </CardContent>
+      </Card>
 
-      {/* 과제 내용 */}
-      <div className="prose prose-lg max-w-none mb-12">
-        <div className="whitespace-pre-wrap text-gray-800 leading-relaxed font-light">{assignment.content}</div>
-      </div>
-
-      <Separator className="my-12" />
-
-      {/* 제출 섹션 */}
-      <div className="mb-12">
-        <h2 className="text-2xl font-light tracking-widest mb-6 uppercase">SUBMISSIONS</h2>
-
-        <div className="bg-gray-50 p-6 mb-8 border border-gray-200">
-          <h3 className="text-lg font-light tracking-widest mb-4 uppercase">SUBMIT YOUR ASSIGNMENT</h3>
-          <AssignmentSubmissionPopup
-            assignmentId={assignmentId}
-            onSubmissionSuccess={handleSubmissionSuccess}
-            disabled={
-              isOverdue ||
-              (assignment.max_submissions > 0 && assignment.current_submissions >= assignment.max_submissions)
-            }
-          />
-
-          {isOverdue && (
-            <p className="text-red-600 text-sm mt-2 font-light tracking-wider">SUBMISSION DEADLINE HAS PASSED</p>
-          )}
-
-          {assignment.max_submissions > 0 && assignment.current_submissions >= assignment.max_submissions && (
-            <p className="text-orange-600 text-sm mt-2 font-light tracking-wider">MAXIMUM SUBMISSIONS REACHED</p>
-          )}
-        </div>
-
-        {/* 공개 제출 목록 */}
-        <AssignmentSubmissionsDisplay assignmentId={assignmentId} refreshTrigger={refreshSubmissions} />
-
-        {/* 관리자/강사용 제출 목록 */}
-        {(isAdmin || isInstructor) && (
-          <div className="mt-8 border-t border-gray-300 pt-8">
-            <h3 className="text-lg font-light tracking-widest mb-4 uppercase">INSTRUCTOR VIEW - ALL SUBMISSIONS</h3>
-            <AssignmentSubmissionList assignmentId={assignmentId} currentUser={currentUser} />
-          </div>
-        )}
-      </div>
-    </>
+      {/* 제출물 표시 */}
+      <AssignmentSubmissionsDisplay assignmentId={assignmentId} />
+    </div>
   )
 }

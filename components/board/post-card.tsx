@@ -20,16 +20,17 @@ interface PostCardProps {
 const cleanContent = (content: string) => {
   if (!content) return ""
 
-  // HTML 태그 모두 제거
-  let cleanText = content.replace(/<[^>]*>/g, "")
+  // 이미지 태그를 [이미지] 텍스트로 변경
+  let cleanText = content.replace(/<img[^>]*>/g, " [이미지] ")
+
+  // 다른 HTML 태그 모두 제거
+  cleanText = cleanText.replace(/<[^>]*>/g, "")
 
   // 연속된 공백과 줄바꿈 정리
   cleanText = cleanText.replace(/\s+/g, " ").trim()
 
-  // 이미지가 있었던 자리는 [이미지] 표시
-  if (content.includes("<img")) {
-    cleanText = cleanText + " [이미지 포함]"
-  }
+  // src="..." 같은 잘못된 텍스트 제거
+  cleanText = cleanText.replace(/src="[^"]*"/g, "")
 
   return cleanText
 }

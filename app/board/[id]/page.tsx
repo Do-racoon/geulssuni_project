@@ -130,11 +130,17 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
     const fixHtmlContent = (content: string) => {
       if (!content) return ""
 
-      let fixedContent = content.replace(/<img([^>]*?)>src="([^"]*?)"/g, '<img$1 src="$2"')
+      // 잘못된 img 태그 구조 수정: <img...>src="..." -> <img ... src="...">
+      let fixedContent = content.replace(/<img([^>]*?)>src="([^"]*?)"/g, '<img$1 src="$2">')
+
+      // img 태그에 스타일 추가
       fixedContent = fixedContent.replace(
         /<img([^>]*?)src="([^"]*?)"([^>]*?)>/g,
-        '<img$1src="$2"$3 style="max-width: 100%; height: auto; border-radius: 8px; margin: 16px 0;" loading="lazy">',
+        '<img$1src="$2"$3 style="max-width: 100%; height: auto; border-radius: 8px; margin: 16px 0; display: block;" loading="lazy" crossorigin="anonymous">',
       )
+
+      // 잘못된 텍스트 제거 (src="..." 가 단독으로 있는 경우)
+      fixedContent = fixedContent.replace(/(?:^|\s)src="[^"]*"(?:\s|$)/g, " ")
 
       return fixedContent
     }
