@@ -2,6 +2,7 @@
 import type React from "react"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { CheckCircle, Circle, Users, Lock, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -45,6 +46,7 @@ interface AssignmentCardProps {
 }
 
 export default function AssignmentCard({ assignment, onComplete, isInstructor, currentUser }: AssignmentCardProps) {
+  const router = useRouter()
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
   const [passwordInput, setPasswordInput] = useState("")
   const [passwordError, setPasswordError] = useState("")
@@ -61,12 +63,13 @@ export default function AssignmentCard({ assignment, onComplete, isInstructor, c
   }
 
   const handlePasswordSubmit = () => {
+    // 즉시 비밀번호 확인 (서버 요청 없음)
     if (passwordInput === assignment.password) {
       setIsPasswordDialogOpen(false)
       setPasswordInput("")
       setPasswordError("")
-      // 비밀번호가 맞으면 과제 상세 페이지로 이동
-      window.location.href = `/board/assignment/${assignment.id}`
+      // 비밀번호가 맞으면 과제 상세 페이지로 즉시 이동
+      router.push(`/board/assignment/${assignment.id}`)
     } else {
       setPasswordError("비밀번호가 올바르지 않습니다.")
     }
@@ -74,11 +77,18 @@ export default function AssignmentCard({ assignment, onComplete, isInstructor, c
 
   const handleCardClick = (e: React.MouseEvent) => {
     e.preventDefault()
-    if (assignment.password && !isInstructor) {
+
+    // 관리자나 강사는 비밀번호 없이 바로 접근
+    if (isInstructor || currentUser?.role === "admin") {
+      router.push(`/board/assignment/${assignment.id}`)
+      return
+    }
+
+    // 비밀번호가 있으면 모달 표시, 없으면 바로 이동
+    if (assignment.password) {
       setIsPasswordDialogOpen(true)
     } else {
-      // 관리자이거나 비밀번호가 없으면 바로 이동
-      window.location.href = `/board/assignment/${assignment.id}`
+      router.push(`/board/assignment/${assignment.id}`)
     }
   }
 
@@ -166,7 +176,7 @@ export default function AssignmentCard({ assignment, onComplete, isInstructor, c
                   <div className="flex items-center text-sm text-gray-500">
                     <Users className="h-4 w-4 mr-1" />
                     <span>
-                      {assignment.assignments.submissions_count}/{assignment.assignments.total_students}
+                      {assignment.assignments.submissions_count}/{assignment.assignments.total_students || 0}
                     </span>
                   </div>
 
@@ -197,7 +207,7 @@ export default function AssignmentCard({ assignment, onComplete, isInstructor, c
         </div>
       </div>
 
-      {/* 비밀번호 확인 다이얼로그 */}
+      {/* 빠른 비밀번호 확인 다이얼로그 */}
       <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -219,6 +229,7 @@ export default function AssignmentCard({ assignment, onComplete, isInstructor, c
                   setPasswordError("")
                 }}
                 placeholder="비밀번호를 입력하세요"
+                autoFocus
                 onKeyPress={(e) => {
                   if (e.key === "Enter") {
                     handlePasswordSubmit()

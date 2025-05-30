@@ -1,37 +1,6 @@
+import { NextResponse } from "next/server"
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
-import { NextResponse } from "next/server"
-
-export async function GET() {
-  try {
-    const supabase = createRouteHandlerClient({ cookies })
-
-    const { data: assignments, error } = await supabase
-      .from("assignments")
-      .select(`
-        *,
-        author:users!author_id(name, email)
-      `)
-      .order("created_at", { ascending: false })
-
-    if (error) {
-      console.error("과제 조회 오류:", error)
-      return NextResponse.json({ error: "과제를 불러올 수 없습니다." }, { status: 500 })
-    }
-
-    // 비밀번호 정보 처리
-    const processedAssignments = assignments.map((assignment: any) => ({
-      ...assignment,
-      has_password: !!assignment.password,
-      password: undefined, // 클라이언트에 비밀번호 자체는 전송하지 않음
-    }))
-
-    return NextResponse.json(processedAssignments || [])
-  } catch (error) {
-    console.error("과제 API 오류:", error)
-    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 })
-  }
-}
 
 export async function POST(request: Request) {
   try {
@@ -47,63 +16,49 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 })
     }
 
-    // 사용자가 users 테이블에 존재하는지 확인
-    const { data: dbUser, error: userError } = await supabase
+    // 권한 확인
+    const { data: dbUser } = await supabase.from("users").select("role").eq("id", user.id).single()
+
+    if (!dbUser || !["admin", "instructor", "teacher"].includes(dbUser.role)) {
+      return NextResponse.json({ error: "생성 권한이 없습니다." }, { status: 403 })
+    }
+
+    // 필수 필드 확인
+    if (!body.title || !body.content || !body.class_level) {
+      return NextResponse.json({ error: "제목, 내용, 클래스 레벨은 필수입니다." }, { status: 400 })
+    }
+
+    // 해당 클래스 레벨의 학생 수 조회
+    const { data: studentsCount, error: countError } = await supabase
       .from("users")
-      .select("id, role")
-      .eq("id", user.id)
-      .single()
+      .select("id", { count: "exact" })
+      .eq("role", "user")
+      .eq("class_level", body.class_level)
 
-    let authorId = user.id
-
-    if (userError || !dbUser) {
-      // 사용자가 users 테이블에 없다면 이메일로 찾기
-      const { data: userByEmail, error: emailError } = await supabase
-        .from("users")
-        .select("id, role")
-        .eq("email", user.email)
-        .single()
-
-      if (emailError || !userByEmail) {
-        return NextResponse.json({ error: "사용자 정보를 찾을 수 없습니다." }, { status: 404 })
-      }
-
-      authorId = userByEmail.id
+    if (countError) {
+      console.error("학생 수 조회 오류:", countError)
     }
 
-    // 권한 확인 (관리자, 강사, 교사만 과제 생성 가능)
-    const userRole =
-      dbUser?.role || (await supabase.from("users").select("role").eq("id", authorId).single()).data?.role
+    const totalStudents = studentsCount?.length || 0
 
-    if (!["admin", "instructor", "teacher"].includes(userRole)) {
-      return NextResponse.json({ error: "과제 생성 권한이 없습니다." }, { status: 403 })
-    }
-
-    const assignmentData = {
-      title: body.title,
-      description: body.description,
-      content: body.content,
-      class_level: body.class_level,
-      due_date: body.due_date,
-      max_submissions: body.max_submissions || 0,
-      current_submissions: 0,
-      author_id: authorId,
-      instructor_id: authorId,
-      review_status: "pending",
-      views: 0,
-      submissions_count: 0,
-      total_students: body.total_students || body.max_submissions || 0,
-      is_completed: false,
-      password: body.password || null, // 비밀번호 필드만 유지
-    }
-
+    // 과제 생성
     const { data, error } = await supabase
       .from("assignments")
-      .insert([assignmentData])
-      .select(`
-        *,
-        author:users!author_id(name, email)
-      `)
+      .insert([
+        {
+          title: body.title,
+          content: body.content,
+          description: body.description || "",
+          class_level: body.class_level,
+          due_date: body.due_date || null,
+          max_submissions: body.max_submissions || null,
+          password: body.password || null,
+          author_id: user.id,
+          instructor_id: body.instructor_id || user.id,
+          total_students: totalStudents,
+        },
+      ])
+      .select()
       .single()
 
     if (error) {
@@ -118,9 +73,61 @@ export async function POST(request: Request) {
       password: undefined,
     }
 
-    return NextResponse.json(processedData, { status: 201 })
+    return NextResponse.json(processedData)
   } catch (error) {
     console.error("과제 생성 API 오류:", error)
+    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 })
+  }
+}
+
+export async function GET(request: Request) {
+  try {
+    const supabase = createRouteHandlerClient({ cookies })
+    const url = new URL(request.url)
+    const classLevel = url.searchParams.get("class_level")
+    const reviewStatus = url.searchParams.get("review_status")
+
+    // 현재 사용자 정보 가져오기
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    let query = supabase
+      .from("assignments")
+      .select(`
+        *,
+        author:users!author_id(id, name, email),
+        instructor:users!instructor_id(id, name, email)
+      `)
+      .order("created_at", { ascending: false })
+
+    // 클래스 레벨 필터링
+    if (classLevel) {
+      query = query.eq("class_level", classLevel)
+    }
+
+    // 검수 상태 필터링
+    if (reviewStatus) {
+      query = query.eq("review_status", reviewStatus)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      console.error("과제 목록 조회 오류:", error)
+      return NextResponse.json({ error: "과제 목록을 불러올 수 없습니다." }, { status: 500 })
+    }
+
+    // 비밀번호 정보 처리
+    const processedData = data.map((item) => ({
+      ...item,
+      has_password: !!item.password,
+      password: user && ["admin", "instructor", "teacher"].includes(user.id) ? item.password : undefined,
+    }))
+
+    return NextResponse.json(processedData)
+  } catch (error) {
+    console.error("과제 목록 API 오류:", error)
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 })
   }
 }

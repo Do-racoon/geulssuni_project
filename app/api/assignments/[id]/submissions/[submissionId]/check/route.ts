@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { getCurrentUser } from "@/lib/auth"
 
 export async function PATCH(request: Request, { params }: { params: { id: string; submissionId: string } }) {
   try {
     const { submissionId } = params
+
+    // 현재 사용자 정보 가져오기
+    const currentUser = await getCurrentUser()
+    if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "instructor")) {
+      return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 })
+    }
 
     // 서버 사이드 Supabase 클라이언트 생성
     const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -28,7 +35,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       .update({
         is_checked: newCheckedStatus,
         checked_at: newCheckedStatus ? new Date().toISOString() : null,
-        checked_by: newCheckedStatus ? "admin" : null, // 실제 구현에서는 현재 사용자 ID 사용
+        checked_by: newCheckedStatus ? currentUser.id : null, // 실제 사용자 ID 사용
       })
       .eq("id", submissionId)
       .select(`

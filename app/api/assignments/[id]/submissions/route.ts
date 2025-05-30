@@ -74,13 +74,12 @@ export async function POST(request: Request, { params }: { params: { id: string 
       data: { publicUrl },
     } = supabase.storage.from("uploads").getPublicUrl(fileName)
 
-    // 제출 정보 저장
+    // 제출 정보 저장 (student_id 없이)
     const { data: submission, error: submissionError } = await supabase
       .from("assignment_submissions")
       .insert([
         {
           assignment_id: assignmentId,
-          student_id: null, // 로그인하지 않은 사용자의 경우 null
           student_name: studentName,
           file_name: file.name,
           file_url: publicUrl,

@@ -202,7 +202,7 @@ export const getCurrentUser = async () => {
     // First, try to find user by ID
     const { data: userProfilesById, error: profileByIdError } = await supabaseClient
       .from("users")
-      .select("id, name, email, role, class_name")
+      .select("id, name, email, role, class_level")
       .eq("id", authUser.user.id)
 
     if (profileByIdError) {
@@ -221,7 +221,7 @@ export const getCurrentUser = async () => {
         name: userProfile.name,
         email: userProfile.email,
         role: userProfile.role,
-        class_level: userProfile.class_name,
+        class_level: userProfile.class_level,
       }
     }
 
@@ -229,7 +229,7 @@ export const getCurrentUser = async () => {
     if (authUser.user.email) {
       const { data: userProfilesByEmail, error: profileByEmailError } = await supabaseClient
         .from("users")
-        .select("id, name, email, role, class_name")
+        .select("id, name, email, role, class_level")
         .eq("email", authUser.user.email)
 
       if (profileByEmailError) {
@@ -264,7 +264,7 @@ export const getCurrentUser = async () => {
             name: existingUser.name,
             email: existingUser.email,
             role: existingUser.role,
-            class_level: existingUser.class_name,
+            class_level: existingUser.class_level,
           }
         }
 
@@ -283,7 +283,7 @@ export const getCurrentUser = async () => {
             .from("users")
             .update({ id: authUser.user.id })
             .eq("email", authUser.user.email)
-            .select("id, name, email, role, class_name")
+            .select("id, name, email, role, class_level")
             .single()
 
           if (updateError) {
@@ -294,7 +294,7 @@ export const getCurrentUser = async () => {
               name: existingUser.name,
               email: existingUser.email,
               role: existingUser.role,
-              class_level: existingUser.class_name,
+              class_level: existingUser.class_level,
             }
           }
 
@@ -303,7 +303,7 @@ export const getCurrentUser = async () => {
             name: updatedUser.name,
             email: updatedUser.email,
             role: updatedUser.role,
-            class_level: updatedUser.class_name,
+            class_level: updatedUser.class_level,
           }
         } catch (updateError) {
           console.error("Failed to update user ID, using existing record:", updateError)
@@ -314,7 +314,7 @@ export const getCurrentUser = async () => {
             name: existingUser.name,
             email: existingUser.email,
             role: existingUser.role,
-            class_level: existingUser.class_name,
+            class_level: existingUser.class_level,
           }
         }
       }
@@ -328,7 +328,7 @@ export const getCurrentUser = async () => {
       email: authUser.user.email || "",
       name: authUser.user.user_metadata?.name || authUser.user.email?.split("@")[0] || "사용자",
       role: "user",
-      class_name: null,
+      class_level: null,
       is_active: true,
       email_verified: authUser.user.email_confirmed_at ? true : false,
     }
@@ -336,7 +336,7 @@ export const getCurrentUser = async () => {
     const { data: newUser, error: insertError } = await supabaseClient
       .from("users")
       .insert([newUserData])
-      .select("id, name, email, role, class_name")
+      .select("id, name, email, role, class_level")
       .single()
 
     if (insertError) {
@@ -348,7 +348,7 @@ export const getCurrentUser = async () => {
 
         const { data: existingUser, error: fetchError } = await supabaseClient
           .from("users")
-          .select("id, name, email, role, class_name")
+          .select("id, name, email, role, class_level")
           .eq("email", authUser.user.email)
           .single()
 
@@ -358,7 +358,7 @@ export const getCurrentUser = async () => {
             name: existingUser.name,
             email: existingUser.email,
             role: existingUser.role,
-            class_level: existingUser.class_name,
+            class_level: existingUser.class_level,
           }
         }
       }
@@ -371,7 +371,7 @@ export const getCurrentUser = async () => {
       name: newUser.name,
       email: newUser.email,
       role: newUser.role,
-      class_level: newUser.class_name,
+      class_level: newUser.class_level,
     }
   } catch (error) {
     console.error("Error getting current user:", error)

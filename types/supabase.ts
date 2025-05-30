@@ -10,7 +10,7 @@ export interface Database {
           name: string
           nickname: string | null
           role: string
-          class_name: string | null
+          class_level: string | null
           is_active: boolean
           email_verified: boolean
           created_at: string
@@ -22,7 +22,7 @@ export interface Database {
           name: string
           nickname?: string | null
           role?: string
-          class_name?: string | null
+          class_level?: string | null
           is_active?: boolean
           email_verified?: boolean
           created_at?: string
@@ -34,7 +34,7 @@ export interface Database {
           name?: string
           nickname?: string | null
           role?: string
-          class_name?: string | null
+          class_level?: string | null
           is_active?: boolean
           email_verified?: boolean
           created_at?: string

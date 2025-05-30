@@ -1,78 +1,56 @@
-import { supabase } from "@/lib/supabase/client"
+import { createClient } from "@supabase/supabase-js"
 
-export async function getBoardPost(id: string) {
-  const { data, error } = await supabase
-    .from("board_posts")
-    .select(`
-      *,
-      author:users(id, name, avatar)
-    `)
-    .eq("id", id)
-    .single()
+// Supabase 클라이언트 생성
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
-  if (error) {
-    throw new Error(`Failed to fetch board post: ${error.message}`)
+export interface BoardPost {
+  id: string
+  title: string
+  content: string
+  category: string
+  type: string
+  created_at: string
+  updated_at: string
+  author_id: string
+  likes: number
+  views: number
+  comments_count: number
+  image_url?: string
+  is_pinned?: boolean
+  author?: {
+    id: string
+    name: string
+    avatar?: string
   }
-
-  return data
 }
 
-export async function getBoardComments(postId: string) {
-  const { data, error } = await supabase
-    .from("board_comments")
-    .select(`
-      *,
-      author:users(id, name, avatar)
-    `)
-    .eq("post_id", postId)
-    .order("created_at", { ascending: true })
-
-  if (error) {
-    throw new Error(`Failed to fetch comments: ${error.message}`)
+export interface BoardComment {
+  id: string
+  content: string
+  created_at: string
+  author_id: string
+  post_id: string
+  likes: number
+  isLiked?: boolean
+  author?: {
+    id: string
+    name: string
+    avatar?: string
   }
-
-  return data || []
 }
 
-export async function getBoardPosts(type?: string, category?: string) {
-  let query = supabase
-    .from("board_posts")
-    .select(`
-      *,
-      author:users(id, name, avatar)
-    `)
-    .order("created_at", { ascending: false })
-
-  if (type) {
-    query = query.eq("type", type)
-  }
-
-  if (category) {
-    query = query.eq("category", category)
-  }
-
-  const { data, error } = await query
-
-  if (error) {
-    throw new Error(`Failed to fetch board posts: ${error.message}`)
-  }
-
-  return data || []
-}
-
-// 자유게시판 게시글 가져오기 (클라이언트용)
-export async function getFreeBoardPosts(category = "all", limit = 20) {
+// 자유게시판 게시글 가져오기
+export async function getFreeBoardPosts(category = "all"): Promise<BoardPost[]> {
   try {
     let query = supabase
       .from("board_posts")
       .select(`
         *,
-        author:users!author_id(name, email)
+        author:users!author_id(id, name)
       `)
       .eq("type", "free")
       .order("is_pinned", { ascending: false })
       .order("created_at", { ascending: false })
-      .limit(limit)
 
     if (category !== "all") {
       query = query.eq("category", category)
@@ -80,157 +58,187 @@ export async function getFreeBoardPosts(category = "all", limit = 20) {
 
     const { data, error } = await query
 
-    if (error) throw error
-
-    return (
-      data?.map((post) => ({
-        ...post,
-        author: {
-          name: post.author?.name || "Anonymous",
-          avatar: `/placeholder.svg?height=32&width=32&query=${post.author?.name || "user"}`,
-        },
-      })) || []
-    )
-  } catch (error) {
-    console.error("Error fetching free board posts:", error)
-    return []
-  }
-}
-
-// 과제게시판 게시글 가져오기 (클라이언트용)
-export async function getAssignmentPosts(userRole: string, userClassLevel?: string, limit = 20) {
-  try {
-    console.log("🔍 getAssignmentPosts 호출됨:", { userRole, userClassLevel, limit })
-
-    let query = supabase
-      .from("board_posts")
-      .select(`
-        *,
-        assignments(*),
-        author:users!author_id(name, email)
-      `)
-      .in("type", ["assignment", "qna"])
-      .order("created_at", { ascending: false })
-      .limit(limit)
-
-    // 권한에 따른 필터링
-    if (userRole === "user" && userClassLevel) {
-      query = query.eq("category", userClassLevel)
-    } else if (userRole === "instructor" && userClassLevel) {
-      query = query.eq("category", userClassLevel)
-    }
-
-    const { data, error } = await query
-
     if (error) {
-      console.error("🔴 과제 조회 오류:", error)
-      throw error
+      console.error("Error fetching board posts:", error)
+      return []
     }
 
-    console.log("✅ 과제 조회 결과:", data?.length || 0, "개")
-
-    return (
-      data?.map((post) => {
-        const passwordMatch = post.content.match(/🔒 PASSWORD:(.+)/)
-        const password = passwordMatch ? passwordMatch[1].trim() : null
-        const cleanContent = post.content.replace(/\n\n🔒 PASSWORD:.+$/, "")
-
-        return {
-          ...post,
-          content: cleanContent,
-          password,
-          author: {
-            name: post.author?.name || "Anonymous",
-            avatar: `/placeholder.svg?height=32&width=32&query=${post.author?.name || "user"}`,
-          },
-        }
-      }) || []
-    )
+    return data || []
   } catch (error) {
-    console.error("Error fetching assignment posts:", error)
+    console.error("Error in getFreeBoardPosts:", error)
     return []
   }
 }
 
-// Add all the other missing functions that were in the original file
-export async function togglePostLike(postId: string, userId: string) {
+// 게시글 좋아요 토글
+export async function togglePostLike(postId: string, userId: string): Promise<boolean> {
   try {
+    // 좋아요 상태 확인
     const { data: existingLike } = await supabase
       .from("post_likes")
-      .select("id")
+      .select("*")
       .eq("post_id", postId)
       .eq("user_id", userId)
       .single()
 
     if (existingLike) {
+      // 좋아요 취소
       await supabase.from("post_likes").delete().eq("post_id", postId).eq("user_id", userId)
-      await supabase.rpc("decrement_post_likes", { post_id: postId })
-    } else {
-      await supabase.from("post_likes").insert({ post_id: postId, user_id: userId })
-      await supabase.rpc("increment_post_likes", { post_id: postId })
-    }
 
-    return !existingLike
+      // 게시글의 좋아요 수 감소
+      await supabase.rpc("decrement_post_likes", { post_id: postId })
+
+      return false
+    } else {
+      // 좋아요 추가
+      await supabase.from("post_likes").insert({ post_id: postId, user_id: userId })
+
+      // 게시글의 좋아요 수 증가
+      await supabase.rpc("increment_post_likes", { post_id: postId })
+
+      return true
+    }
   } catch (error) {
-    console.error("Error toggling like:", error)
-    return false
+    console.error("Error toggling post like:", error)
+    throw error
   }
 }
 
-export async function createComment(postId: string, content: string, authorId: string) {
+// 댓글 생성
+export async function createComment(postId: string, content: string, userId: string): Promise<BoardComment | null> {
   try {
     const { data, error } = await supabase
       .from("comments")
       .insert({
         post_id: postId,
         content,
-        author_id: authorId,
+        author_id: userId,
       })
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error("Error creating comment:", error)
+      return null
+    }
 
+    // 게시글의 댓글 수 증가
     await supabase.rpc("increment_post_comments", { post_id: postId })
 
     return data
   } catch (error) {
-    console.error("Error creating comment:", error)
+    console.error("Error in createComment:", error)
     return null
   }
 }
 
-export async function deleteComment(commentId: string) {
+// 댓글 삭제
+export async function deleteComment(commentId: string): Promise<boolean> {
   try {
+    // 댓글 정보 가져오기 (게시글 ID 필요)
+    const { data: comment, error: fetchError } = await supabase
+      .from("comments")
+      .select("post_id")
+      .eq("id", commentId)
+      .single()
+
+    if (fetchError) {
+      console.error("Error fetching comment:", fetchError)
+      return false
+    }
+
+    // 댓글 삭제
     const { error } = await supabase.from("comments").delete().eq("id", commentId)
 
-    if (error) throw error
+    if (error) {
+      console.error("Error deleting comment:", error)
+      return false
+    }
+
+    // 게시글의 댓글 수 감소
+    if (comment?.post_id) {
+      await supabase.rpc("decrement_post_comments", { post_id: comment.post_id })
+    }
 
     return true
   } catch (error) {
-    console.error("Error deleting comment:", error)
+    console.error("Error in deleteComment:", error)
     return false
   }
 }
 
-export async function toggleCommentLike(commentId: string, userId: string) {
+// 댓글 좋아요 토글
+export async function toggleCommentLike(commentId: string, userId: string): Promise<boolean> {
   try {
+    // 좋아요 상태 확인
     const { data: existingLike } = await supabase
       .from("comment_likes")
-      .select("id")
+      .select("*")
       .eq("comment_id", commentId)
       .eq("user_id", userId)
       .single()
 
     if (existingLike) {
+      // 좋아요 취소
       await supabase.from("comment_likes").delete().eq("comment_id", commentId).eq("user_id", userId)
+
+      // 댓글의 좋아요 수 감소
+      await supabase.rpc("decrement_comment_likes", { comment_id: commentId })
+
       return false
     } else {
+      // 좋아요 추가
       await supabase.from("comment_likes").insert({ comment_id: commentId, user_id: userId })
+
+      // 댓글의 좋아요 수 증가
+      await supabase.rpc("increment_comment_likes", { comment_id: commentId })
+
       return true
     }
   } catch (error) {
     console.error("Error toggling comment like:", error)
-    return false
+    throw error
+  }
+}
+
+// 댓글 가져오기 (페이지네이션 포함)
+export async function getComments(postId: string, page = 1, perPage = 10) {
+  try {
+    // 총 댓글 수 가져오기
+    const { count, error: countError } = await supabase
+      .from("comments")
+      .select("*", { count: "exact" })
+      .eq("post_id", postId)
+
+    if (countError) {
+      console.error("Error counting comments:", countError)
+      return { comments: [], totalPages: 1 }
+    }
+
+    // 페이지네이션 계산
+    const totalPages = Math.ceil((count || 0) / perPage)
+    const from = (page - 1) * perPage
+    const to = from + perPage - 1
+
+    // 댓글 가져오기
+    const { data, error } = await supabase
+      .from("comments")
+      .select(`
+        *,
+        author:users!author_id(id, name)
+      `)
+      .eq("post_id", postId)
+      .order("created_at", { ascending: true })
+      .range(from, to)
+
+    if (error) {
+      console.error("Error fetching comments:", error)
+      return { comments: [], totalPages: 1 }
+    }
+
+    return { comments: data || [], totalPages }
+  } catch (error) {
+    console.error("Error in getComments:", error)
+    return { comments: [], totalPages: 1 }
   }
 }

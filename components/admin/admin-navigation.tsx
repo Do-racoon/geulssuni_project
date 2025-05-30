@@ -16,7 +16,7 @@ import {
   LogOut,
 } from "lucide-react"
 import type { AdminSection } from "./admin-dashboard"
-import { supabase } from "@/lib/supabaseClient"
+import { supabase } from "@/lib/supabase/client"
 
 interface AdminNavigationProps {
   activeSection: AdminSection

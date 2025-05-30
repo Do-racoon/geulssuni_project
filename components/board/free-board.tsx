@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import PostCard from "@/components/board/post-card"
 import { Search, Plus } from "lucide-react"
 import { getFreeBoardPosts } from "@/lib/api/board"
+import { getCurrentUser } from "@/lib/auth"
 import type { BoardPost } from "@/lib/api/board"
 
 export default function FreeBoard() {
@@ -18,14 +19,35 @@ export default function FreeBoard() {
   const [posts, setPosts] = useState<BoardPost[]>([])
   const [filteredPosts, setFilteredPosts] = useState<BoardPost[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [user, setUser] = useState<any>(null)
+  const [userLoading, setUserLoading] = useState(true)
 
-  // 올바른 카테고리 정의: 자유, 질문, 공유
+  // 카테고리 정의
   const categories = [
     { value: "all", label: "ALL" },
     { value: "general", label: "FREE" },
     { value: "open", label: "QUESTION" },
     { value: "sharing", label: "SHARE" },
   ]
+
+  // 사용자 정보 가져오기
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        setUserLoading(true)
+        const currentUser = await getCurrentUser()
+        setUser(currentUser)
+        console.log("Current user:", currentUser)
+      } catch (error) {
+        console.error("Error fetching user:", error)
+        setUser(null)
+      } finally {
+        setUserLoading(false)
+      }
+    }
+
+    fetchUser()
+  }, [])
 
   // 실제 데이터베이스에서 게시글 가져오기
   useEffect(() => {
@@ -64,8 +86,33 @@ export default function FreeBoard() {
 
   // 좋아요 처리 함수
   const handleLike = async (postId: string) => {
+    if (!user) {
+      alert("좋아요를 누르려면 로그인이 필요합니다.")
+      router.push("/login")
+      return
+    }
     // 실제 좋아요 API 호출 구현 필요
     console.log(`좋아요: ${postId}`)
+  }
+
+  const handleWriteClick = async () => {
+    console.log("Write button clicked, user:", user)
+    console.log("User loading:", userLoading)
+
+    if (userLoading) {
+      console.log("User still loading, waiting...")
+      return
+    }
+
+    if (!user) {
+      console.log("No user found, redirecting to login")
+      alert("글을 작성하려면 로그인이 필요합니다.")
+      router.push("/login")
+      return
+    }
+
+    console.log("User authenticated, navigating to create page")
+    router.push("/board/create")
   }
 
   if (isLoading) {
@@ -117,13 +164,22 @@ export default function FreeBoard() {
         </div>
 
         <Button
-          onClick={() => router.push("/board/create")}
-          className="w-full sm:w-auto h-11 px-6 bg-black hover:bg-gray-800 text-white tracking-wider font-light"
+          onClick={handleWriteClick}
+          disabled={userLoading}
+          className="w-full sm:w-auto h-11 px-6 bg-black hover:bg-gray-800 text-white tracking-wider font-light disabled:opacity-50"
         >
           <Plus className="mr-2 h-4 w-4" />
-          WRITE
+          {userLoading ? "LOADING..." : "WRITE"}
         </Button>
       </div>
+
+      {/* 사용자 상태 디버그 정보 */}
+      {process.env.NODE_ENV === "development" && (
+        <div className="bg-gray-100 p-4 rounded text-sm">
+          <p>User Loading: {userLoading ? "true" : "false"}</p>
+          <p>User: {user ? `${user.name} (${user.email})` : "null"}</p>
+        </div>
+      )}
 
       {filteredPosts.length > 0 ? (
         <div className="grid gap-4">
@@ -148,10 +204,11 @@ export default function FreeBoard() {
                 </Button>
               )}
               <Button
-                onClick={() => router.push("/board/create")}
-                className="bg-black hover:bg-gray-800 text-white tracking-wider font-light"
+                onClick={handleWriteClick}
+                disabled={userLoading}
+                className="bg-black hover:bg-gray-800 text-white tracking-wider font-light disabled:opacity-50"
               >
-                WRITE FIRST POST
+                {userLoading ? "LOADING..." : "WRITE FIRST POST"}
               </Button>
             </div>
           </CardContent>

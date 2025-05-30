@@ -46,34 +46,37 @@ export default function AssignmentDetailPage({ params }: AssignmentDetailPagePro
 
   const loadAssignmentAndUser = async () => {
     try {
-      // 현재 사용자 정보 가져오기
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+      // 병렬로 사용자 정보와 과제 정보를 동시에 가져오기
+      const [userResult, assignmentResult] = await Promise.all([
+        supabase.auth.getUser(),
+        supabase.from("assignments").select("id, title, description, author_id, password").eq("id", params.id).single(),
+      ])
 
-      if (user) {
-        const { data: userData } = await supabase.from("users").select("id, role").eq("id", user.id).single()
-
+      // 사용자 정보 처리
+      if (userResult.data.user) {
+        const { data: userData } = await supabase
+          .from("users")
+          .select("id, role")
+          .eq("id", userResult.data.user.id)
+          .single()
         setCurrentUser(userData)
       }
 
-      // assignments 테이블에서 직접 가져오기
-      const { data: assignmentData, error } = await supabase
-        .from("assignments")
-        .select("id, title, description, author_id, password")
-        .eq("id", params.id)
-        .single()
-
-      if (error) {
-        console.error("Error loading assignment:", error)
+      // 과제 정보 처리
+      if (assignmentResult.error) {
+        console.error("Error loading assignment:", assignmentResult.error)
+        setAssignment(null)
+        setIsLoading(false)
         return
       }
 
+      const assignmentData = assignmentResult.data
       setAssignment(assignmentData)
 
-      // 비밀번호 보호 확인
-      const isAdmin = currentUser?.role === "admin"
-      const isInstructor = currentUser?.role === "instructor"
+      // 빠른 권한 확인
+      const userRole = currentUser?.role
+      const isAdmin = userRole === "admin"
+      const isInstructor = userRole === "instructor"
       const isAuthor = currentUser?.id === assignmentData.author_id
       const hasPassword = assignmentData.password && assignmentData.password.trim() !== ""
 
@@ -85,6 +88,7 @@ export default function AssignmentDetailPage({ params }: AssignmentDetailPagePro
       }
     } catch (error) {
       console.error("Error:", error)
+      setAssignment(null)
     } finally {
       setIsLoading(false)
     }
@@ -101,7 +105,7 @@ export default function AssignmentDetailPage({ params }: AssignmentDetailPagePro
 
     if (!assignment || !assignment.password) return
 
-    // 클라이언트에서 비밀번호 확인
+    // 클라이언트에서 즉시 비밀번호 확인 (서버 요청 없음)
     if (passwordInput.trim() === assignment.password.trim()) {
       setIsVerified(true)
       setIsPasswordRequired(false)
@@ -110,18 +114,29 @@ export default function AssignmentDetailPage({ params }: AssignmentDetailPagePro
     }
   }
 
+  // 로딩 중일 때 최소한의 UI만 표시
   if (isLoading) {
     return (
       <main className="min-h-screen bg-white">
         <div className="container mx-auto py-12 px-4 max-w-5xl">
-          <div className="flex items-center justify-center h-64">
-            <div className="text-gray-500">로딩 중...</div>
+          <div className="mb-8">
+            <Link
+              href="/board"
+              className="inline-flex items-center text-gray-600 hover:text-black transition-colors tracking-wider font-light"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              BACK TO BOARD
+            </Link>
+          </div>
+          <div className="flex items-center justify-center h-32">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
           </div>
         </div>
       </main>
     )
   }
 
+  // 과제를 찾을 수 없는 경우
   if (!assignment) {
     return (
       <main className="min-h-screen bg-white">
@@ -144,6 +159,7 @@ export default function AssignmentDetailPage({ params }: AssignmentDetailPagePro
     )
   }
 
+  // 비밀번호 입력이 필요한 경우
   if (isPasswordRequired && !isVerified) {
     return (
       <main className="min-h-screen bg-white">
@@ -184,6 +200,7 @@ export default function AssignmentDetailPage({ params }: AssignmentDetailPagePro
                       }}
                       placeholder="비밀번호를 입력하세요"
                       className="text-center"
+                      autoFocus
                     />
                     {passwordError && (
                       <div className="flex items-center text-red-600 text-sm">
@@ -205,6 +222,7 @@ export default function AssignmentDetailPage({ params }: AssignmentDetailPagePro
     )
   }
 
+  // 과제 상세 정보 표시
   return (
     <main className="min-h-screen bg-white">
       <div className="container mx-auto py-12 px-4 max-w-5xl">

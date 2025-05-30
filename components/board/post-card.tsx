@@ -16,6 +16,24 @@ interface PostCardProps {
   onTogglePin?: (postId: string) => void
 }
 
+// HTML 태그 제거 및 텍스트만 추출하는 함수
+const cleanContent = (content: string) => {
+  if (!content) return ""
+
+  // HTML 태그 모두 제거
+  let cleanText = content.replace(/<[^>]*>/g, "")
+
+  // 연속된 공백과 줄바꿈 정리
+  cleanText = cleanText.replace(/\s+/g, " ").trim()
+
+  // 이미지가 있었던 자리는 [이미지] 표시
+  if (content.includes("<img")) {
+    cleanText = cleanText + " [이미지 포함]"
+  }
+
+  return cleanText
+}
+
 export default function PostCard({ post, onLike, isAdmin = false, onDelete, onTogglePin }: PostCardProps) {
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -110,6 +128,11 @@ export default function PostCard({ post, onLike, isAdmin = false, onDelete, onTo
     }
   }
 
+  // 사용자 이름으로 아바타 이미지 생성
+  const getAvatarUrl = (name: string) => {
+    return `/placeholder.svg?height=32&width=32&query=${encodeURIComponent(name || "user")}`
+  }
+
   return (
     <div className="border border-black bg-white hover:shadow-md transition-shadow">
       <div className="p-6">
@@ -161,7 +184,7 @@ export default function PostCard({ post, onLike, isAdmin = false, onDelete, onTo
 
         <Link href={`/board/${post.id}`} className="block">
           <div className="mb-4">
-            <p className="text-gray-700 line-clamp-3 font-light">{post.content}</p>
+            <p className="text-gray-700 line-clamp-3 font-light">{cleanContent(post.content)}</p>
           </div>
 
           {post.image_url && (
@@ -176,11 +199,7 @@ export default function PostCard({ post, onLike, isAdmin = false, onDelete, onTo
         <div className="flex items-center justify-between">
           <div className="flex items-center">
             <div className="relative w-8 h-8 overflow-hidden mr-2">
-              <Image
-                src={post.author?.avatar || "/placeholder.svg?height=32&width=32"}
-                alt={post.author?.name || "Author"}
-                fill
-              />
+              <Image src={getAvatarUrl(post.author?.name || "Anonymous")} alt={post.author?.name || "Author"} fill />
             </div>
             <span className="text-sm tracking-wider font-light">{post.author?.name}</span>
           </div>

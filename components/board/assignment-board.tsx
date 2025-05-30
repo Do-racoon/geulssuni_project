@@ -69,6 +69,12 @@ export default function AssignmentBoard() {
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const { toast } = useToast()
 
+  // 디버깅용 상태 추가
+  // const [debugInfo, setDebugInfo] = useState<{ userLevel: string; availableLevels: string[] }>({
+  //   userLevel: "",
+  //   availableLevels: [],
+  // })
+
   // 비밀번호 관련 상태
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null)
@@ -98,9 +104,15 @@ export default function AssignmentBoard() {
         const user = await getCurrentUser()
         setCurrentUser(user)
 
+        // 디버깅용 정보 저장
+        // if (user?.class_level) {
+        //   setDebugInfo((prev) => ({ ...prev, userLevel: user.class_level }))
+        // }
+
         // 일반 사용자는 자신의 레벨로 필터 설정
         if (user?.role === "user" && user?.class_level) {
           setSelectedLevel(user.class_level)
+          console.log("사용자 레벨 설정:", user.class_level)
         }
       } catch (userError) {
         console.error("사용자 로딩 실패:", userError)
@@ -124,6 +136,12 @@ export default function AssignmentBoard() {
           has_password: !!assignment.password,
           password: undefined, // 클라이언트에 비밀번호 자체는 전송하지 않음
         }))
+
+        // 디버깅용 - 사용 가능한 레벨 목록 저장
+        // const availableLevels = [...new Set(processedData.map((a: Assignment) => a.class_level))]
+        // setDebugInfo((prev) => ({ ...prev, availableLevels }))
+        // console.log("사용 가능한 레벨:", availableLevels)
+
         setAssignments(processedData)
         setError(null)
       } else {
@@ -271,7 +289,7 @@ export default function AssignmentBoard() {
     }
   }
 
-  // 필터링
+  // 필터링 - 대소문자 무시하고 비교하도록 수정
   const filteredAssignments = assignments.filter((assignment) => {
     const matchesSearch =
       searchQuery === "" ||
@@ -279,12 +297,18 @@ export default function AssignmentBoard() {
       assignment.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
       assignment.description.toLowerCase().includes(searchQuery.toLowerCase())
 
-    // 레벨 필터링
+    // 레벨 필터링 - 대소문자 무시하고 비교
     let matchesLevel = true
     if (currentUser?.role === "user" && currentUser?.class_level) {
-      matchesLevel = assignment.class_level === currentUser.class_level
+      // 대소문자 무시하고 비교
+      const userLevel = currentUser.class_level.toLowerCase().trim()
+      const assignmentLevel = assignment.class_level.toLowerCase().trim()
+      matchesLevel = assignmentLevel === userLevel
+
+      // 디버깅용 로그
+      // console.log(`비교: 사용자 레벨 "${userLevel}" vs 과제 레벨 "${assignmentLevel}" = ${matchesLevel}`)
     } else if (selectedLevel !== "all") {
-      matchesLevel = assignment.class_level === selectedLevel
+      matchesLevel = assignment.class_level.toLowerCase() === selectedLevel.toLowerCase()
     }
 
     // 검수 상태 필터링 - 관리자/강사만 필터링 가능
@@ -298,9 +322,9 @@ export default function AssignmentBoard() {
   })
 
   const getLevelText = (level: string) => {
-    switch (level) {
+    switch (level.toLowerCase().trim()) {
       case "beginner":
-        return "BEGINNER" // "BASIC"에서 "BEGINNER"로 변경
+        return "BEGINNER"
       case "intermediate":
         return "INTERMEDIATE"
       case "advanced":
@@ -311,7 +335,7 @@ export default function AssignmentBoard() {
   }
 
   const getLevelColor = (level: string) => {
-    switch (level) {
+    switch (level.toLowerCase().trim()) {
       case "beginner":
         return "bg-green-50 text-green-700 border border-green-200"
       case "intermediate":
@@ -389,6 +413,22 @@ export default function AssignmentBoard() {
         </div>
       )}
 
+      {/* 디버깅 정보 표시 */}
+      {/* {isLoggedInStudent && (
+        <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
+          <h3 className="font-medium text-blue-700 mb-2">디버깅 정보</h3>
+          <p className="text-sm">
+            사용자 레벨: <strong>{debugInfo.userLevel || "없음"}</strong>
+          </p>
+          <p className="text-sm">
+            사용 가능한 레벨: <strong>{debugInfo.availableLevels.join(", ") || "없음"}</strong>
+          </p>
+          <p className="text-sm">
+            필터링된 과제 수: <strong>{filteredAssignments.length}</strong>/{assignments.length}
+          </p>
+        </div>
+      )} */}
+
       {/* 검색 및 필터 - 반응형 개선 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="relative">
@@ -409,7 +449,7 @@ export default function AssignmentBoard() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">ALL LEVELS</SelectItem>
-              <SelectItem value="beginner">BEGINNER</SelectItem> // "BASIC"에서 "BEGINNER"로 변경
+              <SelectItem value="beginner">BEGINNER</SelectItem>
               <SelectItem value="intermediate">INTERMEDIATE</SelectItem>
               <SelectItem value="advanced">ADVANCED</SelectItem>
             </SelectContent>
@@ -455,6 +495,11 @@ export default function AssignmentBoard() {
       ) : filteredAssignments.length === 0 ? (
         <div className="text-center py-20 border border-gray-200">
           <p className="text-gray-500 font-light tracking-wider text-lg">NO MATCHING ASSIGNMENTS FOUND</p>
+          {isLoggedInStudent && (
+            <p className="text-sm text-gray-500 mt-4">
+              현재 사용자 레벨({currentUser?.class_level || "없음"})에 맞는 과제가 없습니다.
+            </p>
+          )}
         </div>
       ) : (
         <>
@@ -473,10 +518,8 @@ export default function AssignmentBoard() {
                     <div className="col-span-1">STATS</div>
                     <div className="col-span-1">ACTIONS</div>
                   </>
-                ) : isLoggedInStudent ? (
-                  <div className="col-span-4">STUDENT INFO</div>
                 ) : (
-                  <div className="col-span-4">GUEST INFO</div>
+                  <div className="col-span-4">INFO</div>
                 )}
               </div>
 
@@ -595,8 +638,8 @@ export default function AssignmentBoard() {
                         </div>
                       </div>
                     </>
-                  ) : isLoggedInStudent ? (
-                    /* 학생용 정보 표시 */
+                  ) : (
+                    /* 학생과 비로그인 사용자 공통 정보 표시 */
                     <div className="col-span-4 flex items-center">
                       <div className="flex items-center gap-4">
                         <div className="flex items-center text-sm text-gray-500">
@@ -612,25 +655,6 @@ export default function AssignmentBoard() {
                           <span>
                             {assignment.submissions_count}/{assignment.total_students}
                           </span>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    /* 비로그인 사용자용 정보 표시 */
-                    <div className="col-span-4 flex items-center">
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center text-sm text-gray-500">
-                          <Eye className="h-3 w-3 mr-1" />
-                          <span>{assignment.views}</span>
-                        </div>
-                        <div className="flex items-center text-sm text-gray-500">
-                          <Calendar className="h-3 w-3 mr-1" />
-                          <span>Due: {new Date(assignment.due_date).toLocaleDateString()}</span>
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          <Link href="/login" className="text-blue-600 hover:underline">
-                            Login to view more
-                          </Link>
                         </div>
                       </div>
                     </div>
