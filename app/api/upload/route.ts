@@ -32,9 +32,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "No file provided" }, { status: 400 })
     }
 
-    // 파일 검증 - 이미지와 문서 파일 허용
+    // 파일 검증 - 이미지, 비디오, 문서 파일 허용
     const allowedTypes = [
       "image/",
+      "video/", // 비디오 파일 추가
       "application/pdf",
       "application/msword",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -48,17 +49,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: "Only image and document files are allowed",
+          error: "Only image, video and document files are allowed",
         },
         { status: 400 },
       )
     }
 
-    if (file.size > 10 * 1024 * 1024) {
+    // 파일 크기 제한 - 비디오는 더 큰 용량 허용
+    const maxSize = file.type.startsWith("video/") ? 100 * 1024 * 1024 : 10 * 1024 * 1024 // 비디오: 100MB, 기타: 10MB
+
+    if (file.size > maxSize) {
+      const maxSizeMB = file.type.startsWith("video/") ? "100MB" : "10MB"
       return NextResponse.json(
         {
           success: false,
-          error: "File size must be less than 10MB",
+          error: `File size must be less than ${maxSizeMB}`,
         },
         { status: 400 },
       )
@@ -76,13 +81,14 @@ export async function POST(request: NextRequest) {
         public: true,
         allowedMimeTypes: [
           "image/*",
+          "video/*", // 비디오 MIME 타입 추가
           "application/pdf",
           "application/msword",
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
           "text/plain",
           "application/vnd.hancom.hwp",
         ],
-        fileSizeLimit: 10485760, // 10MB
+        fileSizeLimit: 104857600, // 100MB
       })
 
       if (bucketError && !bucketError.message.includes("already exists")) {
@@ -109,6 +115,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      url: publicUrl, // 클라이언트에서 기대하는 'url' 필드 추가
       data: {
         path: data.path,
         publicUrl,

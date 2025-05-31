@@ -23,11 +23,6 @@ export default async function Home() {
           playsInline
           className="absolute inset-0 w-full h-full object-cover z-0"
           poster={heroFallbackImage}
-          onError={(e) => {
-            console.log("Video failed to load:", heroVideoUrl)
-            // Hide video element if it fails to load
-            e.currentTarget.style.display = "none"
-          }}
         >
           <source src={heroVideoUrl} type="video/mp4" />
         </video>
