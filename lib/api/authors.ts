@@ -51,7 +51,7 @@ export async function createAuthor(author: Omit<Author, "id" | "created_at" | "u
     throw new Error("이름은 필수 항목입니다")
   }
 
-  // 데이터 타입 변환
+  // 데이터 타입 변환 및 정리
   const authorData = {
     name: author.name,
     profession: author.profession || null,
@@ -63,19 +63,29 @@ export async function createAuthor(author: Omit<Author, "id" | "created_at" | "u
     image_position_x: author.image_position_x || 50,
     image_position_y: author.image_position_y || 50,
     likes: author.likes || 0,
+    status: "active", // 기본 상태 추가
   }
 
-  console.log("저자 생성 데이터:", authorData)
+  console.log("Supabase에 저장할 저자 데이터:", authorData)
 
-  const { data, error } = await supabase.from("authors").insert([authorData]).select()
+  try {
+    const { data, error } = await supabase.from("authors").insert([authorData]).select()
 
-  if (error) {
-    console.error("저자 생성 오류:", error)
-    throw new Error(`저자 생성에 실패했습니다: ${error.message}`)
+    if (error) {
+      console.error("Supabase 저자 생성 오류:", error)
+      throw new Error(`저자 생성에 실패했습니다: ${error.message}`)
+    }
+
+    if (!data || data.length === 0) {
+      throw new Error("저자 데이터가 생성되지 않았습니다")
+    }
+
+    console.log("저자 생성 성공:", data[0])
+    return data[0] as Author
+  } catch (error) {
+    console.error("저자 생성 중 예외 발생:", error)
+    throw error
   }
-
-  console.log("저자 생성 성공:", data)
-  return data[0] as Author
 }
 
 export async function updateAuthor(id: string, author: Partial<Omit<Author, "id" | "created_at" | "updated_at">>) {

@@ -10,12 +10,17 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getAuthors, deleteAuthor, type Author } from "@/lib/api/authors"
 import { toast } from "@/components/ui/use-toast"
+import EditWriterModal from "../modals/edit-writer-modal"
+import AddAuthorModal from "../modals/add-author-modal"
 
 export default function WritersManagement() {
   const [authors, setAuthors] = useState<Author[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [error, setError] = useState<string | null>(null)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingAuthor, setEditingAuthor] = useState<Author | null>(null)
+  const [showAddModal, setShowAddModal] = useState(false)
 
   useEffect(() => {
     fetchAuthors()
@@ -104,7 +109,7 @@ export default function WritersManagement() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Authors Management</h2>
-        <Button onClick={() => (window.location.href = "/admin?section=authors-management&action=add")}>
+        <Button onClick={() => setShowAddModal(true)}>
           <Plus className="mr-2 h-4 w-4" />
           Add Author
         </Button>
@@ -149,9 +154,13 @@ export default function WritersManagement() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() =>
-                      (window.location.href = `/admin?section=authors-management&action=edit&id=${author.id}`)
-                    }
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      console.log("편집 버튼 클릭됨:", author.id)
+                      setEditingAuthor(author)
+                      setShowEditModal(true)
+                    }}
                     className="h-8 w-8 p-0"
                   >
                     <Edit className="h-4 w-4" />
@@ -208,6 +217,33 @@ export default function WritersManagement() {
             {searchTerm ? "No authors found matching your search." : "No authors found. Add your first author!"}
           </p>
         </div>
+      )}
+      {showEditModal && editingAuthor && (
+        <EditWriterModal
+          writerId={editingAuthor.id}
+          onClose={() => {
+            setShowEditModal(false)
+            setEditingAuthor(null)
+          }}
+          onUpdate={(updatedAuthor) => {
+            setAuthors((prev) => prev.map((author) => (author.id === updatedAuthor.id ? updatedAuthor : author)))
+            setShowEditModal(false)
+            setEditingAuthor(null)
+          }}
+        />
+      )}
+      {showAddModal && (
+        <AddAuthorModal
+          onClose={() => setShowAddModal(false)}
+          onAdd={(newAuthor) => {
+            setAuthors((prev) => [...prev, newAuthor])
+            setShowAddModal(false)
+            toast({
+              title: "Success",
+              description: "Author added successfully",
+            })
+          }}
+        />
       )}
     </div>
   )

@@ -13,7 +13,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getWriter, updateWriter, type Writer } from "@/lib/api/writers"
-import { uploadFile, createFileRecord } from "@/lib/api/files"
 
 interface EditWriterModalProps {
   writerId: string
@@ -89,6 +88,19 @@ export default function EditWriterModal({ writerId, onClose, onUpdate }: EditWri
     return Object.keys(newErrors).length === 0 && !imageError
   }
 
+  // 안전한 파일 이름 생성 함수
+  const generateSafeFileName = (originalName: string): string => {
+    // 파일 확장자 추출
+    const extension = originalName.split(".").pop() || ""
+
+    // 타임스탬프와 랜덤 문자열로 안전한 파일 이름 생성
+    const timestamp = Date.now()
+    const randomString = Math.random().toString(36).substring(2, 8)
+
+    // 안전한 파일 이름 반환 (확장자 포함)
+    return `file_${timestamp}_${randomString}.${extension}`
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -99,27 +111,43 @@ export default function EditWriterModal({ writerId, onClose, onUpdate }: EditWri
     try {
       let imageUrl = profileImage
 
-      // If we have a new image file, upload it to Supabase Storage
+      // If we have a new image file, try to upload it
       if (imageFile) {
-        const timestamp = Date.now()
-        const filePath = `writers/${writerId}/${timestamp}_${imageFile.name.replace(/\s+/g, "_")}`
+        try {
+          // 안전한 파일 이름 생성
+          const safeFileName = generateSafeFileName(imageFile.name)
+          const filePath = `writers/${writerId}/${safeFileName}`
 
-        // Upload to Supabase Storage
-        await uploadFile("images", filePath, imageFile)
+          console.log("Uploading file via API route:", filePath)
 
-        // Get the public URL
-        imageUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/images/${filePath}`
+          // FormData 생성
+          const formData = new FormData()
+          formData.append("file", imageFile)
+          formData.append("bucket", "uploads")
+          formData.append("path", filePath)
+          formData.append("entity_type", "writer")
+          formData.append("entity_id", writerId)
 
-        // Create a file record
-        await createFileRecord({
-          filename: imageFile.name,
-          file_path: filePath,
-          file_type: imageFile.type,
-          file_size: imageFile.size,
-          entity_type: "writer",
-          entity_id: writerId,
-          uploaded_by: "admin",
-        })
+          // API 라우트를 통해 업로드
+          const response = await fetch("/api/upload-file", {
+            method: "POST",
+            body: formData,
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            throw new Error(errorData.error || "Upload failed")
+          }
+
+          const uploadResult = await response.json()
+          imageUrl = uploadResult.publicUrl
+
+          console.log("Upload successful:", uploadResult)
+        } catch (uploadError) {
+          console.error("File upload failed:", uploadError)
+          // Keep the existing image URL on upload failure
+          imageUrl = profileImage
+        }
       }
 
       // Update the writer in Supabase

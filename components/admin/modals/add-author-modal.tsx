@@ -48,6 +48,7 @@ export default function AddAuthorModal({ onClose }: AddAuthorModalProps) {
         likes: 0,
       })
 
+      // 서버 응답을 기다립니다
       const response = await createAuthor({
         name,
         profession,
@@ -61,7 +62,7 @@ export default function AddAuthorModal({ onClose }: AddAuthorModalProps) {
         likes: 0,
       })
 
-      console.log("저자 생성 응답:", response)
+      console.log("저자 생성 성공:", response)
 
       toast({
         title: "저자 생성 완료",
@@ -257,7 +258,7 @@ export default function AddAuthorModal({ onClose }: AddAuthorModalProps) {
               className="px-4 py-2 bg-black text-white rounded-md text-sm font-medium hover:bg-gray-800 disabled:bg-gray-400"
               disabled={isSubmitting}
             >
-              {isSubmitting ? "처리 중..." : "저자 추가"}
+              {isSubmitting ? "저장 중..." : "저자 추가"}
             </button>
           </div>
         </form>

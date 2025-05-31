@@ -9,10 +9,11 @@ import type { Author } from "./author-showcase"
 
 interface AuthorDetailModalProps {
   author: Author
+  isOpen: boolean
   onClose: () => void
 }
 
-export default function AuthorDetailModal({ author, onClose }: AuthorDetailModalProps) {
+export default function AuthorDetailModal({ author, isOpen, onClose }: AuthorDetailModalProps) {
   const [liked, setLiked] = useState(false)
   const [likeCount, setLikeCount] = useState(author.likes)
 
@@ -27,6 +28,8 @@ export default function AuthorDetailModal({ author, onClose }: AuthorDetailModal
     }
   }
 
+  if (!isOpen) return null
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div
@@ -34,7 +37,12 @@ export default function AuthorDetailModal({ author, onClose }: AuthorDetailModal
         onClick={(e) => e.stopPropagation()}
       >
         <div className="relative">
-          <button onClick={onClose} className="absolute top-4 right-4 bg-white rounded-full p-2 shadow-md z-10">
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 bg-white rounded-full p-2 shadow-md z-20 hover:bg-gray-100 transition-colors cursor-pointer"
+            type="button"
+            aria-label="Close modal"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -67,10 +75,23 @@ export default function AuthorDetailModal({ author, onClose }: AuthorDetailModal
 
                 <div className="flex items-center space-x-4">
                   <a
-                    href={author.instagramUrl}
-                    target="_blank"
+                    href={author.instagram_url || "#"}
+                    target={author.instagram_url ? "_blank" : "_self"}
                     rel="noopener noreferrer"
-                    className="flex items-center text-gray-600 hover:text-pink-600 transition-colors"
+                    className={`flex items-center transition-colors ${
+                      author.instagram_url
+                        ? "text-gray-600 hover:text-pink-600 cursor-pointer"
+                        : "text-gray-400 cursor-not-allowed"
+                    }`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (!author.instagram_url) {
+                        e.preventDefault()
+                        console.log("No Instagram URL available")
+                        return
+                      }
+                      console.log("Instagram link clicked:", author.instagram_url)
+                    }}
                   >
                     <Instagram className="h-5 w-5" />
                   </a>

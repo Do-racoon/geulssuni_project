@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/client"
+import { supabase } from "@/lib/supabase/server"
 
 export interface FileRecord {
   id: string
@@ -23,23 +23,24 @@ export interface CreateFileData {
 }
 
 export async function uploadFile(bucket: string, path: string, file: File): Promise<string> {
-  const supabase = createClient()
+  console.log("Uploading file:", { bucket, path, fileName: file.name, size: file.size })
 
   const { data, error } = await supabase.storage.from(bucket).upload(path, file, {
     cacheControl: "3600",
-    upsert: false,
+    upsert: true, // 기존 파일 덮어쓰기 허용
   })
 
   if (error) {
-    console.error("Error uploading file:", error)
+    console.error("Storage upload error:", error)
     throw error
   }
 
+  console.log("Upload successful:", data)
   return data.path
 }
 
 export async function createFileRecord(fileData: CreateFileData): Promise<FileRecord> {
-  const supabase = createClient()
+  // supabase는 이미 import됨
 
   const { data, error } = await supabase.from("files").insert([fileData]).select().single()
 
@@ -52,7 +53,7 @@ export async function createFileRecord(fileData: CreateFileData): Promise<FileRe
 }
 
 export async function getFilesByEntity(entityType: string, entityId: string): Promise<FileRecord[]> {
-  const supabase = createClient()
+  // supabase는 이미 import됨
 
   const { data, error } = await supabase
     .from("files")
@@ -70,7 +71,7 @@ export async function getFilesByEntity(entityType: string, entityId: string): Pr
 }
 
 export async function deleteFile(id: string): Promise<void> {
-  const supabase = createClient()
+  // supabase는 이미 import됨
 
   const { error } = await supabase.from("files").delete().eq("id", id)
 
@@ -81,7 +82,7 @@ export async function deleteFile(id: string): Promise<void> {
 }
 
 export async function getFileUrl(bucket: string, path: string): Promise<string> {
-  const supabase = createClient()
+  // supabase는 이미 import됨
 
   const { data } = supabase.storage.from(bucket).getPublicUrl(path)
 
