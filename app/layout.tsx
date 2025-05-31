@@ -1,24 +1,17 @@
 import type React from "react"
 import "./globals.css"
-import type { Metadata } from "next"
 import { ThemeProvider } from "@/components/theme-provider"
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
 import ScrollToTop from "@/components/scroll-to-top"
 import TalkButton from "@/components/talk-button"
-import { getSetting } from "@/lib/api/settings"
 
-// 동적 메타데이터 생성 (static metadata 제거)
-export async function generateMetadata(): Promise<Metadata> {
-  const siteName = await getSetting("site_name", "글쓰니")
-  const siteDescription = await getSetting("site_description", "글쓰기 교육 플랫폼")
-
-  return {
-    title: siteName,
-    description: siteDescription,
-    viewport: "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover",
-    generator: "v0.dev",
-  }
+// 일단 정적 메타데이터로 안전하게 배포
+export const metadata = {
+  title: "글쓰니",
+  description: "글쓰기 교육 플랫폼",
+  viewport: "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover",
+  generator: "v0.dev",
 }
 
 export default function RootLayout({
@@ -43,7 +36,3 @@ export default function RootLayout({
     </html>
   )
 }
-
-export const metadata = {
-      generator: 'v0.dev'
-    };
