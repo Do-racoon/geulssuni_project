@@ -23,14 +23,21 @@ export default async function Home() {
           playsInline
           className="absolute inset-0 w-full h-full object-cover z-0"
           poster={heroFallbackImage}
+          onError={(e) => {
+            console.log("Video failed to load:", heroVideoUrl)
+            // Hide video element if it fails to load
+            e.currentTarget.style.display = "none"
+          }}
         >
           <source src={heroVideoUrl} type="video/mp4" />
         </video>
 
         {/* Fallback Background Image */}
         <div
-          className="absolute inset-0 w-full h-full object-cover z-0 bg-cover bg-center"
-          style={{ backgroundImage: `url(${heroFallbackImage})` }}
+          className="absolute inset-0 w-full h-full object-cover z-0 bg-cover bg-center bg-gray-900"
+          style={{
+            backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url(${heroFallbackImage})`,
+          }}
         />
 
         {/* Dark Overlay for better text readability */}

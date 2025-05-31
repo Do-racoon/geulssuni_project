@@ -4,7 +4,6 @@ import { ThemeProvider } from "@/components/theme-provider"
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
 import ScrollToTop from "@/components/scroll-to-top"
-import TalkButton from "@/components/talk-button"
 
 // 일단 정적 메타데이터로 안전하게 배포
 export const metadata = {
@@ -30,7 +29,6 @@ export default function RootLayout({
           <Navbar />
           <main className="flex-grow">{children}</main>
           <Footer />
-          <TalkButton />
         </ThemeProvider>
       </body>
     </html>
