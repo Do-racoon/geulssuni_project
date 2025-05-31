@@ -11,7 +11,8 @@ export default function DynamicTitle() {
         })
         if (response.ok) {
           const settings = await response.json()
-          const siteName = settings.find((s: any) => s.key === "site_name")?.value || "글쓰니"
+          // API returns object, not array
+          const siteName = settings.site_name || "글쓰니"
           document.title = siteName
         }
       } catch (error) {

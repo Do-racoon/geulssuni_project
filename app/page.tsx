@@ -1,19 +1,37 @@
 import { getSetting } from "@/lib/api/settings"
 import PopularContent from "@/components/popular-content"
+import DynamicTitle from "@/components/dynamic-title"
 
 export default async function Home() {
   // 서버 사이드에서 설정값 가져오기
   const siteName = await getSetting("site_name", "글쓰니")
   const siteDescription = await getSetting("site_description", "글쓰기 교육 플랫폼")
+  const heroVideoUrl = await getSetting("hero_video_url", "/videos/background-ocean.mp4")
+  const heroFallbackImage = await getSetting("hero_fallback_image", "/images/hero-fallback.jpg")
 
   return (
     <div className="min-h-screen">
+      <DynamicTitle />
+
       {/* Hero Section with Video Background */}
       <section className="relative h-screen flex items-center justify-center overflow-hidden">
         {/* Background Video */}
-        <video autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover z-0">
-          <source src="/videos/background-ocean.mp4" type="video/mp4" />
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="absolute inset-0 w-full h-full object-cover z-0"
+          poster={heroFallbackImage}
+        >
+          <source src={heroVideoUrl} type="video/mp4" />
         </video>
+
+        {/* Fallback Background Image */}
+        <div
+          className="absolute inset-0 w-full h-full object-cover z-0 bg-cover bg-center"
+          style={{ backgroundImage: `url(${heroFallbackImage})` }}
+        />
 
         {/* Dark Overlay for better text readability */}
         <div className="absolute inset-0 bg-black bg-opacity-40 z-10"></div>
