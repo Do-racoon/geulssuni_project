@@ -26,15 +26,34 @@ function BooksContent() {
   useEffect(() => {
     async function fetchBooks() {
       try {
+        console.log("Fetching books from API...")
         const response = await fetch("/api/books", {
           cache: "no-store",
         })
 
+        console.log("API response status:", response.status)
+        const contentType = response.headers.get("content-type")
+        console.log("API response content-type:", contentType)
+
         if (!response.ok) {
+          // If the API route doesn't exist, fall back to client-side data fetching
+          if (response.status === 404) {
+            console.log("API route not found, falling back to direct DB call")
+            const { getBooks } = await import("@/lib/api/books")
+            const data = await getBooks()
+            setBooks(data || [])
+            return
+          }
           throw new Error(`HTTP ${response.status}: ${response.statusText}`)
         }
 
+        if (!contentType || !contentType.includes("application/json")) {
+          console.error("Non-JSON response:", await response.text())
+          throw new Error("API returned non-JSON response")
+        }
+
         const data = await response.json()
+        console.log("Books data received:", data ? data.length : 0, "items")
         setBooks(data || [])
       } catch (error) {
         console.error("Error loading books:", error)
