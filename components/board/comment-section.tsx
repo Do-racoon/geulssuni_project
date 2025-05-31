@@ -69,7 +69,8 @@ export default function CommentSection({ postId, initialComments }: CommentSecti
     setIsSubmitting(true)
 
     try {
-      const comment = await createComment(postId, newComment.trim(), user.id)
+      // createComment에서 사용자 검증을 포함하여 처리
+      const comment = await createComment(postId, newComment.trim())
 
       if (comment) {
         const newCommentWithAuthor = {
@@ -90,7 +91,11 @@ export default function CommentSection({ postId, initialComments }: CommentSecti
       }
     } catch (error) {
       console.error("Error creating comment:", error)
-      alert("댓글 작성에 실패했습니다.")
+      if (error instanceof Error) {
+        alert(error.message)
+      } else {
+        alert("댓글 작성에 실패했습니다.")
+      }
     } finally {
       setIsSubmitting(false)
     }

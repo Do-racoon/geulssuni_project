@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
+import { getCurrentUser } from "@/lib/auth"
 
 // Supabase 클라이언트 생성
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
@@ -105,21 +106,49 @@ export async function togglePostLike(postId: string, userId: string): Promise<bo
 }
 
 // 댓글 생성
-export async function createComment(postId: string, content: string, userId: string): Promise<BoardComment | null> {
+export async function createComment(postId: string, content: string): Promise<BoardComment | null> {
   try {
+    // getCurrentUser를 사용해서 정확한 사용자 정보 가져오기
+    const currentUser = await getCurrentUser()
+
+    if (!currentUser) {
+      throw new Error("로그인이 필요합니다.")
+    }
+
+    console.log("Creating comment with user:", currentUser.id, currentUser.name)
+
+    // 사용자가 users 테이블에 존재하는지 확인
+    const { data: existingUser, error: userCheckError } = await supabase
+      .from("users")
+      .select("id, name")
+      .eq("id", currentUser.id)
+      .single()
+
+    if (userCheckError && userCheckError.code !== "PGRST116") {
+      console.error("Error checking user:", userCheckError)
+      throw new Error("사용자 정보를 확인할 수 없습니다.")
+    }
+
+    // 사용자가 존재하지 않으면 오류
+    if (!existingUser) {
+      console.error("User not found in users table:", currentUser.id)
+      throw new Error("사용자 정보가 등록되지 않았습니다. 관리자에게 문의하세요.")
+    }
+
+    // 댓글 생성
     const { data, error } = await supabase
       .from("comments")
       .insert({
         post_id: postId,
         content,
-        author_id: userId,
+        author_id: currentUser.id,
       })
       .select()
       .single()
 
     if (error) {
       console.error("Error creating comment:", error)
-      return null
+      throw new Error("댓글 작성에 실패했습니다.")
     }
 
     // 게시글의 댓글 수 증가
@@ -128,7 +157,7 @@ export async function createComment(postId: string, content: string, userId: str
     return data
   } catch (error) {
     console.error("Error in createComment:", error)
-    return null
+    throw error
   }
 }
 

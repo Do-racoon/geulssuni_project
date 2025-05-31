@@ -87,11 +87,12 @@ export default function AdminLoginForm({ onLoginSuccess }: AdminLoginFormProps) 
           throw new Error(`관리자 권한이 없습니다.`)
         }
 
-        // 성공 시 콜백 호출
+        // 성공 시 콜백 호출 또는 리다이렉트
         if (onLoginSuccess) {
           onLoginSuccess()
         } else {
-          window.location.reload()
+          // 명시적으로 /admin으로 리다이렉트
+          window.location.href = "/admin"
         }
       }
     } catch (err) {

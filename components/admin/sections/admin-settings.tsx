@@ -1,91 +1,80 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "@/hooks/use-toast"
-import { Download, RefreshCw, Send } from "lucide-react"
+import { Save } from "lucide-react"
 
 export default function AdminSettings() {
-  const [activeTab, setActiveTab] = useState("general")
-  const [isLoading, setIsLoading] = useState(false)
-
-  // General Settings State
-  const [generalSettings, setGeneralSettings] = useState({
-    siteName: "Creative Agency",
-    siteDescription: "A platform for creative professionals",
-    enableRegistration: true,
-    enableComments: true,
-    maintenanceMode: false,
+  const [isSaving, setIsSaving] = useState(false)
+  const [settings, setSettings] = useState({
+    site_name: "",
+    site_description: "",
+    kakao_inquiry_link: "",
   })
 
-  // Email Settings State
-  const [emailSettings, setEmailSettings] = useState({
-    fromEmail: "no-reply@example.com",
-    fromName: "Creative Agency",
-    enableNotifications: true,
-  })
+  // 설정 로드
+  useEffect(() => {
+    loadSettings()
+  }, [])
 
-  // Handle general settings changes
-  const handleGeneralSettingsChange = (key: string, value: any) => {
-    setGeneralSettings({
-      ...generalSettings,
-      [key]: value,
-    })
-  }
-
-  // Handle email settings changes
-  const handleEmailSettingsChange = (key: string, value: any) => {
-    setEmailSettings({
-      ...emailSettings,
-      [key]: value,
-    })
-  }
-
-  // Save settings
-  const saveSettings = async () => {
-    setIsLoading(true)
+  const loadSettings = async () => {
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      toast({
-        title: "Settings saved",
-        description: "Your settings have been updated successfully.",
-      })
+      const response = await fetch("/api/settings")
+      const data = await response.json()
+
+      if (data.success) {
+        setSettings((prev) => ({
+          ...prev,
+          site_name: data.settings.site_name || "",
+          site_description: data.settings.site_description || "",
+          kakao_inquiry_link: data.settings.kakao_inquiry_link || "",
+        }))
+      }
     } catch (error) {
+      console.error("Error loading settings:", error)
       toast({
-        title: "Error",
-        description: "Failed to save settings. Please try again.",
+        title: "오류",
+        description: "설정을 불러오는데 실패했습니다.",
         variant: "destructive",
       })
-    } finally {
-      setIsLoading(false)
     }
   }
 
-  // Export data
-  const exportData = async () => {
-    setIsLoading(true)
+  const updateSetting = async (key: string, value: string) => {
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      setIsSaving(true)
+
+      const response = await fetch("/api/settings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ key, value }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to update setting")
+      }
+
       toast({
-        title: "Data exported",
-        description: "Your data has been exported successfully.",
+        title: "설정 저장됨",
+        description: `${key} 설정이 성공적으로 업데이트되었습니다.`,
       })
     } catch (error) {
+      console.error("Error updating setting:", error)
       toast({
-        title: "Error",
-        description: "Failed to export data. Please try again.",
+        title: "오류",
+        description: `설정 업데이트에 실패했습니다: ${error.message}`,
         variant: "destructive",
       })
     } finally {
-      setIsLoading(false)
+      setIsSaving(false)
     }
   }
 
@@ -93,183 +82,76 @@ export default function AdminSettings() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold mb-2">Settings</h1>
-        <p className="text-gray-500">Manage your platform settings</p>
+        <p className="text-gray-500">웹사이트 기본 설정을 관리합니다</p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="email">Email</TabsTrigger>
-          <TabsTrigger value="backup">Backup & Export</TabsTrigger>
-        </TabsList>
+      <Card>
+        <CardHeader>
+          <CardTitle>웹사이트 설정</CardTitle>
+          <CardDescription>사이트 이름, 설명, 문의 링크를 설정합니다</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="siteName">사이트 이름</Label>
+            <div className="flex gap-2">
+              <Input
+                id="siteName"
+                value={settings.site_name}
+                onChange={(e) => setSettings((prev) => ({ ...prev, site_name: e.target.value }))}
+                placeholder="글쓰니"
+                disabled={isSaving}
+              />
+              <Button onClick={() => updateSetting("site_name", settings.site_name)} disabled={isSaving} size="sm">
+                <Save className="w-4 h-4 mr-1" />
+                저장
+              </Button>
+            </div>
+          </div>
 
-        {/* General Settings Tab */}
-        <TabsContent value="general" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>General Settings</CardTitle>
-              <CardDescription>Configure basic platform settings</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="siteName">Site Name</Label>
-                  <Input
-                    id="siteName"
-                    value={generalSettings.siteName}
-                    onChange={(e) => handleGeneralSettingsChange("siteName", e.target.value)}
-                  />
-                </div>
+          <div className="space-y-2">
+            <Label htmlFor="siteDescription">사이트 설명</Label>
+            <div className="flex gap-2">
+              <Input
+                id="siteDescription"
+                value={settings.site_description}
+                onChange={(e) => setSettings((prev) => ({ ...prev, site_description: e.target.value }))}
+                placeholder="글쓰기 교육 플랫폼"
+                disabled={isSaving}
+              />
+              <Button
+                onClick={() => updateSetting("site_description", settings.site_description)}
+                disabled={isSaving}
+                size="sm"
+              >
+                <Save className="w-4 h-4 mr-1" />
+                저장
+              </Button>
+            </div>
+          </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="siteDescription">Site Description</Label>
-                  <Input
-                    id="siteDescription"
-                    value={generalSettings.siteDescription}
-                    onChange={(e) => handleGeneralSettingsChange("siteDescription", e.target.value)}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="enableRegistration">User Registration</Label>
-                    <p className="text-sm text-gray-500">Allow new users to register</p>
-                  </div>
-                  <Switch
-                    id="enableRegistration"
-                    checked={generalSettings.enableRegistration}
-                    onCheckedChange={(checked) => handleGeneralSettingsChange("enableRegistration", checked)}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="enableComments">Comments</Label>
-                    <p className="text-sm text-gray-500">Allow users to comment on content</p>
-                  </div>
-                  <Switch
-                    id="enableComments"
-                    checked={generalSettings.enableComments}
-                    onCheckedChange={(checked) => handleGeneralSettingsChange("enableComments", checked)}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="maintenanceMode">Maintenance Mode</Label>
-                    <p className="text-sm text-gray-500">Put the site in maintenance mode</p>
-                  </div>
-                  <Switch
-                    id="maintenanceMode"
-                    checked={generalSettings.maintenanceMode}
-                    onCheckedChange={(checked) => handleGeneralSettingsChange("maintenanceMode", checked)}
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <Button onClick={saveSettings} disabled={isLoading}>
-                  {isLoading ? "Saving..." : "Save Settings"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Email Settings Tab */}
-        <TabsContent value="email" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Email Settings</CardTitle>
-              <CardDescription>Configure email notifications</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="fromEmail">From Email</Label>
-                  <Input
-                    id="fromEmail"
-                    value={emailSettings.fromEmail}
-                    onChange={(e) => handleEmailSettingsChange("fromEmail", e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="fromName">From Name</Label>
-                  <Input
-                    id="fromName"
-                    value={emailSettings.fromName}
-                    onChange={(e) => handleEmailSettingsChange("fromName", e.target.value)}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="enableNotifications">Email Notifications</Label>
-                    <p className="text-sm text-gray-500">Send automated email notifications</p>
-                  </div>
-                  <Switch
-                    id="enableNotifications"
-                    checked={emailSettings.enableNotifications}
-                    onCheckedChange={(checked) => handleEmailSettingsChange("enableNotifications", checked)}
-                  />
-                </div>
-
-                <Button onClick={() => toast({ title: "Test email sent" })} variant="outline" className="w-full">
-                  <Send className="mr-2 h-4 w-4" />
-                  Send Test Email
-                </Button>
-              </div>
-
-              <div className="flex justify-end">
-                <Button onClick={saveSettings} disabled={isLoading}>
-                  {isLoading ? "Saving..." : "Save Settings"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Backup & Export Tab */}
-        <TabsContent value="backup" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Backup & Export</CardTitle>
-              <CardDescription>Export your data or create backups</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="exportType">Export Type</Label>
-                  <Select defaultValue="all">
-                    <SelectTrigger id="exportType">
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Data</SelectItem>
-                      <SelectItem value="users">Users Only</SelectItem>
-                      <SelectItem value="content">Content Only</SelectItem>
-                      <SelectItem value="settings">Settings Only</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-4">
-                  <Button onClick={exportData} className="w-full" disabled={isLoading}>
-                    <Download className="mr-2 h-4 w-4" />
-                    {isLoading ? "Exporting..." : "Export Data"}
-                  </Button>
-
-                  <Button variant="outline" className="w-full">
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    Run System Diagnostics
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+          <div className="space-y-2">
+            <Label htmlFor="kakaoLink">카카오톡 문의 링크</Label>
+            <div className="flex gap-2">
+              <Input
+                id="kakaoLink"
+                value={settings.kakao_inquiry_link}
+                onChange={(e) => setSettings((prev) => ({ ...prev, kakao_inquiry_link: e.target.value }))}
+                placeholder="https://open.kakao.com/o/your-link"
+                disabled={isSaving}
+              />
+              <Button
+                onClick={() => updateSetting("kakao_inquiry_link", settings.kakao_inquiry_link)}
+                disabled={isSaving}
+                size="sm"
+              >
+                <Save className="w-4 h-4 mr-1" />
+                저장
+              </Button>
+            </div>
+            <p className="text-sm text-gray-500">강의 페이지에서 사용될 카카오톡 문의 링크입니다</p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

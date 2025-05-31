@@ -6,12 +6,21 @@ import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
 import ScrollToTop from "@/components/scroll-to-top"
 import TalkButton from "@/components/talk-button"
+import { getSetting } from "@/lib/api/settings"
 
-export const metadata: Metadata = {
-  title: "Geulssuni",
-  description: "A minimalist creative agency inspired by Dior's visual aesthetic",
-  viewport: "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover",
-  generator: "v0.dev",
+// 동적 메타데이터 생성
+export async function generateMetadata(): Promise<Metadata> {
+  const siteName = await getSetting("site_name", "글쓰니")
+  const siteDescription = await getSetting("site_description", "글쓰기 교육 플랫폼")
+
+  console.log("Layout metadata:", { siteName, siteDescription })
+
+  return {
+    title: siteName,
+    description: siteDescription,
+    viewport: "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover",
+    generator: "v0.dev",
+  }
 }
 
 export default function RootLayout({
@@ -36,3 +45,7 @@ export default function RootLayout({
     </html>
   )
 }
+
+export const metadata = {
+      generator: 'v0.dev'
+    };
