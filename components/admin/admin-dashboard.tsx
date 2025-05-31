@@ -11,6 +11,7 @@ import FAQManagement from "./sections/faq-management"
 import AdminSettings from "./sections/admin-settings"
 import BoardManagement from "./sections/board-management"
 import AuthorsManagement from "./sections/writers-management"
+import PortfolioManagement from "./sections/portfolio-management"
 
 export type AdminSection =
   | "overview"
@@ -22,6 +23,7 @@ export type AdminSection =
   | "settings"
   | "board"
   | "authors"
+  | "portfolio"
 
 export default function AdminDashboard() {
   const [activeSection, setActiveSection] = useState<AdminSection>("overview")
@@ -41,6 +43,7 @@ export default function AdminDashboard() {
           {activeSection === "settings" && <AdminSettings />}
           {activeSection === "board" && <BoardManagement />}
           {activeSection === "authors" && <AuthorsManagement />}
+          {activeSection === "portfolio" && <PortfolioManagement />}
         </div>
       </div>
     </div>

@@ -17,7 +17,7 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Pencil, Trash2, MoreHorizontal, Plus, Search, ExternalLink, Save, X, Calendar } from "lucide-react"
+import { Pencil, Trash2, MoreHorizontal, Plus, Search, ExternalLink, Save, X, Calendar, Upload } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { format } from "date-fns"
 import { supabase } from "@/lib/supabase/client"
@@ -30,6 +30,7 @@ interface Portfolio {
   short_description: string
   description: string
   image_url: string
+  thumbnail_url: string // 새로 추가
   link: string
   creator: string
   featured: boolean
@@ -53,24 +54,39 @@ export default function PortfolioManagement() {
   useEffect(() => {
     async function fetchPortfolioItems() {
       try {
+        console.log("Fetching portfolio items from database...")
+
         const { data, error } = await supabase.from("portfolio").select("*").order("created_at", { ascending: false })
 
-        if (error) throw error
+        console.log("Portfolio query result:", { data, error })
 
-        const formattedData =
-          data?.map((item) => ({
-            ...item,
-            createdDate: item.created_at.split("T")[0], // Format for date input
-          })) || []
+        if (error) {
+          console.error("Supabase error:", error)
+          throw error
+        }
+
+        if (!data) {
+          console.log("No data returned from portfolio table")
+          setPortfolioItems([])
+          return
+        }
+
+        console.log(`Found ${data.length} portfolio items`)
+
+        const formattedData = data.map((item) => ({
+          ...item,
+          createdDate: item.created_at ? item.created_at.split("T")[0] : new Date().toISOString().split("T")[0],
+        }))
 
         setPortfolioItems(formattedData)
       } catch (error) {
         console.error("Error fetching portfolio items:", error)
         toast({
-          title: "Error",
-          description: "Failed to load portfolio items.",
+          title: "Database Error",
+          description: `Failed to load portfolio items: ${error.message || "Unknown error"}`,
           variant: "destructive",
         })
+        setPortfolioItems([])
       } finally {
         setIsLoading(false)
       }
@@ -119,6 +135,7 @@ export default function PortfolioManagement() {
       short_description: "",
       description: "",
       image_url: "",
+      thumbnail_url: "", // 새로 추가
       link: "",
       creator: "Admin",
       featured: false,
@@ -158,6 +175,7 @@ export default function PortfolioManagement() {
             short_description: item.short_description,
             description: item.description || "",
             image_url: item.image_url || "",
+            thumbnail_url: item.thumbnail_url || "", // 새로 추가
             link: item.link,
             creator: item.creator || "Admin",
             featured: item.featured,
@@ -184,6 +202,7 @@ export default function PortfolioManagement() {
             short_description: item.short_description,
             description: item.description,
             image_url: item.image_url,
+            thumbnail_url: item.thumbnail_url, // 새로 추가
             link: item.link,
             creator: item.creator,
             featured: item.featured,
@@ -269,6 +288,55 @@ export default function PortfolioManagement() {
     }
   }
 
+  // 이미지 업로드 함수 추가
+  const handleImageUpload = async (itemId: string, type: "thumbnail" | "image") => {
+    const input = document.createElement("input")
+    input.type = "file"
+    input.accept = "image/*"
+
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+
+      try {
+        const formData = new FormData()
+        formData.append("file", file)
+        formData.append("bucket", "uploads")
+        formData.append("path", `portfolio/${type}/${Date.now()}-${file.name}`)
+        formData.append("entity_type", "portfolio")
+        formData.append("entity_id", itemId)
+
+        const response = await fetch("/api/upload-file", {
+          method: "POST",
+          body: formData,
+        })
+
+        const result = await response.json()
+
+        if (result.success) {
+          const fieldName = type === "thumbnail" ? "thumbnail_url" : "image_url"
+          updateItemField(itemId, fieldName, result.publicUrl)
+
+          toast({
+            title: "Image uploaded",
+            description: `${type} image has been uploaded successfully.`,
+          })
+        } else {
+          throw new Error(result.error || "Upload failed")
+        }
+      } catch (error) {
+        console.error("Image upload error:", error)
+        toast({
+          title: "Upload failed",
+          description: "Failed to upload image. Please try again.",
+          variant: "destructive",
+        })
+      }
+    }
+
+    input.click()
+  }
+
   return (
     <Card className="w-full">
       <CardHeader className="flex flex-row items-center justify-between">
@@ -309,6 +377,7 @@ export default function PortfolioManagement() {
                 </TableHead>
                 <TableHead>Short Description</TableHead>
                 <TableHead>Link</TableHead>
+                <TableHead>Thumbnail</TableHead>
                 <TableHead className="cursor-pointer" onClick={() => requestSort("created_at")}>
                   Created Date
                   {sortConfig?.key === "created_at" && (
@@ -328,7 +397,9 @@ export default function PortfolioManagement() {
               ) : filteredItems.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="h-24 text-center">
-                    No portfolio items found.
+                    {isLoading
+                      ? "Loading portfolio items..."
+                      : "No portfolio items found. Click 'Add Portfolio Item' to create your first portfolio entry."}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -387,6 +458,38 @@ export default function PortfolioManagement() {
                         </a>
                       ) : (
                         "—"
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {item.isEditing ? (
+                        <div className="space-y-2">
+                          <Input
+                            value={item.thumbnail_url}
+                            onChange={(e) => updateItemField(item.id, "thumbnail_url", e.target.value)}
+                            className="w-full"
+                            placeholder="Thumbnail URL"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleImageUpload(item.id, "thumbnail")}
+                            className="w-full"
+                          >
+                            <Upload className="h-4 w-4 mr-2" />
+                            Upload Thumbnail
+                          </Button>
+                        </div>
+                      ) : item.thumbnail_url ? (
+                        <img
+                          src={item.thumbnail_url || "/placeholder.svg"}
+                          alt={item.title}
+                          className="w-16 h-16 object-cover rounded-md"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 bg-gray-100 rounded-md flex items-center justify-center">
+                          <span className="text-xs text-gray-400">No image</span>
+                        </div>
                       )}
                     </TableCell>
                     <TableCell>

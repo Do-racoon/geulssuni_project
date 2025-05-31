@@ -33,6 +33,12 @@ export const createServerClient = () => {
   })
 }
 
+// createClient 함수도 export (기존 코드와의 호환성을 위해)
+// export const createClient = createServerClient // Removed to fix redeclaration error
+
+// @supabase/supabase-js의 createClient도 re-export
+export { createClient as supabaseCreateClient } from "@supabase/supabase-js"
+
 export async function getServerSession() {
   try {
     const {
