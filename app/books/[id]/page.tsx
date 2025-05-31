@@ -166,10 +166,11 @@ export default async function BookPage({ params }: BookPageProps) {
         {relatedBooks.length > 0 && (
           <div className="mt-16">
             <h2 className="text-2xl font-light tracking-wide mb-8">More books with similar tags</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {relatedBooks.map((relatedBook) => (
-                <Link key={relatedBook.id} href={`/books/${relatedBook.id}`} className="group">
+                <Link key={relatedBook.id} href={`/books/${relatedBook.id}`} className="group block">
                   <div className="bg-white border border-gray-100 rounded-lg overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 group-hover:-translate-y-1">
+                    {/* 고정된 이미지 영역 - 정확한 비율 */}
                     <div className="aspect-[3/4] relative overflow-hidden">
                       {relatedBook.cover_url ? (
                         <Image
@@ -180,26 +181,31 @@ export default async function BookPage({ params }: BookPageProps) {
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
-                          <div className="text-center p-6">
-                            <div className="text-4xl mb-3">📚</div>
-                            <div className="text-sm text-gray-500 font-medium line-clamp-3">{relatedBook.title}</div>
+                          <div className="text-center p-4">
+                            <div className="text-3xl mb-2">📚</div>
+                            <div className="text-xs text-gray-500 font-medium line-clamp-2">{relatedBook.title}</div>
                           </div>
                         </div>
                       )}
                     </div>
-                    <div className="p-4">
-                      <h3 className="font-medium text-base line-clamp-2 mb-2 group-hover:text-gray-600 transition-colors">
-                        {relatedBook.title}
-                      </h3>
-                      <p className="text-sm text-gray-600 mb-2">{relatedBook.author}</p>
-                      <div className="flex items-center justify-between">
+
+                    {/* 고정된 컨텐츠 영역 - 정확한 높이 */}
+                    <div className="p-4 h-[100px] flex flex-col justify-between">
+                      <div className="flex-1">
+                        <h3 className="font-medium text-sm line-clamp-2 mb-1 group-hover:text-gray-600 transition-colors leading-tight">
+                          {relatedBook.title}
+                        </h3>
+                        <p className="text-xs text-gray-600 line-clamp-1">{relatedBook.author}</p>
+                      </div>
+
+                      <div className="flex items-center justify-between mt-2 pt-2">
                         {relatedBook.category && (
-                          <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
+                          <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full truncate max-w-[80px]">
                             {relatedBook.category}
                           </span>
                         )}
                         {relatedBook.views > 0 && (
-                          <span className="text-xs text-gray-500 flex items-center gap-1">
+                          <span className="text-xs text-gray-500 flex items-center gap-1 ml-auto">
                             <Eye className="w-3 h-3" />
                             {relatedBook.views.toLocaleString()}
                           </span>

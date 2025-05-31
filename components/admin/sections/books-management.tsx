@@ -1,91 +1,168 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { getBooks, createBook, updateBook, deleteBook, type Book } from "@/lib/api/books"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Plus, Edit, Trash2, Eye, BookOpen } from "lucide-react"
+import { Plus, Edit, Trash2, Eye, BookOpen, RefreshCw } from "lucide-react"
 import Image from "next/image"
-// import 추가
-import { getInstructors } from "@/lib/api/instructors"
+import { toast } from "@/hooks/use-toast"
+import AddBookModal from "../modals/add-book-modal"
+import EditBookModal from "../modals/edit-book-modal"
+
+interface Book {
+  id: string
+  title: string
+  author: string
+  description?: string
+  cover_url?: string
+  views: number
+  category?: string
+  pages?: number
+  purchase_link?: string
+  tags?: string[]
+  is_published: boolean
+  created_at?: string
+  updated_at?: string
+  sales_count?: number
+  external_link?: string
+}
 
 export default function BooksManagement() {
   const [books, setBooks] = useState<Book[]>([])
   const [loading, setLoading] = useState(true)
   const [editingBook, setEditingBook] = useState<Book | null>(null)
-  const [isCreating, setIsCreating] = useState(false)
-  // instructors state 추가
-  const [instructors, setInstructors] = useState<any[]>([])
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
 
-  // useEffect에 강사 로드 추가
   useEffect(() => {
     loadBooks()
-    loadInstructors()
   }, [])
 
   const loadBooks = async () => {
     try {
       setLoading(true)
-      const data = await getBooks()
-      setBooks(data)
+      console.log("Loading books...")
+
+      const response = await fetch("/api/books", {
+        method: "GET",
+        headers: {
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
+        cache: "no-store",
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error("API response error:", response.status, errorText)
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+      console.log("Books loaded:", data?.length || 0)
+      setBooks(data || [])
     } catch (error) {
       console.error("Error loading books:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load books. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
   }
 
-  const loadInstructors = async () => {
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    await loadBooks()
+    setRefreshing(false)
+    toast({
+      title: "Refreshed",
+      description: "Books list has been refreshed.",
+    })
+  }
+
+  const handleCreate = async (bookData: any) => {
     try {
-      const data = await getInstructors()
-      setInstructors(data)
+      console.log("Creating book:", bookData)
+
+      const response = await fetch("/api/books", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(bookData),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error("Create book error:", errorData)
+        throw new Error(errorData.details || errorData.error || "Failed to create book")
+      }
+
+      const newBook = await response.json()
+      console.log("Book created successfully:", newBook)
+
+      setBooks((prev) => [newBook, ...prev])
+
+      toast({
+        title: "Success",
+        description: "Book created successfully!",
+      })
+
+      setShowAddModal(false)
     } catch (error) {
-      console.error("Error loading instructors:", error)
+      console.error("Error creating book:", error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create book",
+        variant: "destructive",
+      })
     }
   }
 
-  const handleCreate = () => {
-    setEditingBook({
-      id: "",
-      title: "",
-      author: "",
-      description: "",
-      cover_url: "",
-      views: 0,
-      category: "",
-      pages: 0,
-      is_published: true,
-      purchase_link: "",
-      tags: [],
-      external_link: "",
-      sales_count: 0,
-    })
-    setIsCreating(true)
-  }
-
   const handleEdit = (book: Book) => {
+    console.log("Editing book:", book)
     setEditingBook(book)
-    setIsCreating(false)
   }
 
-  const handleSave = async () => {
-    if (!editingBook) return
-
+  const handleUpdate = async (updatedBook: Book) => {
     try {
-      if (isCreating) {
-        const { id, views, created_at, updated_at, ...bookData } = editingBook
-        await createBook(bookData)
-      } else {
-        const { id, created_at, updated_at, ...bookData } = editingBook
-        await updateBook(editingBook.id, bookData)
+      console.log("Updating book:", updatedBook)
+
+      const response = await fetch(`/api/books/${updatedBook.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updatedBook),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error("Update book error:", errorData)
+        throw new Error(errorData.details || errorData.error || "Failed to update book")
       }
 
-      await loadBooks()
+      const updated = await response.json()
+      console.log("Book updated successfully:", updated)
+
+      setBooks((prev) => prev.map((book) => (book.id === updated.id ? updated : book)))
+
+      toast({
+        title: "Success",
+        description: "Book updated successfully!",
+      })
+
       setEditingBook(null)
-      setIsCreating(false)
     } catch (error) {
-      console.error("Error saving book:", error)
-      alert("Failed to save book")
+      console.error("Error updating book:", error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update book",
+        variant: "destructive",
+      })
     }
   }
 
@@ -93,11 +170,31 @@ export default function BooksManagement() {
     if (!confirm("Are you sure you want to delete this book?")) return
 
     try {
-      await deleteBook(id)
-      await loadBooks()
+      console.log("Deleting book:", id)
+
+      const response = await fetch(`/api/books/${id}`, {
+        method: "DELETE",
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error("Delete book error:", errorData)
+        throw new Error(errorData.details || errorData.error || "Failed to delete book")
+      }
+
+      setBooks((prev) => prev.filter((book) => book.id !== id))
+
+      toast({
+        title: "Success",
+        description: "Book deleted successfully!",
+      })
     } catch (error) {
       console.error("Error deleting book:", error)
-      alert("Failed to delete book")
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete book",
+        variant: "destructive",
+      })
     }
   }
 
@@ -118,218 +215,100 @@ export default function BooksManagement() {
   }
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Books Management</CardTitle>
-        <Button onClick={handleCreate} className="flex items-center gap-2">
-          <Plus className="w-4 h-4" />
-          Add Book
-        </Button>
-      </CardHeader>
-      <CardContent>
-        {editingBook && (
-          <div className="mb-6 p-4 border rounded-lg bg-gray-50">
-            <h3 className="font-medium mb-4">{isCreating ? "Create New Book" : "Edit Book"}</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Title</label>
-                <input
-                  type="text"
-                  value={editingBook.title}
-                  onChange={(e) => setEditingBook({ ...editingBook, title: e.target.value })}
-                  className="w-full p-2 border rounded-md"
-                  placeholder="Book title"
-                />
-              </div>
-              {/* editingBook에서 author 필드를 드롭다운으로 변경 */}
-              <div>
-                <label className="block text-sm font-medium mb-1">Author</label>
-                <select
-                  value={editingBook.author}
-                  onChange={(e) => setEditingBook({ ...editingBook, author: e.target.value })}
-                  className="w-full p-2 border rounded-md"
-                >
-                  <option value="">Select an author</option>
-                  {instructors.map((instructor) => (
-                    <option key={instructor.id} value={instructor.name}>
-                      {instructor.name} - {instructor.profession}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Category</label>
-                <select
-                  value={editingBook.category || ""}
-                  onChange={(e) => setEditingBook({ ...editingBook, category: e.target.value })}
-                  className="w-full p-2 border rounded-md"
-                >
-                  <option value="작법서">작법서</option>
-                  <option value="에세이">에세이</option>
-                  <option value="소설">소설</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Pages</label>
-                <input
-                  type="number"
-                  value={editingBook.pages || ""}
-                  onChange={(e) => setEditingBook({ ...editingBook, pages: Number.parseInt(e.target.value) || 0 })}
-                  className="w-full p-2 border rounded-md"
-                  placeholder="Number of pages"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">Cover URL</label>
-                <input
-                  type="url"
-                  value={editingBook.cover_url || ""}
-                  onChange={(e) => setEditingBook({ ...editingBook, cover_url: e.target.value })}
-                  className="w-full p-2 border rounded-md"
-                  placeholder="https://example.com/cover.jpg"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Purchase Link</label>
-                <input
-                  type="url"
-                  value={editingBook.purchase_link || ""}
-                  onChange={(e) => setEditingBook({ ...editingBook, purchase_link: e.target.value })}
-                  className="w-full p-2 border rounded-md"
-                  placeholder="https://example.com/buy"
-                />
-              </div>
-              {/* External Link 필드 추가 */}
-              <div>
-                <label className="block text-sm font-medium mb-1">External Link</label>
-                <input
-                  type="url"
-                  value={editingBook.external_link || ""}
-                  onChange={(e) => setEditingBook({ ...editingBook, external_link: e.target.value })}
-                  className="w-full p-2 border rounded-md"
-                  placeholder="https://example.com/external-link"
-                />
-              </div>
-              {/* Sales Count 필드 추가 */}
-              <div>
-                <label className="block text-sm font-medium mb-1">Sales Count</label>
-                <input
-                  type="number"
-                  value={editingBook.sales_count || 0}
-                  onChange={(e) =>
-                    setEditingBook({ ...editingBook, sales_count: Number.parseInt(e.target.value) || 0 })
-                  }
-                  className="w-full p-2 border rounded-md"
-                  placeholder="Number of sales"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Tags (comma separated)</label>
-                <input
-                  type="text"
-                  value={editingBook.tags ? editingBook.tags.join(", ") : ""}
-                  onChange={(e) =>
-                    setEditingBook({ ...editingBook, tags: e.target.value.split(",").map((tag) => tag.trim()) })
-                  }
-                  className="w-full p-2 border rounded-md"
-                  placeholder="design, creativity, visual arts"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">Description</label>
-                <textarea
-                  value={editingBook.description || ""}
-                  onChange={(e) => setEditingBook({ ...editingBook, description: e.target.value })}
-                  className="w-full p-2 border rounded-md h-24"
-                  placeholder="Book description"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={editingBook.is_published}
-                    onChange={(e) => setEditingBook({ ...editingBook, is_published: e.target.checked })}
-                  />
-                  <span className="text-sm font-medium">Published</span>
-                </label>
-              </div>
-            </div>
-            <div className="flex gap-2 mt-4">
-              <Button onClick={handleSave}>Save</Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setEditingBook(null)
-                  setIsCreating(false)
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
+    <>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Books Management ({books.length})</CardTitle>
+          <div className="flex gap-2">
+            <Button
+              onClick={handleRefresh}
+              variant="outline"
+              size="sm"
+              disabled={refreshing}
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+            <Button onClick={() => setShowAddModal(true)} className="flex items-center gap-2">
+              <Plus className="w-4 h-4" />
+              Add Book
+            </Button>
           </div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {books.map((book) => (
-            <div key={book.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
-              <div className="flex items-start gap-3">
-                <div className="w-16 h-20 bg-gray-100 rounded flex-shrink-0 overflow-hidden">
-                  {book.cover_url ? (
-                    <Image
-                      src={book.cover_url || "/placeholder.svg"}
-                      alt={book.title}
-                      width={64}
-                      height={80}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                      <BookOpen className="w-6 h-6" />
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-sm line-clamp-2 mb-1">{book.title}</h4>
-                  <p className="text-xs text-gray-600 mb-2">{book.author}</p>
-                  {book.category && (
-                    <span className="inline-block bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded">
-                      {book.category}
-                    </span>
-                  )}
-                  <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-                    <div className="flex items-center gap-1">
-                      <Eye className="w-3 h-3" />
-                      {book.views}
-                    </div>
-                    {book.pages && (
-                      <div className="flex items-center gap-1">
-                        <BookOpen className="w-3 h-3" />
-                        {book.pages}p
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {books.map((book) => (
+              <div key={book.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                <div className="flex items-start gap-3">
+                  <div className="w-16 h-20 bg-gray-100 rounded flex-shrink-0 overflow-hidden">
+                    {book.cover_url ? (
+                      <Image
+                        src={book.cover_url || "/placeholder.svg"}
+                        alt={book.title}
+                        width={64}
+                        height={80}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400">
+                        <BookOpen className="w-6 h-6" />
                       </div>
                     )}
                   </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium text-sm line-clamp-2 mb-1">{book.title}</h4>
+                    <p className="text-xs text-gray-600 mb-2">{book.author}</p>
+                    {book.category && (
+                      <span className="inline-block bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded mb-2">
+                        {book.category}
+                      </span>
+                    )}
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <div className="flex items-center gap-1">
+                        <Eye className="w-3 h-3" />
+                        {book.views || 0}
+                      </div>
+                      {book.pages && (
+                        <div className="flex items-center gap-1">
+                          <BookOpen className="w-3 h-3" />
+                          {book.pages}p
+                        </div>
+                      )}
+                      <span
+                        className={`px-2 py-1 rounded text-xs ${
+                          book.is_published ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
+                        }`}
+                      >
+                        {book.is_published ? "Published" : "Draft"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <Button size="sm" variant="outline" onClick={() => handleEdit(book)}>
+                    <Edit className="w-3 h-3" />
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleDelete(book.id)}>
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
                 </div>
               </div>
-              <div className="flex gap-2 mt-3">
-                <Button size="sm" variant="outline" onClick={() => handleEdit(book)}>
-                  <Edit className="w-3 h-3" />
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => handleDelete(book.id)}>
-                  <Trash2 className="w-3 h-3" />
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {books.length === 0 && (
-          <div className="text-center py-8 text-gray-500">
-            <BookOpen className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-            <p>No books found. Create your first book!</p>
+            ))}
           </div>
-        )}
-      </CardContent>
-    </Card>
+
+          {books.length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              <BookOpen className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+              <p>No books found. Create your first book!</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {showAddModal && <AddBookModal onClose={() => setShowAddModal(false)} onSave={handleCreate} />}
+
+      {editingBook && <EditBookModal book={editingBook} onClose={() => setEditingBook(null)} onSave={handleUpdate} />}
+    </>
   )
 }

@@ -30,6 +30,7 @@ export default function UserManagement() {
   const [showFilters, setShowFilters] = useState(false)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [deleteLoading, setDeleteLoading] = useState<string | null>(null)
 
   // 사용자 데이터 로드
   const loadUsers = async () => {
@@ -99,19 +100,60 @@ export default function UserManagement() {
     }
 
     try {
-      const { error } = await supabase.from("users").delete().eq("id", userId)
+      setDeleteLoading(userId)
 
-      if (error) {
-        console.error("사용자 삭제 오류:", error)
-        toast.error("사용자 삭제에 실패했습니다.")
+      // 1. 먼저 이 사용자가 작성한 게시물의 author_id를 NULL로 설정
+      const { error: postsError } = await supabase
+        .from("board_posts")
+        .update({ author_id: null })
+        .eq("author_id", userId)
+
+      if (postsError) {
+        console.error("게시물 업데이트 오류:", postsError)
+        toast.error("사용자 삭제 전 게시물 처리에 실패했습니다.")
+        return
+      }
+
+      // 2. 이 사용자가 작성한 댓글의 author_id를 NULL로 설정
+      const { error: commentsError } = await supabase
+        .from("comments")
+        .update({ author_id: null })
+        .eq("author_id", userId)
+
+      if (commentsError) {
+        console.error("댓글 업데이트 오류:", commentsError)
+        toast.error("사용자 삭제 전 댓글 처리에 실패했습니다.")
+        return
+      }
+
+      // 3. 이 사용자가 작성한 과제 제출물의 student_id를 NULL로 설정
+      const { error: submissionsError } = await supabase
+        .from("assignment_submissions")
+        .update({ student_id: null })
+        .eq("student_id", userId)
+
+      if (submissionsError) {
+        console.error("과제 제출물 업데이트 오류:", submissionsError)
+        toast.error("사용자 삭제 전 과제 제출물 처리에 실패했습니다.")
+        return
+      }
+
+      // 4. 이제 사용자 삭제
+      const { error: deleteError } = await supabase.from("users").delete().eq("id", userId)
+
+      if (deleteError) {
+        console.error("사용자 삭제 오류:", deleteError)
+        toast.error(`사용자 삭제에 실패했습니다: ${deleteError.message}`)
         return
       }
 
       toast.success("사용자가 삭제되었습니다.")
       loadUsers()
-    } catch (error) {
+    } catch (error: any) {
       console.error("사용자 삭제 오류:", error)
-      toast.error("사용자 삭제에 실패했습니다.")
+      toast.error(`사용자 삭제에 실패했습니다: ${error.message || "알 수 없는 오류"}`)
+    } finally {
+      setDeleteLoading(null)
     }
   }
 
@@ -377,8 +419,13 @@ export default function UserManagement() {
                       onClick={() => handleDeleteUser(user.id)}
                       className="text-red-600 hover:text-red-900"
                       title="삭제"
+                      disabled={deleteLoading === user.id}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      {deleteLoading === user.id ? (
+                        <div className="h-4 w-4 border-2 border-t-transparent border-red-600 rounded-full animate-spin"></div>
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
                     </button>
                   </td>
                 </tr>

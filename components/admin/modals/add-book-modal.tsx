@@ -1,57 +1,176 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { X, Upload } from "lucide-react"
 import Image from "next/image"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import RichTextEditor from "@/components/rich-text-editor"
+import { toast } from "@/hooks/use-toast"
 
 interface AddBookModalProps {
   onClose: () => void
+  onSave: (bookData: any) => void
 }
 
-export default function AddBookModal({ onClose }: AddBookModalProps) {
+export default function AddBookModal({ onClose, onSave }: AddBookModalProps) {
   const [title, setTitle] = useState("")
   const [author, setAuthor] = useState("")
-  const [category, setCategory] = useState("Design")
-  const [price, setPrice] = useState("")
+  const [category, setCategory] = useState("작법서")
+  const [pages, setPages] = useState("")
   const [description, setDescription] = useState("")
   const [richContent, setRichContent] = useState("")
-  const [publishDate, setPublishDate] = useState("")
-  const [coverImage, setCoverImage] = useState<string | null>(null)
+  const [coverImage, setCoverImage] = useState("")
   const [status, setStatus] = useState("published")
   const [activeTab, setActiveTab] = useState("details")
   const [purchaseUrl, setPurchaseUrl] = useState("")
+  const [externalLink, setExternalLink] = useState("")
+  const [tags, setTags] = useState("")
+  const [isUploading, setIsUploading] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // In a real app, this would call an API to create the book
-    console.log({
+    // 폼 데이터 검증
+    if (!title.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Title is required",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!author.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Author is required",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const bookData = {
       title,
       author,
       category,
-      price: Number.parseFloat(price),
+      pages: pages ? Number.parseInt(pages) : 0,
       description,
       content: richContent,
-      publishDate,
-      coverImage,
-      status,
-      purchaseUrl,
-      createdAt: new Date().toISOString(),
-    })
+      cover_url: coverImage,
+      is_published: status === "published",
+      purchase_link: purchaseUrl,
+      external_link: externalLink,
+      tags: tags
+        ? tags
+            .split(",")
+            .map((tag) => tag.trim())
+            .filter(Boolean)
+        : [],
+    }
 
-    // Close the modal
-    onClose()
+    console.log("AddBookModal: Submitting book data:", bookData)
+
+    try {
+      // 직접 API 호출 테스트
+      const response = await fetch("/api/books", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(bookData),
+      })
+
+      const responseText = await response.text()
+      console.log("AddBookModal: API response status:", response.status)
+      console.log("AddBookModal: API response text:", responseText)
+
+      if (!response.ok) {
+        let errorMessage = "Failed to create book"
+        try {
+          const errorData = JSON.parse(responseText)
+          errorMessage = errorData.details || errorData.error || errorMessage
+        } catch (e) {
+          // JSON 파싱 실패 시 원본 텍스트 사용
+          errorMessage = responseText || errorMessage
+        }
+        throw new Error(errorMessage)
+      }
+
+      let newBook
+      try {
+        newBook = JSON.parse(responseText)
+      } catch (e) {
+        console.error("AddBookModal: Failed to parse response JSON:", e)
+        throw new Error("Invalid response from server")
+      }
+
+      console.log("AddBookModal: Book created successfully:", newBook)
+
+      toast({
+        title: "Success",
+        description: "Book created successfully!",
+      })
+
+      // 부모 컴포넌트의 onSave 호출
+      onSave(newBook)
+    } catch (error) {
+      console.error("AddBookModal: Error creating book:", error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create book",
+        variant: "destructive",
+      })
+    }
   }
 
-  // Simulate image upload
-  const handleImageUpload = () => {
-    // In a real app, this would open a file picker and upload the image
-    // For demo purposes, we'll just set a placeholder image
-    setCoverImage("/placeholder.svg?height=400&width=300")
+  const handleImageUpload = async () => {
+    const input = document.createElement("input")
+    input.type = "file"
+    input.accept = "image/*"
+
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+
+      setIsUploading(true)
+
+      try {
+        const formData = new FormData()
+        formData.append("file", file)
+        formData.append("folder", "books")
+
+        // Supabase 업로드 사용 (더 안정적)
+        const response = await fetch("/api/upload-supabase", {
+          method: "POST",
+          body: formData,
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || "Upload failed")
+        }
+
+        const { url } = await response.json()
+        setCoverImage(url)
+
+        toast({
+          title: "Success",
+          description: "Cover image uploaded successfully!",
+        })
+      } catch (error) {
+        console.error("Error uploading image:", error)
+        toast({
+          title: "Upload failed",
+          description: error instanceof Error ? error.message : "Failed to upload image",
+          variant: "destructive",
+        })
+      } finally {
+        setIsUploading(false)
+      }
+    }
+
+    input.click()
   }
 
   return (
@@ -87,10 +206,11 @@ export default function AddBookModal({ onClose }: AddBookModalProps) {
                     <button
                       type="button"
                       onClick={handleImageUpload}
-                      className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md text-sm"
+                      disabled={isUploading}
+                      className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md text-sm disabled:opacity-50"
                     >
                       <Upload className="h-4 w-4 mr-2" />
-                      Upload Cover
+                      {isUploading ? "Uploading..." : "Upload Cover"}
                     </button>
                   </div>
                 </div>
@@ -98,7 +218,7 @@ export default function AddBookModal({ onClose }: AddBookModalProps) {
                 <div className="md:col-span-2 space-y-4">
                   <div>
                     <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
-                      Title
+                      Title *
                     </label>
                     <input
                       type="text"
@@ -113,7 +233,7 @@ export default function AddBookModal({ onClose }: AddBookModalProps) {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label htmlFor="author" className="block text-sm font-medium text-gray-700 mb-1">
-                        Author
+                        Author *
                       </label>
                       <input
                         type="text"
@@ -144,33 +264,32 @@ export default function AddBookModal({ onClose }: AddBookModalProps) {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-1">
-                        Price ($)
+                      <label htmlFor="pages" className="block text-sm font-medium text-gray-700 mb-1">
+                        Pages
                       </label>
                       <input
                         type="number"
-                        id="price"
-                        value={price}
-                        onChange={(e) => setPrice(e.target.value)}
-                        step="0.01"
+                        id="pages"
+                        value={pages}
+                        onChange={(e) => setPages(e.target.value)}
                         min="0"
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-black"
-                        required
                       />
                     </div>
 
                     <div>
-                      <label htmlFor="publishDate" className="block text-sm font-medium text-gray-700 mb-1">
-                        Publish Date
+                      <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">
+                        Status
                       </label>
-                      <input
-                        type="date"
-                        id="publishDate"
-                        value={publishDate}
-                        onChange={(e) => setPublishDate(e.target.value)}
+                      <select
+                        id="status"
+                        value={status}
+                        onChange={(e) => setStatus(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-black"
-                        required
-                      />
+                      >
+                        <option value="published">Published</option>
+                        <option value="draft">Draft</option>
+                      </select>
                     </div>
                   </div>
 
@@ -189,6 +308,34 @@ export default function AddBookModal({ onClose }: AddBookModalProps) {
                   </div>
 
                   <div>
+                    <label htmlFor="externalLink" className="block text-sm font-medium text-gray-700 mb-1">
+                      External Link
+                    </label>
+                    <input
+                      type="url"
+                      id="externalLink"
+                      value={externalLink}
+                      onChange={(e) => setExternalLink(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-black"
+                      placeholder="https://example.com/external-link"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="tags" className="block text-sm font-medium text-gray-700 mb-1">
+                      Tags (comma separated)
+                    </label>
+                    <input
+                      type="text"
+                      id="tags"
+                      value={tags}
+                      onChange={(e) => setTags(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-black"
+                      placeholder="design, creativity, visual arts"
+                    />
+                  </div>
+
+                  <div>
                     <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
                       Short Description
                     </label>
@@ -198,23 +345,7 @@ export default function AddBookModal({ onClose }: AddBookModalProps) {
                       onChange={(e) => setDescription(e.target.value)}
                       rows={3}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-black"
-                      required
                     />
-                  </div>
-
-                  <div>
-                    <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">
-                      Status
-                    </label>
-                    <select
-                      id="status"
-                      value={status}
-                      onChange={(e) => setStatus(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-black"
-                    >
-                      <option value="published">Published</option>
-                      <option value="draft">Draft</option>
-                    </select>
                   </div>
                 </div>
               </div>

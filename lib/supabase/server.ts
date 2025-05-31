@@ -1,6 +1,37 @@
-import { supabase } from "./client"
+import { createClient } from "@supabase/supabase-js"
+import type { Database } from "@/types/supabase"
 
-export { supabase }
+// 서버 측 환경 변수 사용
+const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+if (!supabaseUrl || (!supabaseServiceKey && !supabaseAnonKey)) {
+  console.error("Missing server-side Supabase environment variables:", {
+    url: supabaseUrl ? "OK" : "MISSING",
+    serviceKey: supabaseServiceKey ? "OK" : "MISSING",
+    anonKey: supabaseAnonKey ? "OK" : "MISSING",
+  })
+}
+
+// 서버 측에서는 가능하면 service role key 사용
+export const supabase = createClient<Database>(supabaseUrl || "", supabaseServiceKey || supabaseAnonKey || "", {
+  auth: {
+    persistSession: false,
+  },
+})
+
+// 기존 코드와의 호환성을 위해 두 가지 export 제공
+export const supabaseServer = supabase
+
+// createClient 함수도 export
+export const createServerClient = () => {
+  return createClient<Database>(supabaseUrl || "", supabaseServiceKey || supabaseAnonKey || "", {
+    auth: {
+      persistSession: false,
+    },
+  })
+}
 
 export async function getServerSession() {
   try {

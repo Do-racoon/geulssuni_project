@@ -2,26 +2,25 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { X, Upload } from "lucide-react"
 import Image from "next/image"
 import { toast } from "@/hooks/use-toast"
 import RichTextEditor from "@/components/rich-text-editor"
-import { getInstructors } from "@/lib/api/instructors"
 
 interface Book {
   id: string
   title: string
   author: string
-  category: string
-  image: string
-  publishDate: string
-  price: number
-  sales: number
-  status: string
+  category?: string
+  cover_url?: string
+  pages?: number
   description?: string
+  purchase_link?: string
+  external_link?: string
+  tags?: string[]
+  is_published: boolean
   content?: string
-  purchaseUrl?: string
 }
 
 interface EditBookModalProps {
@@ -31,31 +30,36 @@ interface EditBookModalProps {
 }
 
 export default function EditBookModal({ book, onClose, onSave }: EditBookModalProps) {
-  const [instructors, setInstructors] = useState<any[]>([])
   const [formData, setFormData] = useState<Book>({
     ...book,
     content: book.content || "<p>Book content goes here...</p>",
+    description: book.description || "",
+    cover_url: book.cover_url || "",
+    purchase_link: book.purchase_link || "",
+    external_link: book.external_link || "",
+    tags: book.tags || [],
+    pages: book.pages || 0,
   })
   const [isLoading, setIsLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<"details" | "content">("details")
-
-  useEffect(() => {
-    const loadInstructors = async () => {
-      try {
-        const data = await getInstructors()
-        setInstructors(data)
-      } catch (error) {
-        console.error("Error loading instructors:", error)
-      }
-    }
-    loadInstructors()
-  }, [])
+  const [isUploading, setIsUploading] = useState(false)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setFormData({
       ...formData,
-      [name]: name === "price" ? Number.parseFloat(value) : value,
+      [name]: name === "pages" ? Number.parseInt(value) || 0 : value,
+    })
+  }
+
+  const handleTagsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const tags = e.target.value
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+    setFormData({
+      ...formData,
+      tags,
     })
   }
 
@@ -70,18 +74,77 @@ export default function EditBookModal({ book, onClose, onSave }: EditBookModalPr
     e.preventDefault()
     setIsLoading(true)
 
-    try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      onSave(formData)
+    // 폼 데이터 검증
+    if (!formData.title?.trim()) {
       toast({
-        title: "Book updated",
-        description: "The book has been updated successfully.",
+        title: "Validation Error",
+        description: "Title is required",
+        variant: "destructive",
       })
+      setIsLoading(false)
+      return
+    }
+
+    if (!formData.author?.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Author is required",
+        variant: "destructive",
+      })
+      setIsLoading(false)
+      return
+    }
+
+    try {
+      console.log("EditBookModal: Submitting form data:", formData)
+
+      // 직접 API 호출 테스트
+      const response = await fetch(`/api/books/${formData.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      })
+
+      const responseText = await response.text()
+      console.log("EditBookModal: API response status:", response.status)
+      console.log("EditBookModal: API response text:", responseText)
+
+      if (!response.ok) {
+        let errorMessage = "Failed to update book"
+        try {
+          const errorData = JSON.parse(responseText)
+          errorMessage = errorData.details || errorData.error || errorMessage
+        } catch (e) {
+          // JSON 파싱 실패 시 원본 텍스트 사용
+          errorMessage = responseText || errorMessage
+        }
+        throw new Error(errorMessage)
+      }
+
+      let updatedBook
+      try {
+        updatedBook = JSON.parse(responseText)
+      } catch (e) {
+        console.error("EditBookModal: Failed to parse response JSON:", e)
+        throw new Error("Invalid response from server")
+      }
+
+      console.log("EditBookModal: Book updated successfully:", updatedBook)
+
+      toast({
+        title: "Success",
+        description: "Book updated successfully!",
+      })
+
+      // 부모 컴포넌트의 onSave 호출
+      onSave(updatedBook)
     } catch (error) {
+      console.error("EditBookModal: Error updating book:", error)
       toast({
         title: "Error",
-        description: "Failed to update book. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to update book",
         variant: "destructive",
       })
     } finally {
@@ -99,7 +162,11 @@ export default function EditBookModal({ book, onClose, onSave }: EditBookModalPr
       const file = (e.target as HTMLInputElement).files?.[0]
       if (!file) return
 
+      setIsUploading(true)
+
       try {
+        console.log("EditBookModal: Uploading image:", file.name)
+
         const formDataUpload = new FormData()
         formDataUpload.append("file", file)
 
@@ -113,10 +180,11 @@ export default function EditBookModal({ book, onClose, onSave }: EditBookModalPr
         }
 
         const { url } = await response.json()
+        console.log("EditBookModal: Image uploaded successfully:", url)
 
         setFormData((prev) => ({
           ...prev,
-          image: url,
+          cover_url: url,
         }))
 
         toast({
@@ -124,12 +192,14 @@ export default function EditBookModal({ book, onClose, onSave }: EditBookModalPr
           description: "The cover image has been updated.",
         })
       } catch (error) {
-        console.error("Error uploading image:", error)
+        console.error("EditBookModal: Error uploading image:", error)
         toast({
           title: "Upload failed",
           description: "Failed to upload image. Please try again.",
           variant: "destructive",
         })
+      } finally {
+        setIsUploading(false)
       }
     }
 
@@ -174,9 +244,9 @@ export default function EditBookModal({ book, onClose, onSave }: EditBookModalPr
                 <div className="md:col-span-1">
                   <div className="flex flex-col items-center space-y-4">
                     <div className="w-full aspect-[3/4] bg-gray-100 relative rounded-md overflow-hidden flex items-center justify-center">
-                      {formData.image ? (
+                      {formData.cover_url ? (
                         <Image
-                          src={formData.image || "/placeholder.svg"}
+                          src={formData.cover_url || "/placeholder.svg"}
                           alt="Book cover"
                           fill
                           className="object-cover"
@@ -188,10 +258,11 @@ export default function EditBookModal({ book, onClose, onSave }: EditBookModalPr
                     <button
                       type="button"
                       onClick={handleImageUpload}
-                      className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md text-sm"
+                      disabled={isUploading}
+                      className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md text-sm disabled:opacity-50"
                     >
                       <Upload className="h-4 w-4 mr-2" />
-                      Change Cover
+                      {isUploading ? "Uploading..." : "Change Cover"}
                     </button>
                   </div>
                 </div>
@@ -205,7 +276,7 @@ export default function EditBookModal({ book, onClose, onSave }: EditBookModalPr
                       type="text"
                       id="title"
                       name="title"
-                      value={formData.title}
+                      value={formData.title || ""}
                       onChange={handleChange}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-black"
                       required
@@ -217,21 +288,15 @@ export default function EditBookModal({ book, onClose, onSave }: EditBookModalPr
                       <label htmlFor="author" className="block text-sm font-medium text-gray-700 mb-1">
                         Author
                       </label>
-                      <select
+                      <input
+                        type="text"
                         id="author"
                         name="author"
-                        value={formData.author}
+                        value={formData.author || ""}
                         onChange={handleChange}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-black"
                         required
-                      >
-                        <option value="">Select an author</option>
-                        {instructors.map((instructor) => (
-                          <option key={instructor.id} value={instructor.name}>
-                            {instructor.name} - {instructor.profession}
-                          </option>
-                        ))}
-                      </select>
+                      />
                     </div>
 
                     <div>
@@ -241,10 +306,11 @@ export default function EditBookModal({ book, onClose, onSave }: EditBookModalPr
                       <select
                         id="category"
                         name="category"
-                        value={formData.category}
+                        value={formData.category || ""}
                         onChange={handleChange}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-black"
                       >
+                        <option value="">Select category</option>
                         <option value="작법서">작법서</option>
                         <option value="에세이">에세이</option>
                         <option value="소설">소설</option>
@@ -254,50 +320,78 @@ export default function EditBookModal({ book, onClose, onSave }: EditBookModalPr
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-1">
-                        Price ($)
+                      <label htmlFor="pages" className="block text-sm font-medium text-gray-700 mb-1">
+                        Pages
                       </label>
                       <input
                         type="number"
-                        id="price"
-                        name="price"
-                        value={formData.price}
+                        id="pages"
+                        name="pages"
+                        value={formData.pages || ""}
                         onChange={handleChange}
-                        step="0.01"
                         min="0"
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-black"
-                        required
                       />
                     </div>
 
                     <div>
-                      <label htmlFor="publishDate" className="block text-sm font-medium text-gray-700 mb-1">
-                        Publish Date
+                      <label htmlFor="is_published" className="block text-sm font-medium text-gray-700 mb-1">
+                        Status
                       </label>
-                      <input
-                        type="date"
-                        id="publishDate"
-                        name="publishDate"
-                        value={formData.publishDate}
-                        onChange={handleChange}
+                      <select
+                        id="is_published"
+                        name="is_published"
+                        value={formData.is_published ? "true" : "false"}
+                        onChange={(e) => setFormData({ ...formData, is_published: e.target.value === "true" })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-black"
-                        required
-                      />
+                      >
+                        <option value="true">Published</option>
+                        <option value="false">Draft</option>
+                      </select>
                     </div>
                   </div>
 
                   <div>
-                    <label htmlFor="purchaseUrl" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="purchase_link" className="block text-sm font-medium text-gray-700 mb-1">
                       Purchase URL
                     </label>
                     <input
                       type="url"
-                      id="purchaseUrl"
-                      name="purchaseUrl"
-                      value={formData.purchaseUrl || ""}
+                      id="purchase_link"
+                      name="purchase_link"
+                      value={formData.purchase_link || ""}
                       onChange={handleChange}
                       placeholder="https://example.com/buy-book"
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-black"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="external_link" className="block text-sm font-medium text-gray-700 mb-1">
+                      External Link
+                    </label>
+                    <input
+                      type="url"
+                      id="external_link"
+                      name="external_link"
+                      value={formData.external_link || ""}
+                      onChange={handleChange}
+                      placeholder="https://example.com/external-link"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-black"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="tags" className="block text-sm font-medium text-gray-700 mb-1">
+                      Tags (comma separated)
+                    </label>
+                    <input
+                      type="text"
+                      id="tags"
+                      value={formData.tags ? formData.tags.join(", ") : ""}
+                      onChange={handleTagsChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-black"
+                      placeholder="글쓰기, 작법, 문학"
                     />
                   </div>
 
@@ -313,22 +407,6 @@ export default function EditBookModal({ book, onClose, onSave }: EditBookModalPr
                       rows={4}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-black"
                     />
-                  </div>
-
-                  <div>
-                    <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">
-                      Status
-                    </label>
-                    <select
-                      id="status"
-                      name="status"
-                      value={formData.status}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-black"
-                    >
-                      <option value="published">Published</option>
-                      <option value="draft">Draft</option>
-                    </select>
                   </div>
                 </div>
               </div>
