@@ -6,6 +6,12 @@ export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
   const supabase = createMiddlewareClient({ req, res })
 
+  // Skip middleware for debug pages
+  if (req.nextUrl.pathname === "/admin-debug" || req.nextUrl.pathname === "/auth-debug") {
+    console.log("🔧 Skipping middleware for debug page")
+    return res
+  }
+
   // Admin routes protection
   if (req.nextUrl.pathname.startsWith("/admin")) {
     console.log("🔍 Admin route accessed:", req.nextUrl.pathname)
@@ -96,11 +102,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    "/admin/:path*",
-    "/profile/:path*",
-    "/board/create/:path*",
-    "/board/assignment/create/:path*",
-    "/admin-debug",
-  ],
+  matcher: ["/admin/:path*", "/profile/:path*", "/board/create/:path*", "/board/assignment/create/:path*"],
 }
