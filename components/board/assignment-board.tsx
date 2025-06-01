@@ -26,6 +26,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import AssignmentCreateModal from "./assignment-create-modal"
+import { useRouter } from "next/navigation"
 
 interface Assignment {
   id: string
@@ -70,6 +71,7 @@ export default function AssignmentBoard() {
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const { toast } = useToast()
+  const router = useRouter()
 
   // 비밀번호 관련 상태
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
@@ -406,6 +408,104 @@ export default function AssignmentBoard() {
     }
   }
 
+  // Edit 버튼 클릭 핸들러 추가
+  const handleEditClick = async (assignmentId: string, event: React.MouseEvent) => {
+    event.stopPropagation()
+
+    console.log("🔧 Edit button clicked for assignment:", assignmentId)
+    console.log("👤 Current user:", currentUser)
+    console.log("🔑 Is instructor:", isInstructor)
+
+    // 1. 인증 상태 확인
+    try {
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession()
+
+      console.log("📋 Session check:", {
+        hasSession: !!session,
+        userId: session?.user?.id,
+        userEmail: session?.user?.email,
+        error: sessionError?.message,
+      })
+
+      if (sessionError || !session?.user) {
+        toast({
+          title: "인증 필요",
+          description: "로그인이 필요합니다.",
+          variant: "destructive",
+        })
+        router.push("/login")
+        return
+      }
+
+      // 2. 사용자 권한 재확인
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("id, name, email, role, class_level")
+        .eq("id", session.user.id)
+        .single()
+
+      console.log("👤 User data recheck:", {
+        found: !!userData,
+        role: userData?.role,
+        error: userError?.message,
+      })
+
+      if (userError || !userData) {
+        toast({
+          title: "사용자 정보 오류",
+          description: "사용자 정보를 찾을 수 없습니다.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // 3. 권한 확인
+      const hasPermission = userData.role === "admin" || userData.role === "instructor" || userData.role === "teacher"
+
+      console.log("🔐 Permission check:", {
+        userRole: userData.role,
+        hasPermission,
+      })
+
+      if (!hasPermission) {
+        toast({
+          title: "권한 없음",
+          description: "과제를 수정할 권한이 없습니다.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // 4. 과제 소유권 확인 (관리자가 아닌 경우)
+      if (userData.role !== "admin") {
+        const assignment = assignments.find((a) => a.id === assignmentId)
+        if (assignment && assignment.author_id !== userData.id) {
+          toast({
+            title: "권한 없음",
+            description: "본인이 작성한 과제만 수정할 수 있습니다.",
+            variant: "destructive",
+          })
+          return
+        }
+      }
+
+      console.log("✅ All checks passed, navigating to edit page")
+
+      // 5. 모든 검증 통과 시 편집 페이지로 이동
+      router.push(`/board/assignment/${assignmentId}/edit`)
+    } catch (error) {
+      console.error("💥 Edit permission check error:", error)
+      toast({
+        title: "오류 발생",
+        description: "권한 확인 중 오류가 발생했습니다.",
+        variant: "destructive",
+      })
+    }
+  }
+
   // 필터링 - 대소문자 무시하고 비교하도록 수정
   const filteredAssignments = assignments.filter((assignment) => {
     const matchesSearch =
@@ -728,15 +828,12 @@ export default function AssignmentBoard() {
                       <div className="col-span-1 flex items-center justify-center">
                         <div className="flex gap-1">
                           <Button
-                            asChild
+                            onClick={(e) => handleEditClick(assignment.id, e)}
                             variant="outline"
                             size="sm"
                             className="h-8 w-8 p-0 border-gray-300 hover:border-blue-500 hover:bg-blue-500 hover:text-white transition-all duration-300"
-                            onClick={(e) => e.stopPropagation()}
                           >
-                            <Link href={`/board/assignment/${assignment.id}/edit`}>
-                              <Edit className="h-3 w-3" />
-                            </Link>
+                            <Edit className="h-3 w-3" />
                           </Button>
                           <Button
                             onClick={(e) => handleDelete(assignment.id, e)}
@@ -819,14 +916,12 @@ export default function AssignmentBoard() {
                     {canManageAssignments && (
                       <div className="flex gap-2 ml-4">
                         <Button
-                          asChild
+                          onClick={(e) => handleEditClick(assignment.id, e)}
                           variant="outline"
                           size="sm"
                           className="h-8 w-8 p-0 border-gray-300 hover:border-blue-500 hover:bg-blue-500 hover:text-white transition-all duration-300"
                         >
-                          <Link href={`/board/assignment/${assignment.id}/edit`}>
-                            <Edit className="h-3 w-3" />
-                          </Link>
+                          <Edit className="h-3 w-3" />
                         </Button>
                         <Button
                           onClick={(e) => handleDelete(assignment.id, e)}

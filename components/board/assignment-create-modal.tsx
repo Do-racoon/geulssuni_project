@@ -35,6 +35,16 @@ export default function AssignmentCreateModal({ onAssignmentCreated }: Assignmen
 
   const [errors, setErrors] = useState<Record<string, string>>({})
 
+  // class_level 매핑 함수 추가
+  const mapClassLevel = (level: string) => {
+    const mapping = {
+      beginner: "Beginner", // beginner -> Beginner
+      intermediate: "Intermediate", // intermediate -> Intermediate
+      advanced: "Advanced", // advanced -> Advanced
+    }
+    return mapping[level] || level
+  }
+
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
 
@@ -115,25 +125,25 @@ export default function AssignmentCreateModal({ onAssignmentCreated }: Assignmen
 
       console.log("👤 현재 사용자:", userData)
 
-      // 과제 데이터 준비
+      // 과제 데이터 준비 (class_level 매핑 적용)
+      const mappedClassLevel = mapClassLevel(formData.class_level)
+      console.log("🔄 class_level 매핑:", formData.class_level, "->", mappedClassLevel)
+
       const assignmentData = {
         title: formData.title.trim(),
         content: formData.content.trim(),
-        description: formData.content.trim(), // description을 content와 동일하게 설정
-        class_level: formData.class_level,
+        description: formData.content.trim(),
+        class_level: mappedClassLevel, // 매핑된 값 사용
         password: formData.password,
         author_id: userData.id,
         instructor_id: userData.id,
       }
 
       console.log("📝 과제 데이터:", assignmentData)
-
-      // 나머지 API 호출 로직은 동일...
       console.log("📝 과제 데이터 전송 시작:", JSON.stringify(assignmentData, null, 2))
 
       // API 호출
       const response = await fetch("/api/assignments", {
-        // assignments로 다시 변경
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -142,7 +152,6 @@ export default function AssignmentCreateModal({ onAssignmentCreated }: Assignmen
       })
 
       console.log("📡 API 응답 상태:", response.status)
-      console.log("📡 API 응답 헤더:", response.headers)
 
       if (response.ok) {
         const result = await response.json()
