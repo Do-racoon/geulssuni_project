@@ -385,6 +385,12 @@ export default function AssignmentBoard() {
   const handlePasswordCheck = async () => {
     if (!selectedAssignment) return
 
+    console.log("🔐 Password check started:", {
+      assignmentId: selectedAssignment.id,
+      passwordLength: passwordInput.length,
+      hasPassword: selectedAssignment.has_password,
+    })
+
     try {
       const response = await fetch(`/api/assignments/${selectedAssignment.id}/check-password`, {
         method: "POST",
@@ -394,16 +400,25 @@ export default function AssignmentBoard() {
         body: JSON.stringify({ password: passwordInput }),
       })
 
+      console.log("🔐 Password check response:", {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+      })
+
       if (response.ok) {
+        console.log("✅ Password correct, redirecting...")
         setPasswordDialogOpen(false)
         // 비밀번호 인증 성공 시 세션 스토리지에 저장
         sessionStorage.setItem(`assignment_${selectedAssignment.id}_authenticated`, "true")
         window.location.href = `/board/assignment/${selectedAssignment.id}`
       } else {
+        const errorData = await response.json()
+        console.log("❌ Password incorrect:", errorData)
         setPasswordError(true)
       }
     } catch (error) {
-      console.error("비밀번호 확인 오류:", error)
+      console.error("💥 Password check error:", error)
       setPasswordError(true)
     }
   }
@@ -979,7 +994,14 @@ export default function AssignmentBoard() {
                     }
                   }}
                 />
-                {passwordError && <p className="text-red-500 text-sm">Incorrect password. Please try again.</p>}
+                {passwordError && (
+                  <div className="space-y-2">
+                    <p className="text-red-500 text-sm">Incorrect password. Please try again.</p>
+                    <p className="text-gray-400 text-xs">
+                      Check the password and make sure it matches exactly (case-sensitive).
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

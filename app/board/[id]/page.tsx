@@ -25,8 +25,22 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
     notFound()
   }
 
-  // 서버 컴포넌트용 Supabase 클라이언트 생성
-  const supabase = createServerClient()
+  let supabase
+  try {
+    // 서버 컴포넌트용 Supabase 클라이언트 생성
+    supabase = createServerClient()
+  } catch (error) {
+    console.error("❌ Failed to create Supabase client:", error)
+    return (
+      <div className="container mx-auto py-24 px-4">
+        <h1 className="text-2xl font-bold text-red-600">데이터베이스 연결 오류</h1>
+        <p className="mt-4">데이터베이스에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.</p>
+        <Link href="/board" className="inline-block mt-4 text-blue-600 hover:underline">
+          게시판으로 돌아가기
+        </Link>
+      </div>
+    )
+  }
 
   async function checkIfAssignment(id: string) {
     try {
@@ -74,7 +88,16 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
         console.log("❌ Not found in any table")
         notFound()
       } else {
-        throw new Error(`Database error: ${error.message}`)
+        console.error("Database error details:", error)
+        return (
+          <div className="container mx-auto py-24 px-4">
+            <h1 className="text-2xl font-bold text-red-600">데이터베이스 오류</h1>
+            <p className="mt-4">게시글을 불러오는 중 오류가 발생했습니다.</p>
+            <Link href="/board" className="inline-block mt-4 text-blue-600 hover:underline">
+              게시판으로 돌아가기
+            </Link>
+          </div>
+        )
       }
     }
 
@@ -83,8 +106,12 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
       notFound()
     }
 
-    // 조회수 증가
-    await incrementViews(params.id)
+    // 조회수 증가 (에러가 발생해도 페이지는 정상 렌더링)
+    try {
+      await incrementViews(params.id)
+    } catch (error) {
+      console.error("Failed to increment views:", error)
+    }
 
     console.log("✅ Post found:", post.title)
 
@@ -130,19 +157,24 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
     const fixHtmlContent = (content: string) => {
       if (!content) return ""
 
-      // 잘못된 img 태그 구조 수정: <img...>src="..." -> <img ... src="...">
-      let fixedContent = content.replace(/<img([^>]*?)>src="([^"]*?)"/g, '<img$1 src="$2">')
+      try {
+        // 잘못된 img 태그 구조 수정: <img...>src="..." -> <img ... src="...">
+        let fixedContent = content.replace(/<img([^>]*?)>src="([^"]*?)"/g, '<img$1 src="$2">')
 
-      // img 태그에 스타일 추가
-      fixedContent = fixedContent.replace(
-        /<img([^>]*?)src="([^"]*?)"([^>]*?)>/g,
-        '<img$1src="$2"$3 style="max-width: 100%; height: auto; border-radius: 8px; margin: 16px 0; display: block;" loading="lazy" crossorigin="anonymous">',
-      )
+        // img 태그에 스타일 추가
+        fixedContent = fixedContent.replace(
+          /<img([^>]*?)src="([^"]*?)"([^>]*?)>/g,
+          '<img$1src="$2"$3 style="max-width: 100%; height: auto; border-radius: 8px; margin: 16px 0; display: block;" loading="lazy" crossorigin="anonymous">',
+        )
 
-      // 잘못된 텍스트 제거 (src="..." 가 단독으로 있는 경우)
-      fixedContent = fixedContent.replace(/(?:^|\s)src="[^"]*"(?:\s|$)/g, " ")
+        // 잘못된 텍스트 제거 (src="..." 가 단독으로 있는 경우)
+        fixedContent = fixedContent.replace(/(?:^|\s)src="[^"]*"(?:\s|$)/g, " ")
 
-      return fixedContent
+        return fixedContent
+      } catch (error) {
+        console.error("Error fixing HTML content:", error)
+        return content
+      }
     }
 
     // content 렌더링
@@ -260,7 +292,7 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
 
     return (
       <div className="container mx-auto py-24 px-4">
-        <h1 className="text-2xl font-bold text-red-600">디버깅 정보</h1>
+        <h1 className="text-2xl font-bold text-red-600">오류 발생</h1>
         <div className="mt-4 space-y-4">
           <div>
             <strong>요청된 ID:</strong> {params.id}
