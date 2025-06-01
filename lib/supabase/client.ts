@@ -1,51 +1,32 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js"
+import { createClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/supabase"
 
-// 환경 변수 확인
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error("Missing Supabase environment variables:", {
-    url: supabaseUrl ? "OK" : "MISSING",
-    key: supabaseAnonKey ? "OK" : "MISSING",
-  })
-}
+// 싱글톤 패턴으로 클라이언트 인스턴스 관리
+let supabaseInstance: ReturnType<typeof createClient<Database>> | null = null
 
-// 싱글톤 클라이언트 인스턴스
-let supabaseClient: ReturnType<typeof createSupabaseClient<Database>> | null = null
-
-// 싱글톤 클라이언트 생성 함수
-export const getSupabaseClient = () => {
-  if (!supabaseClient) {
-    supabaseClient = createSupabaseClient<Database>(supabaseUrl, supabaseAnonKey, {
+export function getSupabaseClient() {
+  if (!supabaseInstance) {
+    supabaseInstance = createClient<Database>(supabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
+        storageKey: "supabase.auth.token",
+        storage: typeof window !== "undefined" ? window.localStorage : undefined,
       },
     })
   }
-  return supabaseClient
+  return supabaseInstance
 }
 
-// 메인 클라이언트 export (싱글톤 사용)
+// 싱글톤 인스턴스를 supabase 이름으로 export
 export const supabase = getSupabaseClient()
 
-// createClient 함수 export (기존 코드와의 호환성을 위해)
-export const createClient = () => {
-  return getSupabaseClient()
-}
-
-// 타입 안전 클라이언트 생성 함수 (싱글톤 사용)
-export const createSupabaseClientTyped = () => {
-  return getSupabaseClient()
-}
-
-// createClientComponentClient 대체 함수 (싱글톤 사용)
-export const createClientComponentClient = () => {
-  return getSupabaseClient()
-}
+// 기존 코드와의 호환성을 위해 createClient도 export
+// export const createClient = () => {
+//   return getSupabaseClient()
+// }
 
 // 디버깅을 위한 함수
 export async function testSupabaseConnection() {

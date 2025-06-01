@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { createClient } from "@/lib/supabase/client"
+import { getSupabaseClient } from "@/lib/supabase/client"
 import { toast } from "@/hooks/use-toast"
 
 interface Assignment {
@@ -57,29 +57,44 @@ export default function EditAssignmentPage({ params }: EditAssignmentPageProps) 
 
   useEffect(() => {
     console.log("🚀 Edit page useEffect triggered with params.id:", params.id)
-    loadAssignmentAndUser()
-  }, [params.id]) // router 의존성 제거
+
+    // 약간의 지연을 두고 세션 체크 (클라이언트 초기화 대기)
+    const timer = setTimeout(() => {
+      loadAssignmentAndUser()
+    }, 100)
+
+    return () => clearTimeout(timer)
+  }, [params.id])
 
   const loadAssignmentAndUser = async () => {
     try {
       setIsLoading(true)
-      const supabase = createClient()
+      const supabase = getSupabaseClient()
 
-      // 사용자 정보 가져오기 - 더 안정적인 방식
+      // 먼저 localStorage에서 세션 정보 확인
+      const localStorageSession = typeof window !== "undefined" ? localStorage.getItem("supabase.auth.token") : null
+      console.log("💾 LocalStorage session exists:", !!localStorageSession)
+
+      // 세션 새로고침 시도
+      await supabase.auth.refreshSession()
+
+      // 사용자 정보 가져오기 - getUser() 사용 (더 안정적)
       const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession()
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser()
 
-      console.log("🔍 Edit page session check:", {
-        hasSession: !!session,
-        userId: session?.user?.id,
-        userEmail: session?.user?.email,
-        error: sessionError?.message,
+      console.log("🔍 Edit page user check:", {
+        hasUser: !!user,
+        userId: user?.id,
+        userEmail: user?.email,
+        error: userError?.message,
       })
 
-      if (sessionError || !session?.user) {
-        console.log("❌ No session in edit page, redirecting to login")
+      if (userError || !user) {
+        console.log("❌ No user in edit page, redirecting to login")
+
+        // 세션 정보가 없으면 로그인 페이지로 리다이렉트
         router.push("/login")
         return
       }
@@ -91,16 +106,16 @@ export default function EditAssignmentPage({ params }: EditAssignmentPageProps) 
       const { data: userByIdData, error: userByIdError } = await supabase
         .from("users")
         .select("id, name, email, role")
-        .eq("id", session.user.id)
+        .eq("id", user.id)
         .single()
 
-      if (userByIdError && session.user.email) {
+      if (userByIdError && user.email) {
         console.log("🔍 User not found by ID, trying email search...")
         // 이메일로 검색
         const { data: userByEmailData, error: userByEmailError } = await supabase
           .from("users")
           .select("id, name, email, role")
-          .eq("email", session.user.email)
+          .eq("email", user.email)
           .single()
 
         if (!userByEmailError && userByEmailData) {
@@ -208,7 +223,7 @@ export default function EditAssignmentPage({ params }: EditAssignmentPageProps) 
   const handleSave = async () => {
     try {
       setIsSaving(true)
-      const supabase = createClient()
+      const supabase = getSupabaseClient()
 
       const updateData = {
         title: formData.title.trim(),
