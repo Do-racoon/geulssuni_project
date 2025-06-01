@@ -19,12 +19,13 @@ import {
   Users,
   Eye,
 } from "lucide-react"
-import { getCurrentUser } from "@/lib/auth"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import AssignmentCreateModal from "./assignment-create-modal"
 
 interface Assignment {
   id: string
@@ -67,19 +68,16 @@ export default function AssignmentBoard() {
   const [selectedLevel, setSelectedLevel] = useState("all")
   const [reviewFilter, setReviewFilter] = useState("all")
   const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [authLoading, setAuthLoading] = useState(true)
   const { toast } = useToast()
-
-  // 디버깅용 상태 추가
-  // const [debugInfo, setDebugInfo] = useState<{ userLevel: string; availableLevels: string[] }>({
-  //   userLevel: "",
-  //   availableLevels: [],
-  // })
 
   // 비밀번호 관련 상태
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null)
   const [passwordInput, setPasswordInput] = useState("")
   const [passwordError, setPasswordError] = useState(false)
+
+  const supabase = createClientComponentClient()
 
   // 사용자 권한 관련 변수들 - 관리자, 강사만 관리 기능 사용 가능
   const isInstructor =
@@ -90,67 +88,186 @@ export default function AssignmentBoard() {
   const canSelectLevel = isInstructor
   const canManageAssignments = isInstructor // 관리자, 강사만 수정/삭제 가능
 
+  // 실시간 인증 상태 추적
   useEffect(() => {
-    loadUserAndAssignments()
-  }, [])
+    let mounted = true
+
+    const loadUserData = async () => {
+      try {
+        setAuthLoading(true)
+
+        // 1. 현재 세션 확인
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession()
+
+        if (sessionError || !session?.user) {
+          if (mounted) {
+            setCurrentUser(null)
+            setAuthLoading(false)
+          }
+          return
+        }
+
+        const authUser = session.user
+
+        // 2. 사용자 프로필 조회 (ID 우선, 실패시 이메일)
+        let userData = null
+
+        // ID로 검색
+        const { data: userByIdData, error: userByIdError } = await supabase
+          .from("users")
+          .select("id, name, email, role, class_level")
+          .eq("id", authUser.id)
+          .single()
+
+        if (userByIdError && authUser.email) {
+          // 이메일로 검색
+          const { data: userByEmailData } = await supabase
+            .from("users")
+            .select("id, name, email, role, class_level")
+            .eq("email", authUser.email)
+            .single()
+
+          userData = userByEmailData
+        } else {
+          userData = userByIdData
+        }
+
+        if (mounted && userData) {
+          setCurrentUser({
+            id: userData.id,
+            name: userData.name,
+            email: userData.email,
+            role: userData.role,
+            class_level: userData.class_level,
+          })
+
+          // 일반 사용자는 자신의 레벨로 필터 설정
+          if (userData.role === "user" && userData.class_level) {
+            setSelectedLevel(userData.class_level)
+          }
+        }
+      } catch (error) {
+        console.error("Auth error:", error)
+      } finally {
+        if (mounted) {
+          setAuthLoading(false)
+        }
+      }
+    }
+
+    // 초기 로드
+    loadUserData()
+
+    // 인증 상태 변경 감지
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setTimeout(() => {
+        if (mounted) {
+          loadUserData()
+        }
+      }, 100)
+    })
+
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
+  }, [supabase])
+
+  useEffect(() => {
+    if (!authLoading) {
+      loadUserAndAssignments()
+    }
+  }, [authLoading])
 
   const loadUserAndAssignments = async () => {
     try {
       setLoading(true)
       setError(null)
 
-      // 현재 사용자 정보 가져오기
-      try {
-        const user = await getCurrentUser()
-        setCurrentUser(user)
+      // API 대신 직접 Supabase에서 데이터 가져오기
+      const { data, error: supabaseError } = await supabase
+        .from("assignments")
+        .select(`
+          id,
+          title,
+          content,
+          description,
+          class_level,
+          author_id,
+          review_status,
+          reviewed_at,
+          reviewed_by,
+          views,
+          due_date,
+          submissions_count,
+          total_students,
+          is_completed,
+          created_at,
+          updated_at,
+          password,
+          users!assignments_author_id_fkey(name)
+        `)
+        .order("created_at", { ascending: false })
 
-        // 디버깅용 정보 저장
-        // if (user?.class_level) {
-        //   setDebugInfo((prev) => ({ ...prev, userLevel: user.class_level }))
-        // }
-
-        // 일반 사용자는 자신의 레벨로 필터 설정
-        if (user?.role === "user" && user?.class_level) {
-          setSelectedLevel(user.class_level)
-          console.log("사용자 레벨 설정:", user.class_level)
-        }
-      } catch (userError) {
-        console.error("사용자 로딩 실패:", userError)
+      if (supabaseError) {
+        throw new Error(`Database error: ${supabaseError.message}`)
       }
 
-      // assignments 테이블에서 데이터 가져오기
-      const response = await fetch("/api/assignments", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "Cache-Control": "no-cache",
-        },
-        cache: "no-store",
-      })
+      // 데이터 처리
+      const processedData = (data || []).map((assignment: any) => ({
+        ...assignment,
+        author: assignment.users ? { name: assignment.users.name } : null,
+        has_password: !!assignment.password,
+        password: undefined, // 클라이언트에 비밀번호 자체는 전송하지 않음
+        views: assignment.views || 0,
+        submissions_count: assignment.submissions_count || 0,
+        total_students: assignment.total_students || 0,
+      }))
 
-      if (response.ok) {
+      setAssignments(processedData)
+      setError(null)
+    } catch (error) {
+      console.error("과제 로딩 오류:", error)
+      setError(error instanceof Error ? error.message : "과제를 불러오는 중 오류가 발생했습니다.")
+
+      // 폴백: API 시도 (에러 처리 강화)
+      try {
+        const response = await fetch("/api/assignments", {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-cache",
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        }
+
+        const contentType = response.headers.get("content-type")
+        if (!contentType || !contentType.includes("application/json")) {
+          const text = await response.text()
+          throw new Error(`Expected JSON but received: ${text.substring(0, 100)}...`)
+        }
+
         const data = await response.json()
-        // 비밀번호 유무 표시 추가
         const processedData = data.map((assignment: Assignment) => ({
           ...assignment,
           has_password: !!assignment.password,
-          password: undefined, // 클라이언트에 비밀번호 자체는 전송하지 않음
+          password: undefined,
         }))
-
-        // 디버깅용 - 사용 가능한 레벨 목록 저장
-        // const availableLevels = [...new Set(processedData.map((a: Assignment) => a.class_level))]
-        // setDebugInfo((prev) => ({ ...prev, availableLevels }))
-        // console.log("사용 가능한 레벨:", availableLevels)
 
         setAssignments(processedData)
         setError(null)
-      } else {
-        const errorText = await response.text()
-        setError(`API 오류 (${response.status}): ${errorText}`)
+      } catch (apiError) {
+        console.error("API 폴백도 실패:", apiError)
+        setError(`API 오류: ${apiError instanceof Error ? apiError.message : "알 수 없는 오류"}`)
       }
-    } catch (error) {
-      console.error("과제 로딩 오류:", error)
-      setError(`로딩 오류: ${error.message}`)
     } finally {
       setLoading(false)
     }
@@ -304,9 +421,6 @@ export default function AssignmentBoard() {
       const userLevel = currentUser.class_level.toLowerCase().trim()
       const assignmentLevel = assignment.class_level.toLowerCase().trim()
       matchesLevel = assignmentLevel === userLevel
-
-      // 디버깅용 로그
-      // console.log(`비교: 사용자 레벨 "${userLevel}" vs 과제 레벨 "${assignmentLevel}" = ${matchesLevel}`)
     } else if (selectedLevel !== "all") {
       matchesLevel = assignment.class_level.toLowerCase() === selectedLevel.toLowerCase()
     }
@@ -347,7 +461,7 @@ export default function AssignmentBoard() {
     }
   }
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="space-y-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
@@ -372,7 +486,29 @@ export default function AssignmentBoard() {
               {getLevelText(currentUser.class_level || "")} LEVEL ONLY
             </p>
           )}
+
+          {/* 디버깅 정보 추가 */}
+          {process.env.NODE_ENV === "development" && (
+            <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 text-xs space-y-1">
+              <p>
+                <strong>Current User:</strong> {currentUser ? `${currentUser.name} (${currentUser.email})` : "null"}
+              </p>
+              <p>
+                <strong>User Role:</strong> {currentUser?.role || "없음"}
+              </p>
+              <p>
+                <strong>Is Instructor:</strong> {isInstructor ? "✅ Yes" : "❌ No"}
+              </p>
+              <p>
+                <strong>Can Create Assignment:</strong> {canCreateAssignment ? "✅ Yes" : "❌ No"}
+              </p>
+              <p>
+                <strong>Assignments Count:</strong> {assignments.length}
+              </p>
+            </div>
+          )}
         </div>
+
         <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
           <Button
             onClick={loadUserAndAssignments}
@@ -383,18 +519,9 @@ export default function AssignmentBoard() {
             <RefreshCw className="h-4 w-4 mr-2" />
             REFRESH
           </Button>
+
           {/* 관리자, 강사만 NEW ASSIGNMENT 버튼 표시 */}
-          {canCreateAssignment && (
-            <Button
-              asChild
-              className="bg-black text-white hover:bg-gray-800 transition-all duration-300 font-light tracking-wider uppercase w-full sm:w-auto"
-            >
-              <Link href="/board/assignment/create">
-                <PlusCircle className="h-4 w-4 mr-2" />
-                NEW ASSIGNMENT
-              </Link>
-            </Button>
-          )}
+          {canCreateAssignment && <AssignmentCreateModal onAssignmentCreated={loadUserAndAssignments} />}
         </div>
       </div>
 
@@ -412,22 +539,6 @@ export default function AssignmentBoard() {
           </Button>
         </div>
       )}
-
-      {/* 디버깅 정보 표시 */}
-      {/* {isLoggedInStudent && (
-       <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
-         <h3 className="font-medium text-blue-700 mb-2">디버깅 정보</h3>
-         <p className="text-sm">
-           사용자 레벨: <strong>{debugInfo.userLevel || "없음"}</strong>
-         </p>
-         <p className="text-sm">
-           사용 가능한 레벨: <strong>{debugInfo.availableLevels.join(", ") || "없음"}</strong>
-         </p>
-         <p className="text-sm">
-           필터링된 과제 수: <strong>{filteredAssignments.length}</strong>/{assignments.length}
-         </p>
-       </div>
-     )} */}
 
       {/* 검색 및 필터 - 반응형 개선 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { togglePostLike, type BoardPost } from "@/lib/api/board"
 import { useRouter } from "next/navigation"
-import { getCurrentUser } from "@/lib/auth"
 import { toast } from "sonner"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 interface PostActionsProps {
   post: BoardPost
@@ -27,21 +27,67 @@ export default function PostActions({ post }: PostActionsProps) {
   useEffect(() => {
     const loadUserData = async () => {
       try {
-        const currentUser = await getCurrentUser()
-        setUser(currentUser)
+        // 1단계: Supabase 세션 확인
+        const supabase = createClientComponentClient()
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession()
 
-        if (currentUser) {
-          // 관리자 권한 확인
-          setIsAdmin(currentUser.role === "admin")
+        console.log("🔍 PostActions 세션 확인:", {
+          hasSession: !!session,
+          userId: session?.user?.id,
+          sessionError: sessionError?.message,
+        })
 
-          // 좋아요 상태 확인
-          await checkLikeStatus(currentUser.id)
+        if (!session || !session.user) {
+          console.log("❌ PostActions 세션 없음")
+          setUser(null)
+          setIsLoading(false)
+          return
+        }
 
-          // 북마크 상태 확인
-          await checkBookmarkStatus(currentUser.id)
+        // 2단계: 사용자 프로필 조회
+        const { data: userProfile, error: profileError } = await supabase
+          .from("users")
+          .select("id, name, email, role, class_level, is_active")
+          .eq("id", session.user.id)
+          .single()
+
+        console.log("👤 PostActions 사용자 프로필:", {
+          found: !!userProfile,
+          role: userProfile?.role,
+          error: profileError?.message,
+        })
+
+        if (profileError || !userProfile || !userProfile.is_active) {
+          console.log("❌ PostActions 프로필 문제")
+          setUser(null)
+          setIsLoading(false)
+          return
+        }
+
+        const userData = {
+          id: userProfile.id,
+          name: userProfile.name,
+          email: userProfile.email,
+          role: userProfile.role,
+          class_level: userProfile.class_level,
+        }
+
+        setUser(userData)
+        setIsAdmin(userProfile.role === "admin")
+
+        console.log("✅ PostActions 사용자 인증 성공:", userData)
+
+        // 좋아요 및 북마크 상태 확인
+        if (userData.id) {
+          await checkLikeStatus(userData.id)
+          await checkBookmarkStatus(userData.id)
         }
       } catch (error) {
-        console.error("Error loading user data:", error)
+        console.error("❌ PostActions 사용자 데이터 로딩 오류:", error)
+        setUser(null)
       } finally {
         setIsLoading(false)
       }

@@ -70,6 +70,10 @@ export default function AssignmentCreateModal({ onAssignmentCreated }: Assignmen
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    console.log("🔍 폼 검증 결과:", validateForm())
+    console.log("🔍 현재 폼 데이터:", formData)
+    console.log("🔍 선택된 파일:", selectedFiles)
+
     if (!validateForm()) {
       toast.error("입력 정보를 확인해주세요")
       return
@@ -92,22 +96,27 @@ export default function AssignmentCreateModal({ onAssignmentCreated }: Assignmen
       // 과제 데이터 준비
       const assignmentData = {
         title: formData.title.trim(),
-        content: formData.content.trim() + (formData.password ? `\n\n🔒 PASSWORD: ${formData.password}` : ""),
-        category: formData.category,
-        type: "assignment", // 🎯 중요: assignment 타입으로 강제 설정
+        content: formData.content.trim(),
+        description: "", // 필수 필드 추가
         class_level: formData.class_level,
         password: formData.password,
         author_id: currentUser.id,
-        is_pinned: false,
-        likes: 0,
-        comments_count: 0,
-        views: 0,
+        instructor_id: currentUser.id, // 필수 필드 추가
+        // 아래 필드들은 API에서 처리하므로 제거
+        // category: formData.category,
+        // type: "assignment",
+        // is_pinned: false,
+        // likes: 0,
+        // comments_count: 0,
+        // views: 0,
       }
 
       console.log("📝 과제 데이터:", assignmentData)
+      console.log("📝 과제 데이터 전송 시작:", JSON.stringify(assignmentData, null, 2))
 
       // API 호출
       const response = await fetch("/api/assignments", {
+        // assignments로 다시 변경
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -116,6 +125,7 @@ export default function AssignmentCreateModal({ onAssignmentCreated }: Assignmen
       })
 
       console.log("📡 API 응답 상태:", response.status)
+      console.log("📡 API 응답 헤더:", response.headers)
 
       if (response.ok) {
         const result = await response.json()
@@ -140,9 +150,22 @@ export default function AssignmentCreateModal({ onAssignmentCreated }: Assignmen
         // 부모 컴포넌트에 새로고침 요청
         onAssignmentCreated()
       } else {
-        const errorData = await response.text()
-        console.error("❌ API 오류:", response.status, errorData)
-        toast.error(`과제 등록 실패: ${errorData}`)
+        // 에러 응답을 더 자세히 확인
+        const contentType = response.headers.get("content-type")
+        let errorMessage = ""
+
+        if (contentType && contentType.includes("application/json")) {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorData.message || "알 수 없는 오류"
+          console.error("❌ JSON 에러 응답:", errorData)
+        } else {
+          const errorText = await response.text()
+          errorMessage = errorText
+          console.error("❌ 텍스트 에러 응답:", errorText)
+        }
+
+        toast.error(`과제 등록 실패: ${errorMessage}`)
+        return
       }
     } catch (error) {
       console.error("💥 과제 등록 오류:", error)

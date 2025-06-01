@@ -9,8 +9,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import PostCard from "@/components/board/post-card"
 import { Search, Plus } from "lucide-react"
 import { getFreeBoardPosts } from "@/lib/api/board"
-import { getCurrentUser } from "@/lib/auth"
 import type { BoardPost } from "@/lib/api/board"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 export default function FreeBoard() {
   const router = useRouter()
@@ -35,11 +35,93 @@ export default function FreeBoard() {
     const fetchUser = async () => {
       try {
         setUserLoading(true)
-        const currentUser = await getCurrentUser()
-        setUser(currentUser)
-        console.log("Current user:", currentUser)
+
+        // 1단계: Supabase 세션 확인
+        const supabase = createClientComponentClient()
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession()
+
+        console.log("🔍 세션 확인:", {
+          hasSession: !!session,
+          userId: session?.user?.id,
+          userEmail: session?.user?.email,
+          sessionError: sessionError?.message,
+        })
+
+        if (!session || !session.user) {
+          console.log("❌ 세션 없음 - 로그인 상태가 아님")
+          setUser(null)
+          return
+        }
+
+        console.log("✅ 세션 존재 - 사용자 프로필 조회 시작")
+
+        // 2단계: 사용자 프로필 조회
+        const { data: userProfile, error: profileError } = await supabase
+          .from("users")
+          .select("id, name, email, role, class_level, is_active")
+          .eq("id", session.user.id)
+          .single()
+
+        console.log("👤 사용자 프로필 조회 결과:", {
+          found: !!userProfile,
+          profile: userProfile,
+          error: profileError?.message,
+          errorCode: profileError?.code,
+          errorDetails: profileError?.details,
+        })
+
+        if (profileError) {
+          console.error("❌ 프로필 조회 오류:", profileError)
+
+          // 이메일로 다시 시도
+          console.log("📧 이메일로 사용자 검색 시도:", session.user.email)
+          const { data: userByEmail, error: emailError } = await supabase
+            .from("users")
+            .select("id, name, email, role, class_level, is_active")
+            .eq("email", session.user.email)
+            .single()
+
+          console.log("📧 이메일 검색 결과:", {
+            found: !!userByEmail,
+            profile: userByEmail,
+            error: emailError?.message,
+          })
+
+          if (emailError || !userByEmail) {
+            console.log("❌ 이메일로도 사용자를 찾을 수 없음")
+            setUser(null)
+            return
+          }
+
+          // 이메일로 찾은 사용자 사용
+          userProfile = userByEmail
+        }
+
+        if (!userProfile || !userProfile.is_active) {
+          console.log("❌ 비활성 사용자 또는 프로필 없음:", {
+            hasProfile: !!userProfile,
+            isActive: userProfile?.is_active,
+          })
+          setUser(null)
+          return
+        }
+
+        // 3단계: 사용자 정보 설정
+        const userData = {
+          id: userProfile.id,
+          name: userProfile.name,
+          email: userProfile.email,
+          role: userProfile.role,
+          class_level: userProfile.class_level,
+        }
+
+        console.log("✅ 사용자 인증 성공:", userData)
+        setUser(userData)
       } catch (error) {
-        console.error("Error fetching user:", error)
+        console.error("❌ 사용자 정보 가져오기 오류:", error)
         setUser(null)
       } finally {
         setUserLoading(false)
