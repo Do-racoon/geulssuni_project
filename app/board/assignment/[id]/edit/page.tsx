@@ -56,37 +56,93 @@ export default function EditAssignmentPage({ params }: EditAssignmentPageProps) 
   })
 
   useEffect(() => {
+    console.log("🚀 Edit page useEffect triggered with params.id:", params.id)
     loadAssignmentAndUser()
-  }, [params.id])
+  }, [params.id]) // router 의존성 제거
 
   const loadAssignmentAndUser = async () => {
     try {
       setIsLoading(true)
       const supabase = createClient()
 
-      // 사용자 정보 가져오기
+      // 사용자 정보 가져오기 - 더 안정적인 방식
       const {
-        data: { user },
-      } = await supabase.auth.getUser()
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession()
 
-      if (!user) {
+      console.log("🔍 Edit page session check:", {
+        hasSession: !!session,
+        userId: session?.user?.id,
+        userEmail: session?.user?.email,
+        error: sessionError?.message,
+      })
+
+      if (sessionError || !session?.user) {
+        console.log("❌ No session in edit page, redirecting to login")
         router.push("/login")
         return
       }
 
-      const { data: userData } = await supabase.from("users").select("id, name, email, role").eq("id", user.id).single()
+      // 사용자 데이터 조회 - ID 우선, 실패시 이메일
+      let userData = null
+
+      // ID로 검색
+      const { data: userByIdData, error: userByIdError } = await supabase
+        .from("users")
+        .select("id, name, email, role")
+        .eq("id", session.user.id)
+        .single()
+
+      if (userByIdError && session.user.email) {
+        console.log("🔍 User not found by ID, trying email search...")
+        // 이메일로 검색
+        const { data: userByEmailData, error: userByEmailError } = await supabase
+          .from("users")
+          .select("id, name, email, role")
+          .eq("email", session.user.email)
+          .single()
+
+        if (!userByEmailError && userByEmailData) {
+          userData = userByEmailData
+        }
+      } else if (!userByIdError && userByIdData) {
+        userData = userByIdData
+      }
+
+      console.log("👤 Edit page user data:", {
+        found: !!userData,
+        role: userData?.role,
+        email: userData?.email,
+      })
+
+      if (!userData) {
+        toast({
+          title: "사용자 정보 오류",
+          description: "사용자 정보를 찾을 수 없습니다.",
+          variant: "destructive",
+        })
+        router.push("/login")
+        return
+      }
 
       setCurrentUser(userData)
 
       // 과제 정보 가져오기
-      const { data: assignmentData, error } = await supabase
+      const { data: assignmentData, error: assignmentError } = await supabase
         .from("assignments")
         .select("*")
         .eq("id", params.id)
         .single()
 
-      if (error) {
-        console.error("Error loading assignment:", error)
+      console.log("📝 Assignment data check:", {
+        found: !!assignmentData,
+        authorId: assignmentData?.author_id,
+        error: assignmentError?.message,
+      })
+
+      if (assignmentError || !assignmentData) {
+        console.error("Error loading assignment:", assignmentError)
         toast({
           title: "Error",
           description: "Assignment not found",
@@ -96,11 +152,24 @@ export default function EditAssignmentPage({ params }: EditAssignmentPageProps) 
         return
       }
 
-      // 권한 체크
-      const canEdit =
-        userData?.role === "admin" || (userData?.role === "instructor" && assignmentData.author_id === userData.id)
+      // 권한 체크 - 관리자이거나 본인이 작성한 과제인 경우만 편집 가능
+      const isAdmin = userData.role === "admin"
+      const isInstructor = userData.role === "instructor" || userData.role === "teacher"
+      const isAuthor = assignmentData.author_id === userData.id
+
+      console.log("🔐 Edit permission check:", {
+        userRole: userData.role,
+        isAdmin,
+        isInstructor,
+        isAuthor,
+        assignmentAuthorId: assignmentData.author_id,
+        userId: userData.id,
+      })
+
+      const canEdit = isAdmin || (isInstructor && isAuthor)
 
       if (!canEdit) {
+        console.log("❌ Edit permission denied")
         toast({
           title: "Access Denied",
           description: "You don't have permission to edit this assignment",
@@ -110,6 +179,7 @@ export default function EditAssignmentPage({ params }: EditAssignmentPageProps) 
         return
       }
 
+      console.log("✅ Edit permission granted")
       setAssignment(assignmentData)
 
       // 폼 데이터 초기화
@@ -123,7 +193,7 @@ export default function EditAssignmentPage({ params }: EditAssignmentPageProps) 
         password: assignmentData.password || "",
       })
     } catch (error) {
-      console.error("Error loading assignment:", error)
+      console.error("💥 Edit page load error:", error)
       toast({
         title: "Error",
         description: "Failed to load assignment",

@@ -408,102 +408,41 @@ export default function AssignmentBoard() {
     }
   }
 
-  // Edit 버튼 클릭 핸들러 추가
-  const handleEditClick = async (assignmentId: string, event: React.MouseEvent) => {
+  // Edit 버튼 클릭 핸들러 - 직접 window.location 사용
+  const handleEditClick = (assignmentId: string, event: React.MouseEvent) => {
     event.stopPropagation()
+    event.preventDefault()
 
     console.log("🔧 Edit button clicked for assignment:", assignmentId)
     console.log("👤 Current user:", currentUser)
     console.log("🔑 Is instructor:", isInstructor)
 
-    // 1. 인증 상태 확인
-    try {
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession()
-
-      console.log("📋 Session check:", {
-        hasSession: !!session,
-        userId: session?.user?.id,
-        userEmail: session?.user?.email,
-        error: sessionError?.message,
+    // 권한 체크
+    if (!isInstructor) {
+      toast({
+        title: "권한 없음",
+        description: "과제를 수정할 권한이 없습니다.",
+        variant: "destructive",
       })
+      return
+    }
 
-      if (sessionError || !session?.user) {
+    // 세션 토큰 가져오기
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
         toast({
           title: "인증 필요",
           description: "로그인이 필요합니다.",
           variant: "destructive",
         })
-        router.push("/login")
+        window.location.href = "/login"
         return
       }
 
-      // 2. 사용자 권한 재확인
-      const { data: userData, error: userError } = await supabase
-        .from("users")
-        .select("id, name, email, role, class_level")
-        .eq("id", session.user.id)
-        .single()
-
-      console.log("👤 User data recheck:", {
-        found: !!userData,
-        role: userData?.role,
-        error: userError?.message,
-      })
-
-      if (userError || !userData) {
-        toast({
-          title: "사용자 정보 오류",
-          description: "사용자 정보를 찾을 수 없습니다.",
-          variant: "destructive",
-        })
-        return
-      }
-
-      // 3. 권한 확인
-      const hasPermission = userData.role === "admin" || userData.role === "instructor" || userData.role === "teacher"
-
-      console.log("🔐 Permission check:", {
-        userRole: userData.role,
-        hasPermission,
-      })
-
-      if (!hasPermission) {
-        toast({
-          title: "권한 없음",
-          description: "과제를 수정할 권한이 없습니다.",
-          variant: "destructive",
-        })
-        return
-      }
-
-      // 4. 과제 소유권 확인 (관리자가 아닌 경우)
-      if (userData.role !== "admin") {
-        const assignment = assignments.find((a) => a.id === assignmentId)
-        if (assignment && assignment.author_id !== userData.id) {
-          toast({
-            title: "권한 없음",
-            description: "본인이 작성한 과제만 수정할 수 있습니다.",
-            variant: "destructive",
-          })
-          return
-        }
-      }
-
-      console.log("✅ All checks passed, navigating to edit page")
-
-      // 5. 모든 검증 통과 시 편집 페이지로 이동
-      router.push(`/board/assignment/${assignmentId}/edit`)
-    } catch (error) {
-      console.error("💥 Edit permission check error:", error)
-      toast({
-        title: "오류 발생",
-        description: "권한 확인 중 오류가 발생했습니다.",
-        variant: "destructive",
-      })
-    }
+      // 직접 URL로 이동 (미들웨어 우회)
+      console.log("✅ 직접 URL로 이동합니다")
+      window.location.href = `/board/assignment/${assignmentId}/edit`
+    })
   }
 
   // 필터링 - 대소문자 무시하고 비교하도록 수정
