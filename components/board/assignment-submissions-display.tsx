@@ -50,6 +50,7 @@ export default function AssignmentSubmissionsDisplay({
   const [deletingComment, setDeletingComment] = useState<string | null>(null)
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [uploading, setUploading] = useState(false)
 
   useEffect(() => {
     loadCurrentUser()
@@ -192,7 +193,95 @@ export default function AssignmentSubmissionsDisplay({
 
   return (
     <div className="space-y-6">
-      <h3 className="text-lg font-light tracking-widest uppercase mb-4">SUBMISSIONS ({submissions.length})</h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-light tracking-widest uppercase">SUBMISSIONS ({submissions.length})</h3>
+        <div className="w-full">
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+              {Array.from(new Set(submissions.map((s) => s.student_name))).map((studentName) => (
+                <button
+                  key={studentName}
+                  className="whitespace-nowrap py-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-light tracking-wider uppercase text-sm"
+                >
+                  {studentName}
+                </button>
+              ))}
+              <button
+                onClick={() => {
+                  // 현재 사용자가 로그인되어 있는지 확인
+                  if (!currentUser) {
+                    toast.error("로그인이 필요합니다.")
+                    return
+                  }
+
+                  // 파일 입력 요소 생성하여 직접 파일 선택
+                  const fileInput = document.createElement("input")
+                  fileInput.type = "file"
+                  fileInput.accept = ".pdf,.doc,.docx,.txt,.zip,.rar,.jpg,.jpeg,.png"
+                  fileInput.onchange = async (e) => {
+                    const file = (e.target as HTMLInputElement).files?.[0]
+                    if (file) {
+                      // 파일 크기 체크
+                      if (file.size > 10 * 1024 * 1024) {
+                        toast.error("파일 크기는 10MB를 초과할 수 없습니다.")
+                        return
+                      }
+
+                      try {
+                        setUploading(true)
+                        // 파일 업로드
+                        const formData = new FormData()
+                        formData.append("file", file)
+
+                        const uploadResponse = await fetch("/api/upload", {
+                          method: "POST",
+                          body: formData,
+                        })
+
+                        if (!uploadResponse.ok) {
+                          throw new Error("파일 업로드 실패")
+                        }
+
+                        const { url: fileUrl } = await uploadResponse.json()
+
+                        // 과제 제출
+                        const submitResponse = await fetch(`/api/assignments/${assignmentId}/submissions`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            studentId: currentUser.id,
+                            studentName: currentUser.name,
+                            fileUrl,
+                            fileName: file.name,
+                          }),
+                        })
+
+                        if (submitResponse.ok) {
+                          toast.success("과제가 성공적으로 제출되었습니다!")
+                          // 제출 목록 새로고침
+                          loadSubmissions()
+                        } else {
+                          const errorData = await submitResponse.json()
+                          toast.error(errorData.error || "제출에 실패했습니다.")
+                        }
+                      } catch (error) {
+                        console.error("제출 오류:", error)
+                        toast.error("제출 중 오류가 발생했습니다.")
+                      } finally {
+                        setUploading(false)
+                      }
+                    }
+                  }
+                  fileInput.click()
+                }}
+                className="whitespace-nowrap py-2 px-1 border-b-2 border-blue-500 text-blue-600 font-light tracking-wider uppercase text-sm hover:bg-blue-50 cursor-pointer"
+              >
+                + ADD SUBMISSION
+              </button>
+            </nav>
+          </div>
+        </div>
+      </div>
 
       {submissions.map((submission) => (
         <Card key={submission.id} className="border border-gray-200" style={{ borderRadius: "0" }}>

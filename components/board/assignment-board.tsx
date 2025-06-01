@@ -415,19 +415,19 @@ export default function AssignmentBoard() {
 
       {/* 디버깅 정보 표시 */}
       {/* {isLoggedInStudent && (
-        <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
-          <h3 className="font-medium text-blue-700 mb-2">디버깅 정보</h3>
-          <p className="text-sm">
-            사용자 레벨: <strong>{debugInfo.userLevel || "없음"}</strong>
-          </p>
-          <p className="text-sm">
-            사용 가능한 레벨: <strong>{debugInfo.availableLevels.join(", ") || "없음"}</strong>
-          </p>
-          <p className="text-sm">
-            필터링된 과제 수: <strong>{filteredAssignments.length}</strong>/{assignments.length}
-          </p>
-        </div>
-      )} */}
+       <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
+         <h3 className="font-medium text-blue-700 mb-2">디버깅 정보</h3>
+         <p className="text-sm">
+           사용자 레벨: <strong>{debugInfo.userLevel || "없음"}</strong>
+         </p>
+         <p className="text-sm">
+           사용 가능한 레벨: <strong>{debugInfo.availableLevels.join(", ") || "없음"}</strong>
+         </p>
+         <p className="text-sm">
+           필터링된 과제 수: <strong>{filteredAssignments.length}</strong>/{assignments.length}
+         </p>
+       </div>
+     )} */}
 
       {/* 검색 및 필터 - 반응형 개선 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
