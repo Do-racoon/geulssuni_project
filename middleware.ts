@@ -94,6 +94,84 @@ export async function middleware(req: NextRequest) {
     } = await supabase.auth.getSession()
 
     if (!session) {
+      console.log("❌ No session for protected route:", req.nextUrl.pathname)
+      return NextResponse.redirect(new URL("/login", req.url))
+    }
+  }
+
+  // Assignment edit routes - 특별 처리
+  if (req.nextUrl.pathname.match(/^\/board\/assignment\/[^/]+\/edit$/)) {
+    console.log("🎯 Assignment edit route detected:", req.nextUrl.pathname)
+
+    try {
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession()
+
+      console.log("📋 Edit route session check:", {
+        hasSession: !!session,
+        userId: session?.user?.id,
+        userEmail: session?.user?.email,
+        error: sessionError?.message,
+      })
+
+      if (sessionError || !session?.user) {
+        console.log("❌ No session for edit route, redirecting to login")
+        return NextResponse.redirect(new URL("/login", req.url))
+      }
+
+      // 사용자 역할 확인
+      const { data: user, error: userError } = await supabase
+        .from("users")
+        .select("role, email, name, is_active")
+        .eq("id", session.user.id)
+        .single()
+
+      console.log("👤 Edit route user check:", {
+        found: !!user,
+        role: user?.role,
+        email: user?.email,
+        isActive: user?.is_active,
+        error: userError?.message,
+      })
+
+      if (userError && session.user.email) {
+        // 이메일로 재시도
+        const { data: userByEmail, error: emailError } = await supabase
+          .from("users")
+          .select("role, email, name, is_active")
+          .eq("email", session.user.email)
+          .single()
+
+        console.log("📧 Edit route email fallback:", {
+          found: !!userByEmail,
+          role: userByEmail?.role,
+          error: emailError?.message,
+        })
+
+        if (!userByEmail || !["admin", "instructor"].includes(userByEmail.role)) {
+          console.log("❌ Edit route: User not found or insufficient role via email")
+          return NextResponse.redirect(new URL("/login", req.url))
+        }
+
+        console.log("✅ Edit route access granted via email")
+        return res
+      }
+
+      if (!user || !["admin", "instructor"].includes(user.role)) {
+        console.log("❌ Edit route: Insufficient permissions:", {
+          hasUser: !!user,
+          role: user?.role,
+          allowedRoles: ["admin", "instructor"],
+        })
+        return NextResponse.redirect(new URL("/login", req.url))
+      }
+
+      console.log("✅ Edit route access granted")
+      return res
+    } catch (error) {
+      console.error("💥 Edit route middleware error:", error)
       return NextResponse.redirect(new URL("/login", req.url))
     }
   }
@@ -102,5 +180,11 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/profile/:path*", "/board/create/:path*", "/board/assignment/create/:path*"],
+  matcher: [
+    "/admin/:path*",
+    "/profile/:path*",
+    "/board/create/:path*",
+    "/board/assignment/create/:path*",
+    "/board/assignment/:path*/edit",
+  ],
 }
