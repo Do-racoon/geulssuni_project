@@ -256,6 +256,8 @@ export default function RichTextEditor({
     const file = event.target.files?.[0]
     if (!file) return
 
+    console.log("🖼️ 이미지 업로드 시작:", { name: file.name, size: file.size, type: file.type })
+
     if (!file.type.startsWith("image/")) {
       toast.error("이미지 파일만 업로드 가능합니다.")
       return
@@ -268,11 +270,17 @@ export default function RichTextEditor({
 
     try {
       setUploading(true)
+      console.log("📤 uploadFile 함수 호출 중...")
+
       const result = await uploadFile(file, { folder: "editor-images" })
+      console.log("📤 uploadFile 결과:", result)
 
       if (!result.success || !result.data) {
+        console.error("❌ 업로드 실패:", result.error)
         throw new Error(result.error || "업로드 실패")
       }
+
+      console.log("✅ 업로드 성공:", result.data.publicUrl)
 
       // Enhanced image insertion with proper error handling and CORS
       const img = `<img src="${result.data.publicUrl}" alt="업로드된 이미지" style="max-width: 100%; height: auto; margin: 10px 0; display: block; border-radius: 4px;" crossorigin="anonymous" loading="lazy" onload="this.style.opacity='1'; this.style.filter='none';" onerror="console.error('Image failed to load:', this.src); this.style.display='none';" />`
@@ -285,8 +293,8 @@ export default function RichTextEditor({
       handleContentChange()
       toast.success("이미지가 업로드되었습니다.")
     } catch (error) {
-      console.error("Image upload error:", error)
-      toast.error("이미지 업로드에 실패했습니다.")
+      console.error("❌ Image upload error:", error)
+      toast.error(`이미지 업로드에 실패했습니다: ${error instanceof Error ? error.message : "알 수 없는 오류"}`)
     } finally {
       setUploading(false)
       if (imageInputRef.current) {

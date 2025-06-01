@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Heart, Trash2, MoreVertical, Share2, Flag, Bookmark } from "lucide-react"
+import { Heart, Trash2, MoreVertical, Share2, Flag } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { togglePostLike, type BoardPost } from "@/lib/api/board"
@@ -17,7 +17,6 @@ export default function PostActions({ post }: PostActionsProps) {
   const [user, setUser] = useState<any>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [isLiked, setIsLiked] = useState(false)
-  const [isBookmarked, setIsBookmarked] = useState(false)
   const [likeCount, setLikeCount] = useState(post.likes || 0)
   const [isLiking, setIsLiking] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -80,10 +79,9 @@ export default function PostActions({ post }: PostActionsProps) {
 
         console.log("✅ PostActions 사용자 인증 성공:", userData)
 
-        // 좋아요 및 북마크 상태 확인
+        // 좋아요 상태 확인
         if (userData.id) {
           await checkLikeStatus(userData.id)
-          await checkBookmarkStatus(userData.id)
         }
       } catch (error) {
         console.error("❌ PostActions 사용자 데이터 로딩 오류:", error)
@@ -105,19 +103,6 @@ export default function PostActions({ post }: PostActionsProps) {
       }
     } catch (error) {
       console.error("Error checking like status:", error)
-    }
-  }
-
-  const checkBookmarkStatus = async (userId: string) => {
-    try {
-      const response = await fetch(`/api/bookmarks/check?postId=${post.id}&userId=${userId}`)
-      if (response.ok) {
-        const { isBookmarked } = await response.json()
-        setIsBookmarked(isBookmarked)
-      }
-    } catch (error) {
-      console.error("Error checking bookmark status:", error)
-      // 북마크 기능은 선택사항이므로 오류가 발생해도 계속 진행
     }
   }
 
@@ -172,7 +157,7 @@ export default function PostActions({ post }: PostActionsProps) {
     try {
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(window.location.href)
-        toast.success("URL이 클립보드에 복사되었습니다.")
+        toast.success("Shared perfectly!")
       } else {
         // Fallback for older browsers or non-secure contexts
         const textArea = document.createElement("textarea")
@@ -186,7 +171,7 @@ export default function PostActions({ post }: PostActionsProps) {
 
         try {
           document.execCommand("copy")
-          toast.success("URL이 클립보드에 복사되었습니다.")
+          toast.success("Shared perfectly!")
         } catch (err) {
           toast.error("URL 복사에 실패했습니다. 수동으로 복사해주세요.")
           console.error("Fallback copy failed:", err)
@@ -234,38 +219,6 @@ export default function PostActions({ post }: PostActionsProps) {
     }
   }
 
-  const handleBookmark = async () => {
-    if (!user) {
-      toast.error("북마크하려면 로그인이 필요합니다.")
-      router.push("/login")
-      return
-    }
-
-    try {
-      const response = await fetch("/api/bookmarks", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          postId: post.id,
-          userId: user.id,
-          action: isBookmarked ? "remove" : "add",
-        }),
-      })
-
-      if (response.ok) {
-        setIsBookmarked(!isBookmarked)
-        toast.success(isBookmarked ? "북마크가 해제되었습니다." : "북마크에 추가되었습니다.")
-      } else {
-        toast.error("북마크 처리에 실패했습니다.")
-      }
-    } catch (error) {
-      console.error("Error bookmarking post:", error)
-      toast.error("북마크 처리 중 오류가 발생했습니다.")
-    }
-  }
-
   const canDeletePost = isAdmin || post.author_id === user?.id
 
   if (isLoading) {
@@ -274,7 +227,6 @@ export default function PostActions({ post }: PostActionsProps) {
         <div className="flex items-center space-x-4">
           <div className="h-8 w-20 bg-gray-200 animate-pulse rounded-none"></div>
           <div className="h-8 w-24 bg-gray-200 animate-pulse rounded-none"></div>
-          <div className="h-8 w-16 bg-gray-200 animate-pulse rounded-none"></div>
         </div>
       </div>
     )
@@ -294,18 +246,6 @@ export default function PostActions({ post }: PostActionsProps) {
         >
           <Heart className={`h-4 w-4 mr-2 ${isLiked ? "fill-current" : ""}`} />
           {isLiking ? "..." : `LIKE ${likeCount}`}
-        </Button>
-
-        <Button
-          onClick={handleBookmark}
-          variant="outline"
-          size="sm"
-          className={`flex items-center border-black hover:bg-black hover:text-white tracking-wider font-light rounded-none ${
-            isBookmarked ? "bg-black text-white" : "bg-white text-black"
-          }`}
-        >
-          <Bookmark className={`h-4 w-4 mr-2 ${isBookmarked ? "fill-current" : ""}`} />
-          BOOKMARK
         </Button>
 
         <Button

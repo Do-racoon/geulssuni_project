@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PlusCircle, Eye, EyeOff, Upload, X } from "lucide-react"
-import { getCurrentUser } from "@/lib/auth"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { toast } from "sonner"
 
 interface AssignmentCreateModalProps {
@@ -72,7 +72,6 @@ export default function AssignmentCreateModal({ onAssignmentCreated }: Assignmen
 
     console.log("🔍 폼 검증 결과:", validateForm())
     console.log("🔍 현재 폼 데이터:", formData)
-    console.log("🔍 선택된 파일:", selectedFiles)
 
     if (!validateForm()) {
       toast.error("입력 정보를 확인해주세요")
@@ -84,34 +83,52 @@ export default function AssignmentCreateModal({ onAssignmentCreated }: Assignmen
     try {
       console.log("🚀 과제 등록 시작...")
 
-      // 현재 사용자 정보 가져오기
-      const currentUser = await getCurrentUser()
-      if (!currentUser) {
+      // Supabase 클라이언트 생성
+      const supabase = createClientComponentClient()
+
+      // 현재 세션 확인
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession()
+
+      if (sessionError || !session?.user) {
+        console.error("❌ 세션 없음:", sessionError)
         toast.error("로그인이 필요합니다")
         return
       }
 
-      console.log("👤 현재 사용자:", currentUser)
+      console.log("✅ 세션 존재:", session.user.email)
+
+      // 사용자 프로필 조회
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("id, name, email, role, class_level")
+        .eq("id", session.user.id)
+        .single()
+
+      if (userError || !userData) {
+        console.error("❌ 사용자 프로필 조회 실패:", userError)
+        toast.error("사용자 정보를 찾을 수 없습니다")
+        return
+      }
+
+      console.log("👤 현재 사용자:", userData)
 
       // 과제 데이터 준비
       const assignmentData = {
         title: formData.title.trim(),
         content: formData.content.trim(),
-        description: "", // 필수 필드 추가
+        description: formData.content.trim(), // description을 content와 동일하게 설정
         class_level: formData.class_level,
         password: formData.password,
-        author_id: currentUser.id,
-        instructor_id: currentUser.id, // 필수 필드 추가
-        // 아래 필드들은 API에서 처리하므로 제거
-        // category: formData.category,
-        // type: "assignment",
-        // is_pinned: false,
-        // likes: 0,
-        // comments_count: 0,
-        // views: 0,
+        author_id: userData.id,
+        instructor_id: userData.id,
       }
 
       console.log("📝 과제 데이터:", assignmentData)
+
+      // 나머지 API 호출 로직은 동일...
       console.log("📝 과제 데이터 전송 시작:", JSON.stringify(assignmentData, null, 2))
 
       // API 호출

@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation"
 import { Smile, Loader2 } from "lucide-react"
 import EmojiPicker from "./emoji-picker"
 import RichTextEditor from "@/components/RichTextEditor"
-import { getCurrentUser } from "@/lib/auth"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 export default function PostEditor() {
   const router = useRouter()
@@ -22,24 +22,89 @@ export default function PostEditor() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState("")
 
-  // 사용자 정보 가져오기
+  // 사용자 정보 가져오기 (free-board.tsx와 동일한 방식)
   useEffect(() => {
     const fetchUser = async () => {
       try {
         setUserLoading(true)
-        const currentUser = await getCurrentUser()
-        console.log("PostEditor - Current user:", currentUser)
 
-        if (!currentUser) {
-          console.log("PostEditor - No user found, redirecting to login")
+        // 1단계: Supabase 세션 확인
+        const supabase = createClientComponentClient()
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession()
+
+        console.log("PostEditor - 🔍 세션 확인:", {
+          hasSession: !!session,
+          userId: session?.user?.id,
+          userEmail: session?.user?.email,
+          sessionError: sessionError?.message,
+        })
+
+        if (!session || !session.user) {
+          console.log("PostEditor - ❌ 세션 없음 - 로그인 상태가 아님")
           alert("글을 작성하려면 로그인이 필요합니다.")
           router.push("/login")
           return
         }
 
-        setUser(currentUser)
+        console.log("PostEditor - ✅ 세션 존재 - 사용자 프로필 조회 시작")
+
+        // 2단계: 사용자 프로필 조회
+        const { data: userProfile, error: profileError } = await supabase
+          .from("users")
+          .select("id, name, email, role, class_level, is_active")
+          .eq("id", session.user.id)
+          .single()
+
+        console.log("PostEditor - 👤 사용자 프로필 조회 결과:", {
+          found: !!userProfile,
+          profile: userProfile,
+          error: profileError?.message,
+        })
+
+        if (profileError) {
+          console.error("PostEditor - ❌ 프로필 조회 오류:", profileError)
+
+          // 이메일로 다시 시도
+          console.log("PostEditor - 📧 이메일로 사용자 검색 시도:", session.user.email)
+          const { data: userByEmail, error: emailError } = await supabase
+            .from("users")
+            .select("id, name, email, role, class_level, is_active")
+            .eq("email", session.user.email)
+            .single()
+
+          if (emailError || !userByEmail) {
+            console.log("PostEditor - ❌ 이메일로도 사용자를 찾을 수 없음")
+            alert("사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.")
+            router.push("/login")
+            return
+          }
+
+          userProfile = userByEmail
+        }
+
+        if (!userProfile || !userProfile.is_active) {
+          console.log("PostEditor - ❌ 비활성 사용자 또는 프로필 없음")
+          alert("비활성 사용자입니다. 관리자에게 문의하세요.")
+          router.push("/login")
+          return
+        }
+
+        // 3단계: 사용자 정보 설정
+        const userData = {
+          id: userProfile.id,
+          name: userProfile.name,
+          email: userProfile.email,
+          role: userProfile.role,
+          class_level: userProfile.class_level,
+        }
+
+        console.log("PostEditor - ✅ 사용자 인증 성공:", userData)
+        setUser(userData)
       } catch (error) {
-        console.error("PostEditor - Error fetching user:", error)
+        console.error("PostEditor - ❌ 사용자 정보 가져오기 오류:", error)
         alert("사용자 정보를 가져오는데 실패했습니다. 다시 로그인해주세요.")
         router.push("/login")
       } finally {
@@ -64,16 +129,22 @@ export default function PostEditor() {
     setError("")
 
     try {
-      // 실제 로그인한 사용자 ID 사용
-      const authorId = user.id
+      console.log("PostEditor - 폼 제출 시작:", {
+        title,
+        content: useRichEditor ? richContent : content,
+        category,
+        userId: user.id,
+      })
 
       const postData = {
         title,
         content: useRichEditor ? richContent : content,
         category,
         type: "free",
-        author_id: authorId,
+        author_id: user.id,
       }
+
+      console.log("PostEditor - API 요청 데이터:", postData)
 
       const response = await fetch("/api/board-posts", {
         method: "POST",
@@ -83,18 +154,21 @@ export default function PostEditor() {
         body: JSON.stringify(postData),
       })
 
+      console.log("PostEditor - API 응답 상태:", response.status)
+
       if (!response.ok) {
         const errorData = await response.json()
+        console.error("PostEditor - API 오류:", errorData)
         throw new Error(errorData.error || "게시글 저장에 실패했습니다")
       }
 
       const newPost = await response.json()
-      console.log("새 게시글 저장됨:", newPost)
+      console.log("PostEditor - 새 게시글 저장됨:", newPost)
 
       // 성공 시 게시판으로 리다이렉트
       router.push("/board")
     } catch (error) {
-      console.error("게시글 저장 오류:", error)
+      console.error("PostEditor - 게시글 저장 오류:", error)
       setError(error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다")
     } finally {
       setIsSubmitting(false)
@@ -129,7 +203,7 @@ export default function PostEditor() {
       {/* 사용자 정보 표시 */}
       <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
         <p className="text-sm text-green-700">
-          <strong>{user.name}</strong>님으로 로그인됨 ({user.email})
+          <strong>{user.name}</strong>님으로 로그인됨 ({user.email}) - 역할: {user.role}
         </p>
       </div>
 

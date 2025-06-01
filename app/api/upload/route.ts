@@ -1,94 +1,98 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { writeFile, mkdir } from "fs/promises"
-import { join } from "path"
-import { existsSync } from "fs"
+import { createClient } from "@supabase/supabase-js"
+
+// 서버 사이드 Supabase 클라이언트 생성
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+  },
+})
 
 export async function POST(request: NextRequest) {
   try {
-    const data = await request.formData()
-    const file: File | null = data.get("file") as unknown as File
+    console.log("📤 Upload API 호출됨")
+
+    const formData = await request.formData()
+    const file = formData.get("file") as File
+    const bucket = (formData.get("bucket") as string) || "uploads"
+    const folder = (formData.get("folder") as string) || ""
+
+    console.log("📤 업로드 파라미터:", {
+      fileName: file?.name,
+      fileSize: file?.size,
+      bucket,
+      folder,
+    })
 
     if (!file) {
-      return NextResponse.json({ error: "No file received." }, { status: 400 })
-    }
-
-    // 파일 타입 검증 (이미지와 비디오 모두 허용)
-    const allowedTypes = [
-      "image/jpeg",
-      "image/jpg",
-      "image/png",
-      "image/gif",
-      "image/webp",
-      "video/mp4",
-      "video/webm",
-      "video/ogg",
-    ]
-
-    if (!allowedTypes.includes(file.type)) {
+      console.error("❌ 파일이 없습니다")
       return NextResponse.json(
         {
-          error: "Invalid file type. Only images (JPEG, PNG, GIF, WebP) and videos (MP4, WebM, OGG) are allowed.",
+          success: false,
+          error: "파일이 선택되지 않았습니다",
         },
         { status: 400 },
       )
     }
 
-    // 파일 크기 제한 (이미지: 10MB, 비디오: 100MB)
-    const maxSize = file.type.startsWith("video/") ? 100 * 1024 * 1024 : 10 * 1024 * 1024
-    if (file.size > maxSize) {
-      const maxSizeMB = file.type.startsWith("video/") ? "100MB" : "10MB"
+    // 파일 크기 검증 (10MB 제한)
+    if (file.size > 10 * 1024 * 1024) {
+      console.error("❌ 파일 크기 초과:", file.size)
       return NextResponse.json(
         {
-          error: `File too large. Maximum size is ${maxSizeMB}.`,
+          success: false,
+          error: "파일 크기는 10MB 이하여야 합니다",
         },
         { status: 400 },
       )
     }
 
-    const bytes = await file.arrayBuffer()
-    const buffer = Buffer.from(bytes)
-
-    // 파일명 생성 (타임스탬프 + 원본 파일명)
+    // 파일 경로 생성
     const timestamp = Date.now()
-    const filename = `${timestamp}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`
+    const fileName = `${timestamp}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`
+    const filePath = folder ? `${folder}/${fileName}` : fileName
 
-    // public/uploads 디렉토리 경로
-    const uploadDir = join(process.cwd(), "public", "uploads")
+    console.log("📤 업로드 경로:", filePath)
 
-    // 디렉토리가 없으면 생성
-    if (!existsSync(uploadDir)) {
-      try {
-        await mkdir(uploadDir, { recursive: true })
-        console.log("Created uploads directory:", uploadDir)
-      } catch (mkdirError) {
-        console.error("Error creating directory:", mkdirError)
-        return NextResponse.json({ error: "Failed to create upload directory." }, { status: 500 })
-      }
+    // Supabase Storage에 업로드
+    const { data, error } = await supabase.storage.from(bucket).upload(filePath, file, {
+      cacheControl: "3600",
+      upsert: true,
+    })
+
+    if (error) {
+      console.error("❌ Supabase 업로드 오류:", error)
+      return NextResponse.json(
+        {
+          success: false,
+          error: `업로드 실패: ${error.message}`,
+        },
+        { status: 500 },
+      )
     }
 
-    const filePath = join(uploadDir, filename)
+    // Public URL 생성
+    const publicUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${bucket}/${data.path}`
 
-    // 파일 저장
-    try {
-      await writeFile(filePath, buffer)
-      console.log("File saved successfully:", filePath)
-    } catch (writeError) {
-      console.error("Error writing file:", writeError)
-      return NextResponse.json({ error: "Failed to save file." }, { status: 500 })
-    }
-
-    // 파일 URL 반환
-    const fileUrl = `/uploads/${filename}`
+    console.log("✅ 업로드 성공:", { path: data.path, publicUrl })
 
     return NextResponse.json({
       success: true,
-      url: fileUrl,
-      filename: filename,
-      size: file.size,
-      type: file.type,
+      data: {
+        path: data.path,
+        publicUrl,
+        fileName: file.name,
+      },
     })
   } catch (error) {
-    console.error("Upload error:", error)
-    return NextResponse.json({ error: "Upload failed." }, { status: 500 })
+    console.error("❌ Upload API 오류:", error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: `서버 오류: ${error instanceof Error ? error.message : "알 수 없는 오류"}`,
+      },
+      { status: 500 },
+    )
   }
 }

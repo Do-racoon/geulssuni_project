@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { createComment, deleteComment, toggleCommentLike, getComments, type BoardComment } from "@/lib/api/board"
-import { useAuth } from "@/lib/auth"
 import { useRouter } from "next/navigation"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { toast } from "sonner"
 
 interface CommentSectionProps {
   postId: string
@@ -17,7 +18,6 @@ interface CommentSectionProps {
 }
 
 export default function CommentSection({ postId, initialComments }: CommentSectionProps) {
-  const { user, isAdmin } = useAuth()
   const router = useRouter()
   const [comments, setComments] = useState<BoardComment[]>(initialComments)
   const [newComment, setNewComment] = useState("")
@@ -28,18 +28,75 @@ export default function CommentSection({ postId, initialComments }: CommentSecti
   const [isLoading, setIsLoading] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [user, setUser] = useState<any>(null)
+  const [userLoading, setUserLoading] = useState(true)
   const commentsPerPage = 10
 
+  // 사용자 정보 가져오기
   useEffect(() => {
-    const checkAdminStatus = async () => {
-      if (user) {
-        const adminStatus = await isAdmin()
-        setAdminMode(adminStatus)
+    const fetchUser = async () => {
+      try {
+        setUserLoading(true)
+
+        const supabase = createClientComponentClient()
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession()
+
+        console.log("💬 댓글 섹션 - 세션 확인:", {
+          hasSession: !!session,
+          userId: session?.user?.id,
+          userEmail: session?.user?.email,
+        })
+
+        if (!session || !session.user) {
+          console.log("❌ 댓글 섹션 - 세션 없음")
+          setUser(null)
+          return
+        }
+
+        // 사용자 프로필 조회
+        const { data: userProfile, error: profileError } = await supabase
+          .from("users")
+          .select("id, name, email, role, class_level, is_active")
+          .eq("id", session.user.id)
+          .single()
+
+        console.log("👤 댓글 섹션 - 사용자 프로필:", {
+          found: !!userProfile,
+          profile: userProfile,
+          error: profileError?.message,
+        })
+
+        if (profileError || !userProfile || !userProfile.is_active) {
+          console.log("❌ 댓글 섹션 - 사용자 프로필 없음 또는 비활성")
+          setUser(null)
+          return
+        }
+
+        const userData = {
+          id: userProfile.id,
+          name: userProfile.name,
+          email: userProfile.email,
+          role: userProfile.role,
+          class_level: userProfile.class_level,
+        }
+
+        console.log("✅ 댓글 섹션 - 사용자 인증 성공:", userData)
+        setUser(userData)
+        setAdminMode(userProfile.role === "admin")
+      } catch (error) {
+        console.error("❌ 댓글 섹션 - 사용자 정보 가져오기 오류:", error)
+        setUser(null)
+      } finally {
+        setUserLoading(false)
       }
     }
-    checkAdminStatus()
+
+    fetchUser()
     loadComments(1)
-  }, [user, isAdmin, postId])
+  }, [postId])
 
   const loadComments = async (page: number) => {
     setIsLoading(true)
@@ -61,7 +118,7 @@ export default function CommentSection({ postId, initialComments }: CommentSecti
     if (!newComment.trim() || isSubmitting) return
 
     if (!user) {
-      alert("댓글을 작성하려면 로그인이 필요합니다.")
+      toast.error("댓글을 작성하려면 로그인이 필요합니다.")
       router.push("/login")
       return
     }
@@ -69,8 +126,10 @@ export default function CommentSection({ postId, initialComments }: CommentSecti
     setIsSubmitting(true)
 
     try {
-      // createComment에서 사용자 검증을 포함하여 처리
-      const comment = await createComment(postId, newComment.trim())
+      console.log("💬 댓글 작성 시도:", { postId, content: newComment.trim(), user })
+
+      // 사용자 정보를 createComment 함수에 전달
+      const comment = await createComment(postId, newComment.trim(), user)
 
       if (comment) {
         const newCommentWithAuthor = {
@@ -83,18 +142,27 @@ export default function CommentSection({ postId, initialComments }: CommentSecti
           isLiked: false,
         }
 
-        setComments([...comments, newCommentWithAuthor])
+        // 새 댓글을 추가하고 현재 페이지를 다시 로드
         setNewComment("")
+        toast.success("댓글이 작성되었습니다.")
 
-        // 새 댓글이 추가되면 마지막 페이지로 이동
-        loadComments(totalPages)
+        // 현재 페이지가 마지막 페이지가 아니면 마지막 페이지로 이동
+        if (comments.length < commentsPerPage) {
+          // 현재 페이지에 댓글이 추가될 수 있는 경우
+          setComments([...comments, newCommentWithAuthor])
+        } else {
+          // 새 페이지가 필요한 경우
+          const newTotalPages = totalPages + 1
+          setTotalPages(newTotalPages)
+          loadComments(newTotalPages)
+        }
       }
     } catch (error) {
       console.error("Error creating comment:", error)
       if (error instanceof Error) {
-        alert(error.message)
+        toast.error(error.message)
       } else {
-        alert("댓글 작성에 실패했습니다.")
+        toast.error("댓글 작성에 실패했습니다.")
       }
     } finally {
       setIsSubmitting(false)
@@ -109,18 +177,19 @@ export default function CommentSection({ postId, initialComments }: CommentSecti
     try {
       const success = await deleteComment(commentId)
       if (success) {
-        setComments(comments.filter((comment) => comment.id !== commentId))
+        toast.success("댓글이 삭제되었습니다.")
 
-        // 현재 페이지에 댓글이 없으면 이전 페이지로 이동
+        // 현재 페이지에 댓글이 하나만 있고 첫 페이지가 아니면 이전 페이지로 이동
         if (comments.length === 1 && currentPage > 1) {
           loadComments(currentPage - 1)
         } else {
+          // 그렇지 않으면 현재 페이지 다시 로드
           loadComments(currentPage)
         }
       }
     } catch (error) {
       console.error("Error deleting comment:", error)
-      alert("댓글 삭제에 실패했습니다.")
+      toast.error("댓글 삭제에 실패했습니다.")
     } finally {
       setDeletingCommentId(null)
     }
@@ -128,7 +197,7 @@ export default function CommentSection({ postId, initialComments }: CommentSecti
 
   const handleToggleLike = async (commentId: string) => {
     if (!user) {
-      alert("좋아요를 누르려면 로그인이 필요합니다.")
+      toast.error("좋아요를 누르려면 로그인이 필요합니다.")
       router.push("/login")
       return
     }
@@ -150,8 +219,11 @@ export default function CommentSection({ postId, initialComments }: CommentSecti
           return comment
         }),
       )
+
+      toast.success(isLiked ? "좋아요를 눌렀습니다." : "좋아요를 취소했습니다.")
     } catch (error) {
       console.error("Error toggling like:", error)
+      toast.error("좋아요 처리 중 오류가 발생했습니다.")
     } finally {
       setLikingCommentId(null)
     }
@@ -184,10 +256,14 @@ export default function CommentSection({ postId, initialComments }: CommentSecti
           onChange={(e) => setNewComment(e.target.value)}
           placeholder={user ? "댓글을 작성해주세요..." : "댓글을 작성하려면 로그인이 필요합니다."}
           className="min-h-[100px] resize-none"
-          disabled={!user}
+          disabled={!user || userLoading}
         />
         <div className="flex justify-end">
-          <Button type="submit" disabled={!newComment.trim() || isSubmitting || !user} className="flex items-center">
+          <Button
+            type="submit"
+            disabled={!newComment.trim() || isSubmitting || !user || userLoading}
+            className="flex items-center"
+          >
             <Send className="h-4 w-4 mr-2" />
             {isSubmitting ? "작성 중..." : "댓글 작성"}
           </Button>

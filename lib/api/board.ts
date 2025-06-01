@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
-import { getCurrentUser } from "@/lib/auth"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 // Supabase 클라이언트 생성
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
@@ -105,23 +105,27 @@ export async function togglePostLike(postId: string, userId: string): Promise<bo
   }
 }
 
-// 댓글 생성
-export async function createComment(postId: string, content: string): Promise<BoardComment | null> {
+// 댓글 생성 (사용자 정보를 매개변수로 받음)
+export async function createComment(
+  postId: string,
+  content: string,
+  user: { id: string; name: string },
+): Promise<BoardComment | null> {
   try {
-    // getCurrentUser를 사용해서 정확한 사용자 정보 가져오기
-    const currentUser = await getCurrentUser()
+    console.log("💬 댓글 생성 시작:", { postId, content, user })
 
-    if (!currentUser) {
+    if (!user || !user.id) {
       throw new Error("로그인이 필요합니다.")
     }
 
-    console.log("Creating comment with user:", currentUser.id, currentUser.name)
+    // 클라이언트 컴포넌트용 Supabase 클라이언트 사용
+    const supabaseClient = createClientComponentClient()
 
     // 사용자가 users 테이블에 존재하는지 확인
-    const { data: existingUser, error: userCheckError } = await supabase
+    const { data: existingUser, error: userCheckError } = await supabaseClient
       .from("users")
       .select("id, name")
-      .eq("id", currentUser.id)
+      .eq("id", user.id)
       .single()
 
     if (userCheckError && userCheckError.code !== "PGRST116") {
@@ -131,17 +135,19 @@ export async function createComment(postId: string, content: string): Promise<Bo
 
     // 사용자가 존재하지 않으면 오류
     if (!existingUser) {
-      console.error("User not found in users table:", currentUser.id)
+      console.error("User not found in users table:", user.id)
       throw new Error("사용자 정보가 등록되지 않았습니다. 관리자에게 문의하세요.")
     }
 
+    console.log("✅ 사용자 확인 완료:", existingUser)
+
     // 댓글 생성
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from("comments")
       .insert({
         post_id: postId,
         content,
-        author_id: currentUser.id,
+        author_id: user.id,
       })
       .select()
       .single()
@@ -151,8 +157,10 @@ export async function createComment(postId: string, content: string): Promise<Bo
       throw new Error("댓글 작성에 실패했습니다.")
     }
 
+    console.log("✅ 댓글 생성 성공:", data)
+
     // 게시글의 댓글 수 증가
-    await supabase.rpc("increment_post_comments", { post_id: postId })
+    await supabaseClient.rpc("increment_post_comments", { post_id: postId })
 
     return data
   } catch (error) {
@@ -164,8 +172,10 @@ export async function createComment(postId: string, content: string): Promise<Bo
 // 댓글 삭제
 export async function deleteComment(commentId: string): Promise<boolean> {
   try {
+    const supabaseClient = createClientComponentClient()
+
     // 댓글 정보 가져오기 (게시글 ID 필요)
-    const { data: comment, error: fetchError } = await supabase
+    const { data: comment, error: fetchError } = await supabaseClient
       .from("comments")
       .select("post_id")
       .eq("id", commentId)
@@ -177,7 +187,7 @@ export async function deleteComment(commentId: string): Promise<boolean> {
     }
 
     // 댓글 삭제
-    const { error } = await supabase.from("comments").delete().eq("id", commentId)
+    const { error } = await supabaseClient.from("comments").delete().eq("id", commentId)
 
     if (error) {
       console.error("Error deleting comment:", error)
@@ -186,7 +196,7 @@ export async function deleteComment(commentId: string): Promise<boolean> {
 
     // 게시글의 댓글 수 감소
     if (comment?.post_id) {
-      await supabase.rpc("decrement_post_comments", { post_id: comment.post_id })
+      await supabaseClient.rpc("decrement_post_comments", { post_id: comment.post_id })
     }
 
     return true
@@ -199,8 +209,10 @@ export async function deleteComment(commentId: string): Promise<boolean> {
 // 댓글 좋아요 토글
 export async function toggleCommentLike(commentId: string, userId: string): Promise<boolean> {
   try {
+    const supabaseClient = createClientComponentClient()
+
     // 좋아요 상태 확인
-    const { data: existingLike } = await supabase
+    const { data: existingLike } = await supabaseClient
       .from("comment_likes")
       .select("*")
       .eq("comment_id", commentId)
@@ -209,18 +221,18 @@ export async function toggleCommentLike(commentId: string, userId: string): Prom
 
     if (existingLike) {
       // 좋아요 취소
-      await supabase.from("comment_likes").delete().eq("comment_id", commentId).eq("user_id", userId)
+      await supabaseClient.from("comment_likes").delete().eq("comment_id", commentId).eq("user_id", userId)
 
       // 댓글의 좋아요 수 감소
-      await supabase.rpc("decrement_comment_likes", { comment_id: commentId })
+      await supabaseClient.rpc("decrement_comment_likes", { comment_id: commentId })
 
       return false
     } else {
       // 좋아요 추가
-      await supabase.from("comment_likes").insert({ comment_id: commentId, user_id: userId })
+      await supabaseClient.from("comment_likes").insert({ comment_id: commentId, user_id: userId })
 
       // 댓글의 좋아요 수 증가
-      await supabase.rpc("increment_comment_likes", { comment_id: commentId })
+      await supabaseClient.rpc("increment_comment_likes", { comment_id: commentId })
 
       return true
     }
@@ -233,8 +245,10 @@ export async function toggleCommentLike(commentId: string, userId: string): Prom
 // 댓글 가져오기 (페이지네이션 포함)
 export async function getComments(postId: string, page = 1, perPage = 10) {
   try {
+    const supabaseClient = createClientComponentClient()
+
     // 총 댓글 수 가져오기
-    const { count, error: countError } = await supabase
+    const { count, error: countError } = await supabaseClient
       .from("comments")
       .select("*", { count: "exact" })
       .eq("post_id", postId)
@@ -250,7 +264,7 @@ export async function getComments(postId: string, page = 1, perPage = 10) {
     const to = from + perPage - 1
 
     // 댓글 가져오기
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from("comments")
       .select(`
         *,
