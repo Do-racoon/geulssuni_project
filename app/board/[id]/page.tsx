@@ -2,12 +2,9 @@ import { notFound, redirect } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
 import { ArrowLeft, Heart, MessageCircle, Eye } from "lucide-react"
-import { createClient } from "@supabase/supabase-js"
+import { createServerClient } from "@/lib/supabase/server"
 import CommentSection from "@/components/board/comment-section"
 import PostActions from "@/components/board/post-actions"
-
-// 서버 컴포넌트용 Supabase 클라이언트
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 interface BoardPostPageProps {
   params: {
@@ -27,6 +24,9 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
     console.log("❌ Invalid UUID format:", params.id)
     notFound()
   }
+
+  // 서버 컴포넌트용 Supabase 클라이언트 생성
+  const supabase = createServerClient()
 
   async function checkIfAssignment(id: string) {
     try {
