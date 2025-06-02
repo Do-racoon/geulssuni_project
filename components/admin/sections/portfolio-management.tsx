@@ -288,7 +288,7 @@ export default function PortfolioManagement() {
     }
   }
 
-  // 이미지 업로드 함수 추가
+  // 이미지 업로드 함수 수정
   const handleImageUpload = async (itemId: string, type: "thumbnail" | "image") => {
     const input = document.createElement("input")
     input.type = "file"
@@ -299,12 +299,34 @@ export default function PortfolioManagement() {
       if (!file) return
 
       try {
+        // 파일명을 안전하게 변환하는 함수
+        const sanitizeFilename = (filename: string): string => {
+          // 파일 확장자 분리
+          const lastDotIndex = filename.lastIndexOf(".")
+          const name = lastDotIndex > 0 ? filename.substring(0, lastDotIndex) : filename
+          const extension = lastDotIndex > 0 ? filename.substring(lastDotIndex) : ""
+
+          // 한글, 특수문자, 공백을 안전한 문자로 변환
+          const safeName = name
+            .replace(/[^a-zA-Z0-9\-_.]/g, "_") // 영문, 숫자, 하이픈, 언더스코어, 점만 허용
+            .replace(/_+/g, "_") // 연속된 언더스코어를 하나로
+            .replace(/^_+|_+$/g, "") // 시작과 끝의 언더스코어 제거
+
+          return (safeName + extension).toLowerCase()
+        }
+
+        const sanitizedFilename = sanitizeFilename(file.name)
+        const timestamp = Date.now()
+        const safePath = `portfolio/${type}/${timestamp}-${sanitizedFilename}`
+
         const formData = new FormData()
         formData.append("file", file)
         formData.append("bucket", "uploads")
-        formData.append("path", `portfolio/${type}/${Date.now()}-${file.name}`)
+        formData.append("path", safePath)
         formData.append("entity_type", "portfolio")
         formData.append("entity_id", itemId)
+
+        console.log("Uploading file with safe path:", safePath)
 
         const response = await fetch("/api/upload-file", {
           method: "POST",

@@ -162,6 +162,19 @@ export default async function BookPage({ params }: BookPageProps) {
           </div>
         </div>
 
+        {/* Book Content Section */}
+        {book.content && (
+          <div className="mt-16">
+            <h2 className="text-2xl font-light tracking-wide mb-8">Book Content</h2>
+            <div className="bg-gray-50 rounded-lg p-8">
+              <div
+                className="prose prose-gray max-w-none leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: book.content }}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Related Books Section */}
         {relatedBooks.length > 0 && (
           <div className="mt-16">

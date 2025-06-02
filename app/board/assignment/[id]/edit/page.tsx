@@ -42,15 +42,17 @@ export default function EditAssignmentPage({ params }: { params: { id: string } 
 
   useEffect(() => {
     loadAssignmentAndUser()
-  }, [params.id])
+  }, [params.id, supabase])
 
   const loadAssignmentAndUser = async () => {
     try {
       console.log("🚀 Edit page useEffect triggered with params.id:", params.id)
       setLoading(true)
 
-      // 1. 세션 체크
-      const { session, error: sessionError } = await getSession()
+      // 1. 세션 체크 - 직접 supabase 클라이언트 사용
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+      const session = sessionData?.session
+
       console.log("🔍 Edit page session check:", {
         hasSession: !!session,
         userId: session?.user?.id,
