@@ -1,36 +1,20 @@
-import type React from "react"
-import "./globals.css"
-import { ThemeProvider } from "@/components/theme-provider"
-import { SupabaseProvider } from "@/lib/supabase/provider"
-import Navbar from "@/components/navbar"
-import Footer from "@/components/footer"
-import ScrollToTop from "@/components/scroll-to-top"
+import type { Metadata } from 'next'
+import './globals.css'
 
-// 일단 정적 메타데이터로 안전하게 배포
-export const metadata = {
-  title: "글쓰니",
-  description: "글쓰기 교육 플랫폼",
-  viewport: "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover",
-  generator: "v0.dev",
+export const metadata: Metadata = {
+  title: 'v0 App',
+  description: 'Created with v0',
+  generator: 'v0.dev',
 }
 
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode
-}) {
+}>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className="min-h-screen bg-white font-light pt-16 font-serif flex flex-col">
-        <SupabaseProvider>
-          <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
-            <ScrollToTop />
-            <Navbar />
-            <main className="flex-grow">{children}</main>
-            <Footer />
-          </ThemeProvider>
-        </SupabaseProvider>
-      </body>
+    <html lang="en">
+      <body>{children}</body>
     </html>
   )
 }
