@@ -23,7 +23,7 @@ function isValidUUID(str: string): boolean {
 export default async function BoardPostPage({ params }: BoardPostPageProps) {
   // UUID 형식 검증
   if (!isValidUUID(params.id)) {
-    console.log("❌ Invalid UUID format:", params.id)
+    console.log("Invalid UUID format:", params.id)
     notFound()
   }
 
@@ -33,7 +33,7 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
       // 서버 컴포넌트용 Supabase 클라이언트 생성
       supabase = createServerClient()
     } catch (error) {
-      console.error("❌ Failed to create Supabase client:", error)
+      console.error("Failed to create Supabase client:", error)
       return (
         <div className="container mx-auto py-24 px-4">
           <h1 className="text-2xl font-bold text-red-600">데이터베이스 연결 오류</h1>
@@ -47,11 +47,7 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
 
     async function checkIfAssignment(id: string) {
       try {
-        const { data: assignmentData, error } = await supabase
-          .from("assignments")
-          .select("id")
-          .eq("id", id)
-          .single()
+        const { data: assignmentData, error } = await supabase.from("assignments").select("id").eq("id", id).single()
         return !error && assignmentData
       } catch (error) {
         console.error("Error checking assignments:", error)
@@ -69,7 +65,7 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
     }
 
     try {
-      console.log("🔍 Querying post with ID:", params.id)
+      console.log("Querying post with ID:", params.id)
 
       const { data: post, error } = await supabase
         .from("board_posts")
@@ -81,18 +77,18 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
         .single()
 
       if (error) {
-        console.log("❌ Database error occurred:", error)
+        console.log("Database error occurred:", error)
 
         if (error.code === "PGRST116") {
-          console.log("🔍 No rows found, checking assignments...")
+          console.log("No rows found, checking assignments...")
           const isAssignment = await checkIfAssignment(params.id)
 
           if (isAssignment) {
-            console.log("📋 Found assignment, redirecting...")
+            console.log("Found assignment, redirecting...")
             redirect(`/board/assignment/${params.id}`)
           }
 
-          console.log("❌ Not found in any table")
+          console.log("Not found in any table")
           notFound()
         } else {
           console.error("Database error details:", error)
@@ -109,7 +105,7 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
       }
 
       if (!post) {
-        console.log("❌ Post is null")
+        console.log("Post is null")
         notFound()
       }
 
@@ -120,7 +116,7 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
         console.error("Failed to increment views:", error)
       }
 
-      console.log("✅ Post found:", post.title)
+      console.log("Post found:", post.title)
 
       const formattedDate = new Date(post.created_at).toLocaleDateString("ko-KR", {
         year: "numeric",
@@ -165,22 +161,18 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
         if (!content) return ""
 
         try {
-          // 잘못된 img 태그 구조 수정: <img...>src="..." -> <img ... src="...">
+          // 잘못된 img 태그 구조 수정
           let fixedContent = content.replace(/<img([^>]*?)>src="([^"]*?)"/g, '<img$1 src="$2">')
 
-          // img 태그에 스타일 추가 (더 안전한 방식)
-          fixedContent = fixedContent.replace(
-            /<img([^>]*?)src="([^"]*?)"([^>]*?)>/g,
-            (match, before, src, after) => {
-              // 이미 style 속성이 있는지 확인
-              if (before.includes('style=') || after.includes('style=')) {
-                return match // 이미 스타일이 있으면 그대로 반환
-              }
-              return `<img${before} src="${src}"${after} style="max-width: 100%; height: auto; border-radius: 8px; margin: 16px 0; display: block;" loading="lazy" crossorigin="anonymous">`
+          // img 태그에 스타일 추가
+          fixedContent = fixedContent.replace(/<img([^>]*?)src="([^"]*?)"([^>]*?)>/g, (match, before, src, after) => {
+            if (before.includes("style=") || after.includes("style=")) {
+              return match
             }
-          )
+            return `<img${before} src="${src}"${after} style="max-width: 100%; height: auto; border-radius: 8px; margin: 16px 0; display: block;" loading="lazy" crossorigin="anonymous">`
+          })
 
-          // 잘못된 텍스트 제거 (src="..." 가 단독으로 있는 경우)
+          // 잘못된 텍스트 제거
           fixedContent = fixedContent.replace(/(?:^|\s)src="[^"]*"(?:\s|$)/g, " ")
 
           // 연속된 공백 정리
@@ -189,7 +181,6 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
           return fixedContent
         } catch (error) {
           console.error("Error fixing HTML content:", error)
-          // HTML 처리에 실패하면 원본 텍스트만 반환
           return content.replace(/<[^>]*>/g, "")
         }
       }
@@ -220,7 +211,6 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
       return (
         <main className="min-h-screen bg-white">
           <div className="container mx-auto py-24 px-4 max-w-4xl">
-            {/* 뒤로가기 버튼 */}
             <div className="mb-8">
               <Link
                 href="/board"
@@ -231,7 +221,6 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
               </Link>
             </div>
 
-            {/* 게시글 헤더 */}
             <div className="border-b border-black pb-6 mb-8">
               <div className="flex items-center mb-4">
                 <span className="text-xs px-3 py-1 bg-white text-black border border-black mr-3 tracking-wider font-light">
@@ -245,12 +234,12 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
                   <div className="relative w-10 h-10 overflow-hidden mr-3">
-                  <Image
+                    <Image
                       src={getAvatarUrl(post.author?.name || "Anonymous")}
                       alt={post.author?.name || "Author"}
                       fill
                       className="object-cover"
-                      style={{ objectFit: 'cover' }}
+                      style={{ objectFit: "cover" }}
                     />
                   </div>
                   <div>
@@ -276,21 +265,16 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
               </div>
             </div>
 
-            {/* 게시글 내용 */}
-            <div className="mb-12">
-              {renderContent()}
-            </div>
+            <div className="mb-12">{renderContent()}</div>
 
-            {/* 액션 버튼들 */}
             <PostActions post={post} />
 
-            {/* 댓글 섹션 */}
             <CommentSection postId={params.id} initialComments={[]} />
           </div>
         </main>
       )
     } catch (error) {
-      console.error("💥 Unexpected error in BoardPostPage:", error)
+      console.error("Unexpected error in BoardPostPage:", error)
 
       return (
         <div className="container mx-auto py-24 px-4">
@@ -313,16 +297,23 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
             <Link href="/board" className="inline-block text-blue-600 hover:underline">
               게시판으로 돌아가기
             </Link>
-            <button
-              onClick={() => window.location.reload()}
-              className="inline-block text-green-600 hover:underline"
-            >
+            <button onClick={() => window.location.reload()} className="inline-block text-green-600 hover:underline">
               페이지 새로고침
             </button>
           </div>
         </div>
       )
     }
+  } catch (error) {
+    console.error("Unexpected error in BoardPostPage:", error)
+    return (
+      <div className="container mx-auto py-24 px-4">
+        <h1 className="text-2xl font-bold text-red-600">시스템 오류</h1>
+        <p className="mt-4">예상치 못한 오류가 발생했습니다.</p>
+        <Link href="/board" className="inline-block mt-4 text-blue-600 hover:underline">
+          게시판으로 돌아가기
+        </Link>
+      </div>
+    )
   }
-  \
 }
