@@ -74,9 +74,9 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
       const { data: post, error } = await supabase
         .from("board_posts")
         .select(`
-        *,
-        author:users!author_id(id, name)
-      `)
+          *,
+          author:users!author_id(id, name)
+        `)
         .eq("id", params.id)
         .single()
 
@@ -321,5 +321,7 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
           </div>
         </div>
       )
-    }\
+    }
+  }
+  \
 }
