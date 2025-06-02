@@ -15,7 +15,7 @@ interface AuthorDetailModalProps {
 
 export default function AuthorDetailModal({ author, isOpen, onClose }: AuthorDetailModalProps) {
   const [liked, setLiked] = useState(false)
-  const [likeCount, setLikeCount] = useState(author.likes)
+  const [likeCount, setLikeCount] = useState(author.likes || 0)
 
   const handleLike = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -48,8 +48,20 @@ export default function AuthorDetailModal({ author, isOpen, onClose }: AuthorDet
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2">
-          <div className="relative h-[300px] md:h-full">
-            <Image src={author.image || "/placeholder.svg"} alt={author.name} fill className="object-cover" />
+          <div className="relative h-[300px] md:h-full bg-gray-200">
+            <Image
+              src={author.image_url || "/placeholder.svg?height=400&width=400&query=Author"}
+              alt={author.name}
+              fill
+              className="object-cover"
+              onError={(e) => {
+                console.log("Image failed to load:", author.image_url)
+                e.currentTarget.src = "/placeholder.svg?height=400&width=400"
+              }}
+              onLoad={() => {
+                console.log("Image loaded successfully:", author.image_url)
+              }}
+            />
           </div>
 
           <div className="p-8">
@@ -68,12 +80,7 @@ export default function AuthorDetailModal({ author, isOpen, onClose }: AuthorDet
               </div>
 
               <div className="flex justify-between items-center pt-4">
-                <div>
-                  <h3 className="text-sm uppercase tracking-wider text-gray-500">Portfolio</h3>
-                  <p className="mt-1">{author.portfolioCount} works</p>
-                </div>
-
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-4 mt-4">
                   <a
                     href={author.instagram_url || "#"}
                     target={author.instagram_url ? "_blank" : "_self"}

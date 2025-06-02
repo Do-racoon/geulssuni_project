@@ -254,7 +254,12 @@ export default function RichTextEditor({
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    if (!file) return
+    if (!file || uploading) return // uploading 상태 체크 추가
+
+    // 파일 입력 즉시 초기화하여 중복 업로드 방지
+    if (imageInputRef.current) {
+      imageInputRef.current.value = ""
+    }
 
     console.log("🖼️ 이미지 업로드 시작:", { name: file.name, size: file.size, type: file.type })
 
@@ -282,8 +287,8 @@ export default function RichTextEditor({
 
       console.log("✅ 업로드 성공:", result.data.publicUrl)
 
-      // Enhanced image insertion with proper error handling and CORS
-      const img = `<img src="${result.data.publicUrl}" alt="업로드된 이미지" style="max-width: 100%; height: auto; margin: 10px 0; display: block; border-radius: 4px;" crossorigin="anonymous" loading="lazy" onload="this.style.opacity='1'; this.style.filter='none';" onerror="console.error('Image failed to load:', this.src); this.style.display='none';" />`
+      // 이미지 삽입 시 onload 이벤트 제거하여 중복 처리 방지
+      const img = `<img src="${result.data.publicUrl}" alt="업로드된 이미지" style="max-width: 100%; height: auto; margin: 10px 0; display: block; border-radius: 4px;" crossorigin="anonymous" loading="lazy" />`
 
       if (editorRef.current) {
         editorRef.current.focus()
@@ -297,9 +302,6 @@ export default function RichTextEditor({
       toast.error(`이미지 업로드에 실패했습니다: ${error instanceof Error ? error.message : "알 수 없는 오류"}`)
     } finally {
       setUploading(false)
-      if (imageInputRef.current) {
-        imageInputRef.current.value = ""
-      }
     }
   }
 
@@ -442,6 +444,7 @@ export default function RichTextEditor({
 
   useEffect(() => {
     const handleImageClick = (e: Event) => {
+      e.preventDefault() // 기본 이벤트 방지
       const target = e.target as HTMLElement
       if (target.tagName === "IMG") {
         setSelectedImage(target as HTMLImageElement)

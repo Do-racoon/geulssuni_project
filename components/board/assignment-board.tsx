@@ -22,7 +22,6 @@ import {
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import AssignmentCreateModal from "./assignment-create-modal"
@@ -73,11 +72,11 @@ export default function AssignmentBoard() {
   const { toast } = useToast()
   const router = useRouter()
 
-  // 비밀번호 관련 상태
-  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
-  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null)
-  const [passwordInput, setPasswordInput] = useState("")
-  const [passwordError, setPasswordError] = useState(false)
+  // 비밀번호 관련 상태 제거
+  // const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
+  // const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null)
+  // const [passwordInput, setPasswordInput] = useState("")
+  // const [passwordError, setPasswordError] = useState(false)
 
   const supabase = createClientComponentClient()
 
@@ -369,61 +368,65 @@ export default function AssignmentBoard() {
 
   // 과제 클릭 핸들러
   const handleAssignmentClick = (assignment: Assignment) => {
-    // 비밀번호가 있는 경우 비밀번호 확인 모달 표시
-    if (assignment.has_password && !isInstructor) {
-      setSelectedAssignment(assignment)
-      setPasswordInput("")
-      setPasswordError(false)
-      setPasswordDialogOpen(true)
-    } else {
-      // 비밀번호가 없거나 관리자/강사인 경우 바로 이동
-      window.location.href = `/board/assignment/${assignment.id}`
-    }
+    window.location.href = `/board/assignment/${assignment.id}`
   }
 
-  // 비밀번호 확인 핸들러
-  const handlePasswordCheck = async () => {
-    if (!selectedAssignment) return
+  // 비밀번호 확인 핸들러 제거
+  // const handlePasswordCheck = async () => {
+  //   if (!selectedAssignment || !passwordInput.trim()) {
+  //     setPasswordError(true)
+  //     return
+  //   }
 
-    console.log("🔐 Password check started:", {
-      assignmentId: selectedAssignment.id,
-      passwordLength: passwordInput.length,
-      hasPassword: selectedAssignment.has_password,
-    })
+  //   console.log("🔐 Password check started:", {
+  //     assignmentId: selectedAssignment.id,
+  //     passwordLength: passwordInput.length,
+  //     hasPassword: selectedAssignment.has_password,
+  //   })
 
-    try {
-      const response = await fetch(`/api/assignments/${selectedAssignment.id}/check-password`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ password: passwordInput }),
-      })
+  //   try {
+  //     const response = await fetch(`/api/assignments/${selectedAssignment.id}/check-password`, {
+  //       method: "POST",
+  //       headers: {
+  //         "Content-Type": "application/json",
+  //       },
+  //       body: JSON.stringify({
+  //         password: passwordInput.trim(),
+  //       }),
+  //     })
 
-      console.log("🔐 Password check response:", {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-      })
+  //     console.log("🔐 Password check response:", {
+  //       status: response.status,
+  //       statusText: response.statusText,
+  //       ok: response.ok,
+  //     })
 
-      if (response.ok) {
-        console.log("✅ Password correct, redirecting...")
-        setPasswordDialogOpen(false)
-        // 비밀번호 인증 성공 시 세션 스토리지에 저장
-        sessionStorage.setItem(`assignment_${selectedAssignment.id}_authenticated`, "true")
-        window.location.href = `/board/assignment/${selectedAssignment.id}`
-      } else {
-        const errorData = await response.json()
-        console.log("❌ Password incorrect:", errorData)
-        setPasswordError(true)
-      }
-    } catch (error) {
-      console.error("💥 Password check error:", error)
-      setPasswordError(true)
-    }
-  }
+  //     const responseData = await response.json()
+  //     console.log("📄 Response data:", responseData)
 
-  // Edit 버튼 클릭 핸들러 - 직접 window.location 사용
+  //     if (response.ok && responseData.success) {
+  //       console.log("✅ Password correct, redirecting...")
+  //       setPasswordDialogOpen(false)
+  //       setPasswordInput("")
+  //       setPasswordError(false)
+  //       // Store authentication in sessionStorage
+  //       sessionStorage.setItem(`assignment_${selectedAssignment.id}_authenticated`, "true")
+  //       // Use router.push instead of window.location.href
+  //       window.location.href = `/board/assignment/${selectedAssignment.id}`
+  //     } else {
+  //       console.log("❌ Password incorrect:", responseData)
+  //       setPasswordError(true)
+  //       // Clear the input for security
+  //       setPasswordInput("")
+  //     }
+  //   } catch (error) {
+  //     console.error("💥 Password check error:", error)
+  //     setPasswordError(true)
+  //     setPasswordInput("")
+  //   }
+  // }
+
+  // Edit 버튼 클릭 핸들러 - router.push 사용으로 변경
   const handleEditClick = (assignmentId: string, event: React.MouseEvent) => {
     event.stopPropagation()
     event.preventDefault()
@@ -442,22 +445,9 @@ export default function AssignmentBoard() {
       return
     }
 
-    // 세션 토큰 가져오기
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        toast({
-          title: "인증 필요",
-          description: "로그인이 필요합니다.",
-          variant: "destructive",
-        })
-        window.location.href = "/login"
-        return
-      }
-
-      // 직접 URL로 이동 (미들웨어 우회)
-      console.log("✅ 직접 URL로 이동합니다")
-      window.location.href = `/board/assignment/${assignmentId}/edit`
-    })
+    // router.push 사용으로 세션 유지
+    console.log("✅ router.push로 이동합니다")
+    router.push(`/board/assignment/${assignmentId}/edit`)
   }
 
   // 필터링 - 대소문자 무시하고 비교하도록 수정
@@ -965,8 +955,8 @@ export default function AssignmentBoard() {
         </div>
       </div>
 
-      {/* 비밀번호 확인 모달 */}
-      <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
+      {/* 비밀번호 확인 모달 제거 */}
+      {/* <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
         <DialogContent className="sm:max-w-md mx-4">
           <DialogHeader>
             <DialogTitle className="text-center text-xl font-light tracking-widest uppercase text-black">
@@ -977,32 +967,32 @@ export default function AssignmentBoard() {
             <p className="text-center text-gray-600 font-light">
               This assignment is password protected. Please enter the password to continue.
             </p>
-            <div className="flex items-center space-x-2">
-              <div className="grid flex-1 gap-2">
-                <Input
-                  type="password"
-                  placeholder="Enter password"
-                  value={passwordInput}
-                  onChange={(e) => {
-                    setPasswordInput(e.target.value)
-                    setPasswordError(false)
-                  }}
-                  className={`border-gray-300 focus:border-black text-black ${passwordError ? "border-red-500" : ""}`}
-                  onKeyPress={(e) => {
-                    if (e.key === "Enter") {
-                      handlePasswordCheck()
-                    }
-                  }}
-                />
-                {passwordError && (
-                  <div className="space-y-2">
-                    <p className="text-red-500 text-sm">Incorrect password. Please try again.</p>
-                    <p className="text-gray-400 text-xs">
-                      Check the password and make sure it matches exactly (case-sensitive).
-                    </p>
-                  </div>
-                )}
-              </div>
+            <div className="space-y-4">
+              <Input
+                type="password"
+                placeholder="Enter password"
+                value={passwordInput}
+                onChange={(e) => {
+                  setPasswordInput(e.target.value)
+                  setPasswordError(false)
+                }}
+                className={`w-full border-gray-300 focus:border-black text-black ${passwordError ? "border-red-500 focus:border-red-500" : ""}`}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault()
+                    handlePasswordCheck()
+                  }
+                }}
+                autoFocus
+              />
+              {passwordError && (
+                <div className="space-y-2">
+                  <p className="text-red-500 text-sm font-medium">❌ Incorrect password. Please try again.</p>
+                  <p className="text-gray-400 text-xs">
+                    💡 Check the password and make sure it matches exactly (case-sensitive).
+                  </p>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
@@ -1023,7 +1013,7 @@ export default function AssignmentBoard() {
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </Dialog> */}
     </div>
   )
 }

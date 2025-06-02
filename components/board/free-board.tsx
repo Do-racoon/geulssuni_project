@@ -58,16 +58,16 @@ export default function FreeBoard() {
 
         console.log("✅ 세션 존재 - 사용자 프로필 조회 시작")
 
-        // 2단계: 사용자 프로필 조회
-        const { data: userProfile, error: profileError } = await supabase
+        // 2단계: 사용자 프로필 조회 (single() 대신 배열로 처리)
+        const { data: userProfiles, error: profileError } = await supabase
           .from("users")
           .select("id, name, email, role, class_level, is_active")
           .eq("id", session.user.id)
-          .single()
 
         console.log("👤 사용자 프로필 조회 결과:", {
-          found: !!userProfile,
-          profile: userProfile,
+          found: !!userProfiles && userProfiles.length > 0,
+          count: userProfiles?.length || 0,
+          profiles: userProfiles,
           error: profileError?.message,
           errorCode: profileError?.code,
           errorDetails: profileError?.details,
@@ -82,28 +82,42 @@ export default function FreeBoard() {
             .from("users")
             .select("id, name, email, role, class_level, is_active")
             .eq("email", session.user.email)
-            .single()
 
           console.log("📧 이메일 검색 결과:", {
-            found: !!userByEmail,
-            profile: userByEmail,
+            found: !!userByEmail && userByEmail.length > 0,
+            count: userByEmail?.length || 0,
+            profiles: userByEmail,
             error: emailError?.message,
           })
 
-          if (emailError || !userByEmail) {
+          if (emailError || !userByEmail || userByEmail.length === 0) {
             console.log("❌ 이메일로도 사용자를 찾을 수 없음")
             setUser(null)
             return
           }
 
-          // 이메일로 찾은 사용자 사용
-          userProfile = userByEmail
+          // 이메일로 찾은 사용자 중 첫 번째 사용
+          userProfiles = userByEmail
         }
 
-        if (!userProfile || !userProfile.is_active) {
-          console.log("❌ 비활성 사용자 또는 프로필 없음:", {
+        // 프로필이 없거나 비어있는 경우
+        if (!userProfiles || userProfiles.length === 0) {
+          console.log("❌ 사용자 프로필이 존재하지 않음")
+          setUser(null)
+          return
+        }
+
+        // 여러 프로필이 있는 경우 첫 번째 사용 (중복 데이터 처리)
+        const userProfile = userProfiles[0]
+
+        if (userProfiles.length > 1) {
+          console.warn(`⚠️ 중복된 사용자 프로필 발견 (${userProfiles.length}개), 첫 번째 프로필 사용:`, userProfile)
+        }
+
+        if (!userProfile.is_active) {
+          console.log("❌ 비활성 사용자:", {
             hasProfile: !!userProfile,
-            isActive: userProfile?.is_active,
+            isActive: userProfile.is_active,
           })
           setUser(null)
           return

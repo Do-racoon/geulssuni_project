@@ -18,7 +18,7 @@ interface AboutClientProps {
 export default function AboutClient({ authors, portfolio, features }: AboutClientProps) {
   const [selectedAuthor, setSelectedAuthor] = useState<any | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [activeSection, setActiveSection] = useState("philosophy")
+  const [activeSection, setActiveSection] = useState("intro")
 
   const handleAuthorClick = (author: any) => {
     setSelectedAuthor(author)
@@ -32,10 +32,10 @@ export default function AboutClient({ authors, portfolio, features }: AboutClien
         <div className="inline-flex border-b">
           <Button
             variant="ghost"
-            className={`px-6 py-2 ${activeSection === "philosophy" ? "border-b-2 border-black" : ""}`}
-            onClick={() => setActiveSection("philosophy")}
+            className={`px-6 py-2 ${activeSection === "intro" ? "border-b-2 border-black" : ""}`}
+            onClick={() => setActiveSection("intro")}
           >
-            Our Philosophy
+            Intro
           </Button>
           <Button
             variant="ghost"
@@ -54,8 +54,8 @@ export default function AboutClient({ authors, portfolio, features }: AboutClien
         </div>
       </div>
 
-      {/* Philosophy Section */}
-      {activeSection === "philosophy" && (
+      {/* Intro Section */}
+      {activeSection === "intro" && (
         <div className="mb-16 animate-fadeIn">
           <CompanyIntro />
 

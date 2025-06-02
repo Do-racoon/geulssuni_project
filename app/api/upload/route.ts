@@ -48,17 +48,33 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 파일 경로 생성
+    // 파일 경로 생성 - 더 고유한 이름 생성
     const timestamp = Date.now()
-    const fileName = `${timestamp}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`
-    const filePath = folder ? `${folder}/${fileName}` : fileName
+    const randomString = Math.random().toString(36).substring(2, 15)
+    const fileExtension = file.name.split(".").pop() || ""
+    const safeFileName = `${timestamp}_${randomString}.${fileExtension}`
+    const filePath = folder ? `${folder}/${safeFileName}` : safeFileName
 
     console.log("📤 업로드 경로:", filePath)
 
-    // Supabase Storage에 업로드
+    // 기존 파일 존재 여부 확인
+    const { data: existingFile } = await supabase.storage.from(bucket).list(folder || "", {
+      search: safeFileName,
+    })
+
+    if (existingFile && existingFile.length > 0) {
+      console.warn("⚠️ 동일한 파일명이 이미 존재합니다:", safeFileName)
+      // 새로운 파일명 생성
+      const newRandomString = Math.random().toString(36).substring(2, 15)
+      const newFileName = `${timestamp}_${newRandomString}.${fileExtension}`
+      const newFilePath = folder ? `${folder}/${newFileName}` : newFileName
+      console.log("📤 새로운 업로드 경로:", newFilePath)
+    }
+
+    // Supabase Storage에 업로드 - upsert를 false로 설정하여 덮어쓰기 방지
     const { data, error } = await supabase.storage.from(bucket).upload(filePath, file, {
       cacheControl: "3600",
-      upsert: true,
+      upsert: false, // 덮어쓰기 방지
     })
 
     if (error) {

@@ -21,7 +21,7 @@ const cleanContent = (content: string) => {
   if (!content) return ""
 
   // 이미지 태그를 [이미지] 텍스트로 변경
-  let cleanText = content.replace(/<img[^>]*>/g, " [이미지] ")
+  let cleanText = content.replace(/<img[^>]*>/g, "")
 
   // 다른 HTML 태그 모두 제거
   cleanText = cleanText.replace(/<[^>]*>/g, "")
@@ -135,8 +135,8 @@ export default function PostCard({ post, onLike, isAdmin = false, onDelete, onTo
   }
 
   return (
-    <div className="border border-black bg-white hover:shadow-md transition-shadow">
-      <div className="p-6">
+    <div className="border border-black bg-white hover:shadow-md transition-shadow h-[420px] flex flex-col">
+      <div className="p-6 flex flex-col h-full">
         <div className="flex justify-between items-start mb-4">
           <div className="flex-1">
             <div className="flex items-center mb-2">
@@ -183,21 +183,21 @@ export default function PostCard({ post, onLike, isAdmin = false, onDelete, onTo
           </div>
         </div>
 
-        <Link href={`/board/${post.id}`} className="block">
-          <div className="mb-4">
+        <Link href={`/board/${post.id}`} className="block flex-1">
+          <div className="mb-1 h-[60px] overflow-hidden">
             <p className="text-gray-700 line-clamp-3 font-light">{cleanContent(post.content)}</p>
           </div>
 
           {post.image_url && (
             <div className="mb-4">
-              <div className="relative h-48 w-full">
+              <div className="relative h-36 w-full overflow-hidden rounded border border-gray-200">
                 <Image src={post.image_url || "/placeholder.svg"} alt={post.title} fill className="object-cover" />
               </div>
             </div>
           )}
         </Link>
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mt-auto pt-2 border-t border-gray-100">
           <div className="flex items-center">
             <div className="relative w-8 h-8 overflow-hidden mr-2">
               <Image src={getAvatarUrl(post.author?.name || "Anonymous")} alt={post.author?.name || "Author"} fill />
