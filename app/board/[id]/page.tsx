@@ -245,11 +245,12 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
                   <div className="relative w-10 h-10 overflow-hidden mr-3">
-                    <Image
+                  <Image
                       src={getAvatarUrl(post.author?.name || "Anonymous")}
                       alt={post.author?.name || "Author"}
                       fill
                       className="object-cover"
+                      style={{ objectFit: 'cover' }}
                     />
                   </div>
                   <div>
