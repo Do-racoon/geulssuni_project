@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -88,28 +87,34 @@ export default function AdminSettings() {
     }
   }
 
-  const handleFileUpload = async (file: File, settingKey: string) => {
+  const handleFileUpload = async (file: File, settingKey: string): Promise<void> => {
     try {
       setIsUploading(true)
 
       const formData = new FormData()
       formData.append("file", file)
-      formData.append("entity_type", "hero_media")
-      formData.append("entity_id", "homepage")
+      formData.append("bucket", "uploads")
+      formData.append("folder", "settings")
 
       const response = await fetch("/api/upload", {
         method: "POST",
         body: formData,
       })
 
+      // 응답이 JSON인지 확인
+      const contentType = response.headers.get("content-type")
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("서버에서 올바르지 않은 응답을 받았습니다. (Content-Type: " + contentType + ")")
+      }
+
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to upload file")
+        throw new Error(data.error || `HTTP ${response.status}: 업로드 실패`)
       }
 
       // 업로드된 파일 URL을 설정에 저장
-      const fileUrl = data.url
+      const fileUrl = data.data.publicUrl
       await updateSetting(settingKey, fileUrl)
 
       // 로컬 상태 업데이트
@@ -134,7 +139,7 @@ export default function AdminSettings() {
     }
   }
 
-  const handleVideoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleVideoUpload = (event: React.ChangeEvent<HTMLInputElement>): void => {
     const file = event.target.files?.[0]
     if (file) {
       if (file.type.startsWith("video/")) {
@@ -149,7 +154,7 @@ export default function AdminSettings() {
     }
   }
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>): void => {
     const file = event.target.files?.[0]
     if (file) {
       if (file.type.startsWith("image/")) {

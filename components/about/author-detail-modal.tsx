@@ -65,18 +65,18 @@ export default function AuthorDetailModal({ author, isOpen, onClose }: AuthorDet
           </div>
 
           <div className="p-8">
-            <h2 className="text-2xl font-light tracking-wider">{author.name}</h2>
-            <p className="text-gray-600 mt-1">{author.role}</p>
+            <h2 className="text-2xl font-light tracking-wider truncate">{author.name}</h2>
+            <p className="text-gray-600 mt-1 truncate">{author.role}</p>
 
             <div className="mt-6 space-y-4">
               <div>
                 <h3 className="text-sm uppercase tracking-wider text-gray-500">Experience</h3>
-                <p className="mt-1">{author.experience}</p>
+                <p className="mt-1 line-clamp-4 overflow-auto max-h-24">{author.experience}</p>
               </div>
 
               <div>
                 <h3 className="text-sm uppercase tracking-wider text-gray-500">Quote</h3>
-                <p className="mt-1 italic">"{author.quote}"</p>
+                <p className="mt-1 italic line-clamp-3">"{author.quote}"</p>
               </div>
 
               <div className="flex justify-between items-center pt-4">

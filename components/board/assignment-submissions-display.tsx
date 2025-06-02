@@ -187,6 +187,100 @@ export default function AssignmentSubmissionsDisplay({
         <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
         <p className="text-gray-500 font-light tracking-wider">NO SUBMISSIONS YET</p>
         <p className="text-sm text-gray-400 font-light">Be the first to submit!</p>
+
+        {/* 제출 버튼 추가 */}
+        <div className="mt-6">
+          <Button
+            onClick={() => {
+              // 현재 사용자가 로그인되어 있는지 확인
+              if (!currentUser) {
+                toast.error("로그인이 필요합니다.")
+                return
+              }
+
+              // 파일 입력 요소 생성하여 직접 파일 선택
+              const fileInput = document.createElement("input")
+              fileInput.type = "file"
+              fileInput.accept = ".pdf,.doc,.docx,.txt,.zip,.rar,.jpg,.jpeg,.png"
+              fileInput.onchange = async (e) => {
+                const file = (e.target as HTMLInputElement).files?.[0]
+                if (file) {
+                  // 파일 크기 체크
+                  if (file.size > 10 * 1024 * 1024) {
+                    toast.error("파일 크기는 10MB를 초과할 수 없습니다.")
+                    return
+                  }
+
+                  try {
+                    setUploading(true)
+                    // 파일 업로드
+                    const formData = new FormData()
+                    formData.append("file", file)
+
+                    const uploadResponse = await fetch("/api/upload", {
+                      method: "POST",
+                      body: formData,
+                    })
+
+                    if (!uploadResponse.ok) {
+                      throw new Error("파일 업로드 실패")
+                    }
+
+                    const { url: fileUrl } = await uploadResponse.json()
+
+                    // 과제 제출
+                    const submitResponse = await fetch(`/api/assignments/${assignmentId}/submissions`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        studentId: currentUser.id,
+                        studentName: currentUser.name,
+                        fileUrl,
+                        fileName: file.name,
+                      }),
+                    })
+
+                    if (submitResponse.ok) {
+                      toast.success("과제가 성공적으로 제출되었습니다!")
+                      // 제출 목록 새로고침
+                      loadSubmissions()
+                    } else {
+                      const errorData = await submitResponse.json()
+                      toast.error(errorData.error || "제출에 실패했습니다.")
+                    }
+                  } catch (error) {
+                    console.error("제출 오류:", error)
+                    toast.error("제출 중 오류가 발생했습니다.")
+                  } finally {
+                    setUploading(false)
+                  }
+                }
+              }
+              fileInput.click()
+            }}
+            disabled={uploading || !currentUser}
+            className="bg-blue-600 text-white hover:bg-blue-700 tracking-widest uppercase font-light px-6 py-3"
+            style={{ borderRadius: "0" }}
+          >
+            {uploading ? (
+              <>
+                <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2 inline-block" />
+                UPLOADING...
+              </>
+            ) : (
+              <>
+                <FileText className="h-4 w-4 mr-2 inline" />
+                SUBMIT ASSIGNMENT
+              </>
+            )}
+          </Button>
+
+          {!currentUser && <p className="text-sm text-red-500 mt-2 font-light">로그인 후 제출할 수 있습니다</p>}
+
+          <p className="text-xs text-gray-400 mt-2 font-light">
+            지원 형식: PDF, DOC, DOCX, TXT, ZIP, RAR, JPG, PNG (최대 10MB)
+          </p>
+        </div>
       </div>
     )
   }

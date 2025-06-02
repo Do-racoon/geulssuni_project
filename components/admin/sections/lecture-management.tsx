@@ -16,7 +16,6 @@ export default function LectureManagement() {
   const [filterCategory, setFilterCategory] = useState<string>("all")
   const [filterStatus, setFilterStatus] = useState<string>("all")
   const [showFilters, setShowFilters] = useState(false)
-  const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showCopyModal, setShowCopyModal] = useState(false)
   const [selectedLecture, setSelectedLecture] = useState<Lecture | null>(null)
@@ -154,13 +153,12 @@ export default function LectureManagement() {
     <div>
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-2xl font-semibold mb-2">Lecture Management</h1>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center bg-black text-white px-4 py-2 text-sm rounded-md"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add New Lecture
-        </button>
+        <AddLectureModal onSuccess={() => loadLectures()}>
+          <button className="flex items-center bg-black text-white px-4 py-2 text-sm rounded-md">
+            <Plus className="h-4 w-4 mr-2" />
+            Add New Lecture
+          </button>
+        </AddLectureModal>
       </div>
 
       <div className="bg-white rounded-md shadow-sm overflow-hidden">
@@ -399,11 +397,11 @@ export default function LectureManagement() {
         </div>
       </div>
 
-      {showAddModal && <AddLectureModal onClose={() => setShowAddModal(false)} />}
       {showEditModal && selectedLecture && (
         <EditLectureModal
-          lecture={selectedLecture}
+          isOpen={showEditModal}
           onClose={() => setShowEditModal(false)}
+          lecture={selectedLecture}
           onSave={handleSaveLecture}
         />
       )}

@@ -59,7 +59,7 @@ export default function PopularContent() {
           thumbnail_url, 
           views, 
           duration,
-          instructor:instructor_id (name)
+          instructor
         `)
         .order("views", { ascending: false })
         .limit(3)
@@ -70,7 +70,7 @@ export default function PopularContent() {
         const formattedLectures =
           lecturesData?.map((lecture) => ({
             ...lecture,
-            instructor: lecture.instructor?.name || "Unknown Instructor",
+            instructor: lecture.instructor || "Unknown Instructor",
           })) || []
         setLectures(formattedLectures)
       }

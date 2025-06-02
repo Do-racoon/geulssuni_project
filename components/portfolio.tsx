@@ -8,7 +8,7 @@ interface PortfolioItem {
   id: string
   title: string
   category: string
-  image_url: string
+  thumbnail_url: string
   link: string
   featured: boolean
 }
@@ -23,7 +23,7 @@ export default function Portfolio() {
       try {
         const { data, error } = await supabase
           .from("portfolio")
-          .select("id, title, category, image_url, link, featured")
+          .select("id, title, category, thumbnail_url, link, featured")
           .eq("status", "published")
           .order("featured", { ascending: false })
           .order("created_at", { ascending: false })
@@ -60,7 +60,7 @@ export default function Portfolio() {
                 onMouseLeave={() => setHoveredItem(null)}
               >
                 <Image
-                  src={item.image_url || "/placeholder.svg"}
+                  src={item.thumbnail_url || "/placeholder.svg"}
                   alt={item.title}
                   fill
                   className="object-cover monochrome"

@@ -7,8 +7,8 @@ import { ExternalLink } from "lucide-react"
 interface PortfolioItem {
   id: string
   title: string
-  description: string
-  image_url: string
+  short_description: string
+  thumbnail_url: string
   category: string
   link: string
   created_at?: string
@@ -63,7 +63,7 @@ export default function PortfolioHighlights({ portfolio = [] }: PortfolioHighlig
 
                   <div className="relative aspect-square w-full overflow-hidden">
                     <Image
-                      src={item.image_url || "/placeholder.svg?height=400&width=400&query=portfolio"}
+                      src={item.thumbnail_url || "/placeholder.svg?height=400&width=400&query=portfolio"}
                       alt={item.title}
                       fill
                       className="object-cover transition-transform duration-500 group-hover:scale-110"
@@ -85,7 +85,9 @@ export default function PortfolioHighlights({ portfolio = [] }: PortfolioHighlig
                           </div>
                           <h3 className="text-xl font-light mb-2">{item.title}</h3>
                           <div className="h-px bg-white/30 w-16 mb-3"></div>
-                          <p className="text-sm text-gray-300 mb-4 leading-relaxed">{item.description}</p>
+                          <p className="text-sm text-gray-300 mb-4 leading-relaxed line-clamp-3">
+                            {item.short_description}
+                          </p>
                           <div className="flex items-center text-xs border border-white/30 px-3 py-1 inline-flex rounded">
                             <ExternalLink className="h-3 w-3 mr-2" />
                             <span>View Project</span>

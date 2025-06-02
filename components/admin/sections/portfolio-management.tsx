@@ -17,10 +17,11 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Pencil, Trash2, MoreHorizontal, Plus, Search, ExternalLink, Save, X, Calendar, Upload } from "lucide-react"
+import { Pencil, Trash2, MoreHorizontal, Plus, Search, ExternalLink, Calendar } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { format } from "date-fns"
 import { supabase } from "@/lib/supabase/client"
+import EditPortfolioModal from "@/components/admin/modals/edit-portfolio-modal"
 
 // Define the Portfolio type
 interface Portfolio {
@@ -28,15 +29,12 @@ interface Portfolio {
   title: string
   category: string
   short_description: string
-  description: string
-  image_url: string
-  thumbnail_url: string // 새로 추가
+  thumbnail_url: string
   link: string
   creator: string
   featured: boolean
   status: "published" | "draft"
   created_at: string
-  isEditing?: boolean
 }
 
 export default function PortfolioManagement() {
@@ -49,8 +47,9 @@ export default function PortfolioManagement() {
     key: keyof Portfolio
     direction: "ascending" | "descending"
   } | null>(null)
+  const [editingItem, setEditingItem] = useState<Portfolio | null>(null)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
 
-  // Mock data - in a real app, this would come from an API
   useEffect(() => {
     async function fetchPortfolioItems() {
       try {
@@ -72,13 +71,7 @@ export default function PortfolioManagement() {
         }
 
         console.log(`Found ${data.length} portfolio items`)
-
-        const formattedData = data.map((item) => ({
-          ...item,
-          createdDate: item.created_at ? item.created_at.split("T")[0] : new Date().toISOString().split("T")[0],
-        }))
-
-        setPortfolioItems(formattedData)
+        setPortfolioItems(data)
       } catch (error) {
         console.error("Error fetching portfolio items:", error)
         toast({
@@ -133,112 +126,67 @@ export default function PortfolioManagement() {
       title: "",
       category: "",
       short_description: "",
-      description: "",
-      image_url: "",
-      thumbnail_url: "", // 새로 추가
+      thumbnail_url: "",
       link: "",
       creator: "Admin",
       featured: false,
       status: "draft",
       created_at: new Date().toISOString(),
-      isEditing: true,
     }
 
     setPortfolioItems([newItem, ...portfolioItems])
   }
 
-  // Function to toggle edit mode for a portfolio item
-  const toggleEditMode = (id: string) => {
-    setPortfolioItems(portfolioItems.map((item) => (item.id === id ? { ...item, isEditing: !item.isEditing } : item)))
+  // 편집 모달 열기
+  const openEditModal = (item: Portfolio) => {
+    setEditingItem(item)
+    setIsEditModalOpen(true)
   }
 
-  // Function to update a portfolio item's field
-  const updateItemField = (id: string, field: keyof Portfolio, value: any) => {
-    setPortfolioItems(portfolioItems.map((item) => (item.id === id ? { ...item, [field]: value } : item)))
+  // 편집 모달 닫기
+  const closeEditModal = () => {
+    setEditingItem(null)
+    setIsEditModalOpen(false)
   }
 
-  // Function to save portfolio item changes
-  const saveItem = async (id: string) => {
+  // 포트폴리오 아이템 저장
+  const handleSavePortfolio = async (updatedPortfolio: Portfolio) => {
     try {
       setIsLoading(true)
 
-      const item = portfolioItems.find((p) => p.id === id)
-      if (!item) return
+      const { error } = await supabase
+        .from("portfolio")
+        .update({
+          title: updatedPortfolio.title,
+          category: updatedPortfolio.category,
+          short_description: updatedPortfolio.short_description,
+          thumbnail_url: updatedPortfolio.thumbnail_url,
+          link: updatedPortfolio.link,
+          creator: updatedPortfolio.creator,
+          featured: updatedPortfolio.featured,
+          status: updatedPortfolio.status,
+        })
+        .eq("id", updatedPortfolio.id)
 
-      if (id.startsWith("new-")) {
-        // Create new item
-        const { data, error } = await supabase
-          .from("portfolio")
-          .insert({
-            title: item.title,
-            category: item.category,
-            short_description: item.short_description,
-            description: item.description || "",
-            image_url: item.image_url || "",
-            thumbnail_url: item.thumbnail_url || "", // 새로 추가
-            link: item.link,
-            creator: item.creator || "Admin",
-            featured: item.featured,
-            status: item.status,
-          })
-          .select()
-          .single()
+      if (error) throw error
 
-        if (error) throw error
-
-        // Update local state with new ID
-        setPortfolioItems(
-          portfolioItems.map((p) =>
-            p.id === id ? { ...data, isEditing: false, createdDate: data.created_at.split("T")[0] } : p,
-          ),
-        )
-      } else {
-        // Update existing item
-        const { error } = await supabase
-          .from("portfolio")
-          .update({
-            title: item.title,
-            category: item.category,
-            short_description: item.short_description,
-            description: item.description,
-            image_url: item.image_url,
-            thumbnail_url: item.thumbnail_url, // 새로 추가
-            link: item.link,
-            creator: item.creator,
-            featured: item.featured,
-            status: item.status,
-          })
-          .eq("id", id)
-
-        if (error) throw error
-
-        setPortfolioItems(portfolioItems.map((p) => (p.id === id ? { ...p, isEditing: false } : p)))
-      }
+      // 로컬 상태 업데이트
+      setPortfolioItems(portfolioItems.map((item) => (item.id === updatedPortfolio.id ? updatedPortfolio : item)))
 
       toast({
-        title: "Portfolio item saved",
-        description: "The portfolio item has been successfully saved.",
+        title: "Portfolio updated",
+        description: "The portfolio item has been successfully updated.",
       })
     } catch (error) {
-      console.error("Error saving portfolio item:", error)
+      console.error("Error updating portfolio:", error)
       toast({
         title: "Error",
-        description: "Failed to save portfolio item. Please try again.",
+        description: "Failed to update portfolio item. Please try again.",
         variant: "destructive",
       })
+      throw error
     } finally {
       setIsLoading(false)
-    }
-  }
-
-  // Function to cancel editing
-  const cancelEditing = (id: string) => {
-    // If it's a new item (id starts with "new-"), remove it
-    if (id.startsWith("new-")) {
-      setPortfolioItems(portfolioItems.filter((item) => item.id !== id))
-    } else {
-      // Otherwise just cancel editing
-      setPortfolioItems(portfolioItems.map((item) => (item.id === id ? { ...item, isEditing: false } : item)))
     }
   }
 
@@ -255,16 +203,28 @@ export default function PortfolioManagement() {
     try {
       setIsLoading(true)
 
-      const { error } = await supabase.from("portfolio").delete().eq("id", itemToDelete)
+      // 새로 추가된 아이템(아직 저장되지 않은 아이템)인지 확인
+      if (itemToDelete.startsWith("new-")) {
+        // 새 아이템은 데이터베이스에 없으므로 로컬 상태에서만 제거
+        setPortfolioItems(portfolioItems.filter((item) => item.id !== itemToDelete))
 
-      if (error) throw error
+        toast({
+          title: "Portfolio item removed",
+          description: "The new portfolio item has been removed.",
+        })
+      } else {
+        // 기존 아이템은 데이터베이스에서 삭제
+        const { error } = await supabase.from("portfolio").delete().eq("id", itemToDelete)
 
-      setPortfolioItems(portfolioItems.filter((item) => item.id !== itemToDelete))
+        if (error) throw error
 
-      toast({
-        title: "Portfolio item deleted",
-        description: "The portfolio item has been successfully deleted.",
-      })
+        setPortfolioItems(portfolioItems.filter((item) => item.id !== itemToDelete))
+
+        toast({
+          title: "Portfolio item deleted",
+          description: "The portfolio item has been successfully deleted.",
+        })
+      }
     } catch (error) {
       console.error("Error deleting portfolio item:", error)
       toast({
@@ -286,77 +246,6 @@ export default function PortfolioManagement() {
     } catch (error) {
       return dateString
     }
-  }
-
-  // 이미지 업로드 함수 수정
-  const handleImageUpload = async (itemId: string, type: "thumbnail" | "image") => {
-    const input = document.createElement("input")
-    input.type = "file"
-    input.accept = "image/*"
-
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0]
-      if (!file) return
-
-      try {
-        // 파일명을 안전하게 변환하는 함수
-        const sanitizeFilename = (filename: string): string => {
-          // 파일 확장자 분리
-          const lastDotIndex = filename.lastIndexOf(".")
-          const name = lastDotIndex > 0 ? filename.substring(0, lastDotIndex) : filename
-          const extension = lastDotIndex > 0 ? filename.substring(lastDotIndex) : ""
-
-          // 한글, 특수문자, 공백을 안전한 문자로 변환
-          const safeName = name
-            .replace(/[^a-zA-Z0-9\-_.]/g, "_") // 영문, 숫자, 하이픈, 언더스코어, 점만 허용
-            .replace(/_+/g, "_") // 연속된 언더스코어를 하나로
-            .replace(/^_+|_+$/g, "") // 시작과 끝의 언더스코어 제거
-
-          return (safeName + extension).toLowerCase()
-        }
-
-        const sanitizedFilename = sanitizeFilename(file.name)
-        const timestamp = Date.now()
-        const safePath = `portfolio/${type}/${timestamp}-${sanitizedFilename}`
-
-        const formData = new FormData()
-        formData.append("file", file)
-        formData.append("bucket", "uploads")
-        formData.append("path", safePath)
-        formData.append("entity_type", "portfolio")
-        formData.append("entity_id", itemId)
-
-        console.log("Uploading file with safe path:", safePath)
-
-        const response = await fetch("/api/upload-file", {
-          method: "POST",
-          body: formData,
-        })
-
-        const result = await response.json()
-
-        if (result.success) {
-          const fieldName = type === "thumbnail" ? "thumbnail_url" : "image_url"
-          updateItemField(itemId, fieldName, result.publicUrl)
-
-          toast({
-            title: "Image uploaded",
-            description: `${type} image has been uploaded successfully.`,
-          })
-        } else {
-          throw new Error(result.error || "Upload failed")
-        }
-      } catch (error) {
-        console.error("Image upload error:", error)
-        toast({
-          title: "Upload failed",
-          description: "Failed to upload image. Please try again.",
-          variant: "destructive",
-        })
-      }
-    }
-
-    input.click()
   }
 
   return (
@@ -397,9 +286,10 @@ export default function PortfolioManagement() {
                     <span className="ml-1">{sortConfig.direction === "ascending" ? "↑" : "↓"}</span>
                   )}
                 </TableHead>
-                <TableHead>Short Description</TableHead>
+                <TableHead>Description</TableHead>
                 <TableHead>Link</TableHead>
                 <TableHead>Thumbnail</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead className="cursor-pointer" onClick={() => requestSort("created_at")}>
                   Created Date
                   {sortConfig?.key === "created_at" && (
@@ -412,13 +302,13 @@ export default function PortfolioManagement() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center">
+                  <TableCell colSpan={8} className="h-24 text-center">
                     Loading portfolio items...
                   </TableCell>
                 </TableRow>
               ) : filteredItems.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center">
+                  <TableCell colSpan={8} className="h-24 text-center">
                     {isLoading
                       ? "Loading portfolio items..."
                       : "No portfolio items found. Click 'Add Portfolio Item' to create your first portfolio entry."}
@@ -427,48 +317,15 @@ export default function PortfolioManagement() {
               ) : (
                 filteredItems.map((item) => (
                   <TableRow key={item.id}>
+                    <TableCell className="font-medium">{item.title}</TableCell>
                     <TableCell>
-                      {item.isEditing ? (
-                        <Input
-                          value={item.title}
-                          onChange={(e) => updateItemField(item.id, "title", e.target.value)}
-                          className="w-full"
-                        />
-                      ) : (
-                        item.title
-                      )}
+                      <Badge variant="outline">{item.category}</Badge>
                     </TableCell>
                     <TableCell>
-                      {item.isEditing ? (
-                        <Input
-                          value={item.category}
-                          onChange={(e) => updateItemField(item.id, "category", e.target.value)}
-                          className="w-full"
-                        />
-                      ) : (
-                        <Badge variant="outline">{item.category}</Badge>
-                      )}
+                      <span className="line-clamp-2 text-sm text-gray-600">{item.short_description}</span>
                     </TableCell>
                     <TableCell>
-                      {item.isEditing ? (
-                        <Input
-                          value={item.short_description}
-                          onChange={(e) => updateItemField(item.id, "short_description", e.target.value)}
-                          className="w-full"
-                        />
-                      ) : (
-                        <span className="line-clamp-2">{item.short_description}</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {item.isEditing ? (
-                        <Input
-                          value={item.link}
-                          onChange={(e) => updateItemField(item.id, "link", e.target.value)}
-                          className="w-full"
-                          placeholder="https://example.com"
-                        />
-                      ) : item.link ? (
+                      {item.link ? (
                         <a
                           href={item.link}
                           target="_blank"
@@ -483,26 +340,7 @@ export default function PortfolioManagement() {
                       )}
                     </TableCell>
                     <TableCell>
-                      {item.isEditing ? (
-                        <div className="space-y-2">
-                          <Input
-                            value={item.thumbnail_url}
-                            onChange={(e) => updateItemField(item.id, "thumbnail_url", e.target.value)}
-                            className="w-full"
-                            placeholder="Thumbnail URL"
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleImageUpload(item.id, "thumbnail")}
-                            className="w-full"
-                          >
-                            <Upload className="h-4 w-4 mr-2" />
-                            Upload Thumbnail
-                          </Button>
-                        </div>
-                      ) : item.thumbnail_url ? (
+                      {item.thumbnail_url ? (
                         <img
                           src={item.thumbnail_url || "/placeholder.svg"}
                           alt={item.title}
@@ -515,50 +353,36 @@ export default function PortfolioManagement() {
                       )}
                     </TableCell>
                     <TableCell>
-                      {item.isEditing ? (
-                        <Input
-                          type="date"
-                          value={item.createdDate}
-                          onChange={(e) => updateItemField(item.id, "createdDate", e.target.value)}
-                          className="w-full"
-                        />
-                      ) : (
-                        <div className="flex items-center">
-                          <Calendar className="mr-2 h-4 w-4 text-muted-foreground" />
-                          {formatDate(item.createdDate)}
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2">
+                        <Badge variant={item.status === "published" ? "default" : "secondary"}>{item.status}</Badge>
+                        {item.featured && <Badge variant="outline">Featured</Badge>}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center">
+                        <Calendar className="mr-2 h-4 w-4 text-muted-foreground" />
+                        {formatDate(item.created_at)}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      {item.isEditing ? (
-                        <div className="flex justify-end space-x-2">
-                          <Button variant="outline" size="sm" onClick={() => cancelEditing(item.id)}>
-                            <X className="h-4 w-4" />
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Open menu</span>
                           </Button>
-                          <Button variant="default" size="sm" onClick={() => saveItem(item.id)}>
-                            <Save className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Open menu</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => toggleEditMode(item.id)}>
-                              <Pencil className="mr-2 h-4 w-4" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem className="text-red-600" onClick={() => confirmDelete(item.id)}>
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => openEditModal(item)}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className="text-red-600" onClick={() => confirmDelete(item.id)}>
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))
@@ -586,6 +410,11 @@ export default function PortfolioManagement() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Portfolio Modal */}
+      {isEditModalOpen && editingItem && (
+        <EditPortfolioModal portfolio={editingItem} onClose={closeEditModal} onSave={handleSavePortfolio} />
+      )}
     </Card>
   )
 }

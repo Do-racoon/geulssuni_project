@@ -21,12 +21,10 @@ interface Lecture {
   contact_url?: string
   price?: number
   is_published?: boolean
+  instructor?: string
   author?: {
     name: string
     profession?: string
-  }
-  instructor?: {
-    name: string
   }
 }
 
@@ -48,22 +46,18 @@ export default function LectureDetailPage({ params }: { params: { id: string } }
           return
         }
 
-        const { data, error } = await supabase
-          .from("lectures")
-          .select(`
-            *,
-            author:authors(name, profession),
-            instructor:users!instructor_id(name)
-          `)
-          .eq("id", params.id)
-          .eq("is_published", true)
-          .single()
+        // 기존의 author 관계 조인 제거하고 단순한 쿼리로 변경
+        const { data, error } = await supabase.from("lectures").select("*").eq("id", params.id).limit(1)
 
         if (error) {
           console.error("Error fetching lecture:", error)
           setLecture(null)
+        } else if (data && data.length > 0) {
+          const lectureData = data[0]
+          setLecture(lectureData)
         } else {
-          setLecture(data)
+          console.log("No lecture found with this ID")
+          setLecture(null)
         }
       } catch (error) {
         console.error("Error:", error)
@@ -123,14 +117,7 @@ export default function LectureDetailPage({ params }: { params: { id: string } }
           {lecture.instructor && (
             <Badge variant="secondary" className="flex items-center gap-1">
               <User className="h-3 w-3" />
-              {lecture.instructor.name}
-            </Badge>
-          )}
-
-          {lecture.author && (
-            <Badge variant="outline" className="flex items-center gap-1">
-              <User className="h-3 w-3" />
-              작가: {lecture.author.name}
+              {lecture.instructor}
             </Badge>
           )}
 
@@ -169,7 +156,12 @@ export default function LectureDetailPage({ params }: { params: { id: string } }
 
         <div className="prose max-w-none mb-8">
           <h2 className="text-2xl font-semibold mb-4">강의 소개</h2>
-          <div className="whitespace-pre-wrap text-gray-700">{lecture.description || "강의 설명이 없습니다."}</div>
+          <div
+            className="whitespace-pre-wrap text-gray-700"
+            dangerouslySetInnerHTML={{
+              __html: lecture.description || "강의 설명이 없습니다.",
+            }}
+          />
         </div>
 
         <div className="mb-8">

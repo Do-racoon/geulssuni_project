@@ -42,8 +42,8 @@ export default function AuthorShowcase({ authors, onAuthorClick }: AuthorShowcas
                 className="group cursor-pointer"
                 onClick={() => onAuthorClick(author)}
               >
-                {/* Card with enhanced borders and shadows */}
-                <div className="bg-white border border-gray-200 transition-all duration-300 hover:border-gray-400 hover:shadow-lg relative overflow-hidden">
+                {/* 카드에 고정 높이와 너비 설정 */}
+                <div className="bg-white border border-gray-200 transition-all duration-300 hover:border-gray-400 hover:shadow-lg relative overflow-hidden h-full flex flex-col">
                   {/* Top decorative line */}
                   <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-gray-200 via-gray-400 to-gray-200 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
 
@@ -58,16 +58,16 @@ export default function AuthorShowcase({ authors, onAuthorClick }: AuthorShowcas
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all duration-300"></div>
                   </div>
 
-                  <div className="p-6 relative">
+                  <div className="p-6 relative flex-grow flex flex-col">
                     {/* Side decorative lines */}
                     <div className="absolute left-0 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-gray-300 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     <div className="absolute right-0 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-gray-300 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
 
-                    <h3 className="text-xl font-light tracking-wider mb-1">{author.name}</h3>
+                    <h3 className="text-xl font-light tracking-wider mb-1 truncate">{author.name}</h3>
                     <div className="h-px bg-gray-200 w-8 mb-2 group-hover:w-12 transition-all duration-300"></div>
-                    <p className="text-sm text-gray-600">{author.profession || "Author"}</p>
+                    <p className="text-sm text-gray-600 line-clamp-2 mb-2">{author.profession || "Author"}</p>
 
-                    <div className="mt-4 pt-4 border-t border-gray-100">
+                    <div className="mt-auto pt-4 border-t border-gray-100">
                       <div className="flex items-center justify-between">
                         <div className="text-xs text-gray-500">{author.number_of_works || 0} works</div>
                         <div className="w-4 h-4 border border-gray-300 rotate-45 group-hover:rotate-90 transition-transform duration-300"></div>

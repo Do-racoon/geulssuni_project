@@ -10,40 +10,29 @@ export interface Lecture {
   duration?: number
   category?: string
   instructor_id?: string
+  instructor?: string
+  contact_url?: string
   created_at?: string
   updated_at?: string
-  status?: string
-  instructor?: string
-  author?: {
-    id: string
-    name: string
-  }
+  is_published?: boolean
+  views?: number
   tags?: string[]
 }
 
 export async function getLectures() {
   try {
-    const { data, error } = await supabase
-      .from("lectures")
-      .select(`
-        *,
-        author:instructor_id (
-          id,
-          name
-        )
-      `)
-      .order("created_at", { ascending: false })
+    const { data, error } = await supabase.from("lectures").select("*").order("created_at", { ascending: false })
 
     if (error) {
       console.error("Error fetching lectures:", error)
       return []
     }
 
-    // Add empty tags array to each lecture
+    // Add empty tags array to each lecture if not present
     return data.map((lecture) => ({
       ...lecture,
-      tags: [],
-      instructor: lecture.author?.name || "Unknown Instructor",
+      tags: lecture.tags || [],
+      instructor: lecture.instructor || "Unknown Instructor",
     }))
   } catch (error) {
     console.error("Error in getLectures:", error)
@@ -53,17 +42,7 @@ export async function getLectures() {
 
 export async function getLecture(id: string) {
   try {
-    const { data, error } = await supabase
-      .from("lectures")
-      .select(`
-        *,
-        author:instructor_id (
-          id,
-          name
-        )
-      `)
-      .eq("id", id)
-      .single()
+    const { data, error } = await supabase.from("lectures").select("*").eq("id", id).single()
 
     if (error) {
       console.error("Error fetching lecture:", error)
@@ -72,8 +51,8 @@ export async function getLecture(id: string) {
 
     return {
       ...data,
-      tags: [],
-      instructor: data.author?.name || "Unknown Instructor",
+      tags: data.tags || [],
+      instructor: data.instructor || "Unknown Instructor",
     }
   } catch (error) {
     console.error("Error in getLecture:", error)
