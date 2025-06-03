@@ -4,10 +4,23 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
-import { Download, FileText, MessageCircle, Send, User, Calendar, Trash2, MoreVertical } from "lucide-react"
+import {
+  Download,
+  FileText,
+  MessageCircle,
+  Send,
+  User,
+  Calendar,
+  Trash2,
+  MoreVertical,
+  AlertTriangle,
+  RefreshCw,
+  LogIn,
+} from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
 import { getCurrentUser } from "@/lib/auth"
+import { createClient } from "@/lib/supabase/client"
 
 interface Submission {
   id: string
@@ -29,7 +42,7 @@ interface SubmissionComment {
 
 interface AssignmentSubmissionsDisplayProps {
   assignmentId: string
-  refreshTrigger: number
+  refreshTrigger?: number
 }
 
 interface CurrentUser {
@@ -41,16 +54,24 @@ interface CurrentUser {
 
 export default function AssignmentSubmissionsDisplay({
   assignmentId,
-  refreshTrigger,
+  refreshTrigger = 0,
 }: AssignmentSubmissionsDisplayProps) {
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [loading, setLoading] = useState(true)
   const [newComments, setNewComments] = useState<Record<string, string>>({})
   const [commentingOn, setCommentingOn] = useState<string | null>(null)
   const [deletingComment, setDeletingComment] = useState<string | null>(null)
+  const [deletingSubmission, setDeletingSubmission] = useState<string | null>(null)
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [authLoading, setAuthLoading] = useState(false)
+
+  const [submissionForm, setSubmissionForm] = useState({
+    studentName: "",
+    comment: "",
+    file: null as File | null,
+  })
 
   useEffect(() => {
     loadCurrentUser()
@@ -59,14 +80,80 @@ export default function AssignmentSubmissionsDisplay({
 
   const loadCurrentUser = async () => {
     try {
+      setAuthLoading(true)
+      console.log("🔍 Loading current user...")
+
+      // 먼저 Supabase 세션 직접 확인
+      const supabase = createClient()
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession()
+
+      console.log("📋 Session check:", {
+        hasSession: !!session,
+        userId: session?.user?.id,
+        userEmail: session?.user?.email,
+        error: sessionError,
+      })
+
+      if (!session) {
+        console.log("❌ No session found")
+        setCurrentUser(null)
+        setIsAdmin(false)
+        return
+      }
+
+      // getCurrentUser 함수 사용
       const user = await getCurrentUser()
+      console.log("👤 Current user from getCurrentUser:", user)
+
       if (user) {
         setCurrentUser(user)
-        // 관리자 권한 확인
-        setIsAdmin(user.role === "admin" || user.role === "instructor")
+        const adminStatus = user.role === "admin" || user.role === "instructor"
+        setIsAdmin(adminStatus)
+        console.log("🔐 Admin status:", adminStatus, "Role:", user.role)
+      } else {
+        // getCurrentUser가 실패한 경우 직접 DB에서 조회
+        console.log("⚠️ getCurrentUser failed, trying direct DB query...")
+
+        const { data: userData, error: userError } = await supabase
+          .from("users")
+          .select("id, name, email, role")
+          .eq("id", session.user.id)
+          .single()
+
+        if (userData) {
+          console.log("✅ User found via direct query:", userData)
+          setCurrentUser(userData)
+          const adminStatus = userData.role === "admin" || userData.role === "instructor"
+          setIsAdmin(adminStatus)
+        } else if (session.user.email) {
+          // 이메일로 재시도
+          const { data: userByEmail, error: emailError } = await supabase
+            .from("users")
+            .select("id, name, email, role")
+            .eq("email", session.user.email)
+            .single()
+
+          if (userByEmail) {
+            console.log("✅ User found via email:", userByEmail)
+            setCurrentUser(userByEmail)
+            const adminStatus = userByEmail.role === "admin" || userByEmail.role === "instructor"
+            setIsAdmin(adminStatus)
+          } else {
+            console.log("❌ No user found in database")
+            setCurrentUser(null)
+            setIsAdmin(false)
+          }
+        }
       }
     } catch (error) {
-      console.error("사용자 정보 로딩 오류:", error)
+      console.error("❌ Error loading user:", error)
+      setCurrentUser(null)
+      setIsAdmin(false)
+    } finally {
+      setAuthLoading(false)
     }
   }
 
@@ -168,8 +255,94 @@ export default function AssignmentSubmissionsDisplay({
     }
   }
 
+  const handleDeleteSubmission = async (submissionId: string) => {
+    console.log("🗑️ Delete submission clicked:", { submissionId, isAdmin, currentUser })
+
+    if (!isAdmin) {
+      toast.error("관리자만 제출물을 삭제할 수 있습니다.")
+      return
+    }
+
+    if (!confirm("이 제출물을 정말 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) return
+
+    setDeletingSubmission(submissionId)
+
+    try {
+      const response = await fetch(`/api/assignments/${assignmentId}/submissions/${submissionId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          admin_id: currentUser?.id,
+          is_admin: isAdmin,
+        }),
+      })
+
+      if (response.ok) {
+        // 제출물 목록에서 삭제된 항목 제거
+        setSubmissions((prev) => prev.filter((sub) => sub.id !== submissionId))
+        toast.success("제출물이 삭제되었습니다.")
+      } else {
+        const errorData = await response.json()
+        toast.error(errorData.error || "제출물 삭제에 실패했습니다.")
+      }
+    } catch (error) {
+      console.error("제출물 삭제 오류:", error)
+      toast.error("제출물 삭제 중 오류가 발생했습니다.")
+    } finally {
+      setDeletingSubmission(null)
+    }
+  }
+
   const canDeleteComment = (comment: SubmissionComment) => {
     return isAdmin || comment.author_id === currentUser?.id
+  }
+
+  const handleSubmitAssignment = async () => {
+    if (!submissionForm.studentName.trim()) {
+      toast.error("이름을 입력해주세요.")
+      return
+    }
+
+    if (!submissionForm.file) {
+      toast.error("파일을 선택해주세요.")
+      return
+    }
+
+    try {
+      setUploading(true)
+
+      const formData = new FormData()
+      formData.append("studentName", submissionForm.studentName.trim())
+      formData.append("comment", submissionForm.comment.trim())
+      formData.append("file", submissionForm.file)
+
+      const response = await fetch(`/api/assignments/${assignmentId}/submissions`, {
+        method: "POST",
+        body: formData,
+      })
+
+      if (response.ok) {
+        toast.success("과제가 성공적으로 제출되었습니다!")
+        setSubmissionForm({ studentName: "", comment: "", file: null })
+        // 파일 입력 초기화
+        const fileInput = document.getElementById("file-input") as HTMLInputElement
+        if (fileInput) fileInput.value = ""
+        // 제출 목록 새로고침
+        loadSubmissions()
+      } else {
+        const errorData = await response.json()
+        toast.error(errorData.error || "제출에 실패했습니다.")
+      }
+    } catch (error) {
+      console.error("제출 오류:", error)
+      toast.error("제출 중 오류가 발생했습니다.")
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleLoginRedirect = () => {
+    window.location.href = "/login"
   }
 
   if (loading) {
@@ -181,202 +354,43 @@ export default function AssignmentSubmissionsDisplay({
     )
   }
 
-  if (submissions.length === 0) {
-    return (
-      <div className="text-center py-8 border border-gray-200">
-        <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-        <p className="text-gray-500 font-light tracking-wider">NO SUBMISSIONS YET</p>
-        <p className="text-sm text-gray-400 font-light">Be the first to submit!</p>
-
-        {/* 제출 버튼 추가 */}
-        <div className="mt-6">
-          <Button
-            onClick={() => {
-              // 현재 사용자가 로그인되어 있는지 확인
-              if (!currentUser) {
-                toast.error("로그인이 필요합니다.")
-                return
-              }
-
-              // 파일 입력 요소 생성하여 직접 파일 선택
-              const fileInput = document.createElement("input")
-              fileInput.type = "file"
-              fileInput.accept = ".pdf,.doc,.docx,.txt,.zip,.rar,.jpg,.jpeg,.png"
-              fileInput.onchange = async (e) => {
-                const file = (e.target as HTMLInputElement).files?.[0]
-                if (file) {
-                  // 파일 크기 체크
-                  if (file.size > 10 * 1024 * 1024) {
-                    toast.error("파일 크기는 10MB를 초과할 수 없습니다.")
-                    return
-                  }
-
-                  try {
-                    setUploading(true)
-                    // 파일 업로드
-                    const formData = new FormData()
-                    formData.append("file", file)
-
-                    const uploadResponse = await fetch("/api/upload", {
-                      method: "POST",
-                      body: formData,
-                    })
-
-                    if (!uploadResponse.ok) {
-                      throw new Error("파일 업로드 실패")
-                    }
-
-                    const { url: fileUrl } = await uploadResponse.json()
-
-                    // 과제 제출
-                    const submitResponse = await fetch(`/api/assignments/${assignmentId}/submissions`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        studentId: currentUser.id,
-                        studentName: currentUser.name,
-                        fileUrl,
-                        fileName: file.name,
-                      }),
-                    })
-
-                    if (submitResponse.ok) {
-                      toast.success("과제가 성공적으로 제출되었습니다!")
-                      // 제출 목록 새로고침
-                      loadSubmissions()
-                    } else {
-                      const errorData = await submitResponse.json()
-                      toast.error(errorData.error || "제출에 실패했습니다.")
-                    }
-                  } catch (error) {
-                    console.error("제출 오류:", error)
-                    toast.error("제출 중 오류가 발생했습니다.")
-                  } finally {
-                    setUploading(false)
-                  }
-                }
-              }
-              fileInput.click()
-            }}
-            disabled={uploading || !currentUser}
-            className="bg-blue-600 text-white hover:bg-blue-700 tracking-widest uppercase font-light px-6 py-3"
-            style={{ borderRadius: "0" }}
-          >
-            {uploading ? (
-              <>
-                <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2 inline-block" />
-                UPLOADING...
-              </>
-            ) : (
-              <>
-                <FileText className="h-4 w-4 mr-2 inline" />
-                SUBMIT ASSIGNMENT
-              </>
-            )}
-          </Button>
-
-          {!currentUser && <p className="text-sm text-red-500 mt-2 font-light">로그인 후 제출할 수 있습니다</p>}
-
-          <p className="text-xs text-gray-400 mt-2 font-light">
-            지원 형식: PDF, DOC, DOCX, TXT, ZIP, RAR, JPG, PNG (최대 10MB)
-          </p>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-light tracking-widest uppercase">SUBMISSIONS ({submissions.length})</h3>
-        <div className="w-full">
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-              {Array.from(new Set(submissions.map((s) => s.student_name))).map((studentName) => (
-                <button
-                  key={studentName}
-                  className="whitespace-nowrap py-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-light tracking-wider uppercase text-sm"
-                >
-                  {studentName}
-                </button>
-              ))}
-              <button
-                onClick={() => {
-                  // 현재 사용자가 로그인되어 있는지 확인
-                  if (!currentUser) {
-                    toast.error("로그인이 필요합니다.")
-                    return
-                  }
 
-                  // 파일 입력 요소 생성하여 직접 파일 선택
-                  const fileInput = document.createElement("input")
-                  fileInput.type = "file"
-                  fileInput.accept = ".pdf,.doc,.docx,.txt,.zip,.rar,.jpg,.jpeg,.png"
-                  fileInput.onchange = async (e) => {
-                    const file = (e.target as HTMLInputElement).files?.[0]
-                    if (file) {
-                      // 파일 크기 체크
-                      if (file.size > 10 * 1024 * 1024) {
-                        toast.error("파일 크기는 10MB를 초과할 수 없습니다.")
-                        return
-                      }
+        {/* 인증 상태 표시 */}
+        <div className="flex items-center gap-2">
+          {authLoading ? (
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <div className="animate-spin w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full" />
+              인증 확인 중...
+            </div>
+          ) : currentUser ? (
+            <div className="flex items-center gap-2 text-sm">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span className="text-green-600 font-medium">{currentUser.name}</span>
+              {isAdmin && <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded">ADMIN</span>}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+              <span className="text-red-600 text-sm">로그인 필요</span>
+              <Button onClick={handleLoginRedirect} size="sm" variant="outline" className="text-xs">
+                <LogIn className="h-3 w-3 mr-1" />
+                로그인
+              </Button>
+            </div>
+          )}
 
-                      try {
-                        setUploading(true)
-                        // 파일 업로드
-                        const formData = new FormData()
-                        formData.append("file", file)
-
-                        const uploadResponse = await fetch("/api/upload", {
-                          method: "POST",
-                          body: formData,
-                        })
-
-                        if (!uploadResponse.ok) {
-                          throw new Error("파일 업로드 실패")
-                        }
-
-                        const { url: fileUrl } = await uploadResponse.json()
-
-                        // 과제 제출
-                        const submitResponse = await fetch(`/api/assignments/${assignmentId}/submissions`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            studentId: currentUser.id,
-                            studentName: currentUser.name,
-                            fileUrl,
-                            fileName: file.name,
-                          }),
-                        })
-
-                        if (submitResponse.ok) {
-                          toast.success("과제가 성공적으로 제출되었습니다!")
-                          // 제출 목록 새로고침
-                          loadSubmissions()
-                        } else {
-                          const errorData = await submitResponse.json()
-                          toast.error(errorData.error || "제출에 실패했습니다.")
-                        }
-                      } catch (error) {
-                        console.error("제출 오류:", error)
-                        toast.error("제출 중 오류가 발생했습니다.")
-                      } finally {
-                        setUploading(false)
-                      }
-                    }
-                  }
-                  fileInput.click()
-                }}
-                className="whitespace-nowrap py-2 px-1 border-b-2 border-blue-500 text-blue-600 font-light tracking-wider uppercase text-sm hover:bg-blue-50 cursor-pointer"
-              >
-                + ADD SUBMISSION
-              </button>
-            </nav>
-          </div>
+          <Button onClick={loadCurrentUser} variant="outline" size="sm" className="text-xs" disabled={authLoading}>
+            <RefreshCw className={`h-3 w-3 mr-1 ${authLoading ? "animate-spin" : ""}`} />
+            새로고침
+          </Button>
         </div>
       </div>
 
+      {/* 기존 제출물 카드들 */}
       {submissions.map((submission) => (
         <Card key={submission.id} className="border border-gray-200" style={{ borderRadius: "0" }}>
           <CardContent className="p-6">
@@ -394,6 +408,26 @@ export default function AssignmentSubmissionsDisplay({
                   </div>
                 </div>
               </div>
+
+              {/* 관리자용 삭제 버튼 */}
+              {isAdmin && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDeleteSubmission(submission.id)}
+                  disabled={deletingSubmission === submission.id}
+                  className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                >
+                  {deletingSubmission === submission.id ? (
+                    <div className="animate-spin w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full" />
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      <span className="font-light tracking-wider">DELETE</span>
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
 
             {/* 파일 다운로드 */}
@@ -513,6 +547,121 @@ export default function AssignmentSubmissionsDisplay({
           </CardContent>
         </Card>
       ))}
+
+      {/* 새 제출 카드 - 항상 표시 */}
+      <Card className="border border-dashed border-gray-300 bg-gray-50" style={{ borderRadius: "0" }}>
+        <CardContent className="p-6">
+          <div className="text-center">
+            <FileText className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+            <h4 className="text-lg font-light tracking-widest uppercase mb-6">ADD NEW SUBMISSION</h4>
+
+            <div className="max-w-md mx-auto space-y-4">
+              <div className="space-y-2">
+                <label className="block text-sm font-light tracking-wider uppercase text-gray-700">YOUR NAME *</label>
+                <input
+                  type="text"
+                  placeholder="Enter your name"
+                  className="w-full px-3 py-2 border border-gray-300 bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  style={{ borderRadius: "0" }}
+                  value={submissionForm.studentName}
+                  onChange={(e) => setSubmissionForm((prev) => ({ ...prev, studentName: e.target.value }))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-light tracking-wider uppercase text-gray-700">FILE *</label>
+                <div className="relative">
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.txt,.zip,.rar,.jpg,.jpeg,.png"
+                    className="hidden"
+                    id="file-input"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        if (file.size > 10 * 1024 * 1024) {
+                          toast.error("파일 크기는 10MB를 초과할 수 없습니다.")
+                          return
+                        }
+                        setSubmissionForm((prev) => ({ ...prev, file }))
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById("file-input")?.click()}
+                    className="w-full px-3 py-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 text-left"
+                    style={{ borderRadius: "0" }}
+                  >
+                    {submissionForm.file ? submissionForm.file.name : "Choose file..."}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500">Supported: PDF, DOC, DOCX, TXT, ZIP, RAR, JPG, PNG (Max 10MB)</p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-light tracking-wider uppercase text-gray-700">
+                  COMMENT (OPTIONAL)
+                </label>
+                <textarea
+                  placeholder="Add any comments about your submission..."
+                  className="w-full px-3 py-2 border border-gray-300 bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-h-[80px]"
+                  style={{ borderRadius: "0" }}
+                  value={submissionForm.comment}
+                  onChange={(e) => setSubmissionForm((prev) => ({ ...prev, comment: e.target.value }))}
+                />
+              </div>
+
+              <Button
+                onClick={handleSubmitAssignment}
+                disabled={uploading || !submissionForm.studentName.trim() || !submissionForm.file}
+                className="w-full bg-blue-600 text-white hover:bg-blue-700 tracking-widest uppercase font-light py-3"
+                style={{ borderRadius: "0" }}
+              >
+                {uploading ? (
+                  <>
+                    <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2 inline-block" />
+                    SUBMITTING...
+                  </>
+                ) : (
+                  <>
+                    <FileText className="h-4 w-4 mr-2 inline" />
+                    SUBMIT ASSIGNMENT
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 관리자 전용 안내 메시지 */}
+      {isAdmin && (
+        <div className="bg-yellow-50 border border-yellow-200 p-4 flex items-center gap-3">
+          <AlertTriangle className="h-5 w-5 text-yellow-500" />
+          <p className="text-sm text-yellow-700">
+            <span className="font-medium">관리자 권한:</span> 제출물 삭제 버튼이 각 제출물 카드의 오른쪽 상단에
+            표시됩니다. 삭제된 제출물은 복구할 수 없습니다.
+          </p>
+        </div>
+      )}
+
+      {/* 세션 없음 경고 */}
+      {!currentUser && !authLoading && (
+        <div className="bg-red-50 border border-red-200 p-4 flex items-center gap-3">
+          <AlertTriangle className="h-5 w-5 text-red-500" />
+          <div className="flex-1">
+            <p className="text-sm text-red-700">
+              <span className="font-medium">인증 세션이 만료되었습니다.</span> 관리자 기능을 사용하려면 다시
+              로그인해주세요.
+            </p>
+          </div>
+          <Button onClick={handleLoginRedirect} size="sm" className="bg-red-600 text-white hover:bg-red-700">
+            <LogIn className="h-4 w-4 mr-1" />
+            로그인
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

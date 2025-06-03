@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import FreeBoardManagement from "./board/free-board-management"
 import AssignmentBoardManagement from "./board/assignment-board-management"
 import AddFreeBoardPostModal from "../modals/add-free-board-post-modal"
@@ -16,7 +16,8 @@ export default function BoardManagement() {
   const [activeModal, setActiveModal] = useState<ModalType>(null)
   const [editingPostId, setEditingPostId] = useState<string | null>(null)
 
-  // Handle opening modals
+  const preventUnmountRef = useRef(false)
+
   const openAddFreePostModal = () => setActiveModal("addFree")
   const openAddAssignmentModal = () => setActiveModal("addAssignment")
 
@@ -35,6 +36,21 @@ export default function BoardManagement() {
     setEditingPostId(null)
   }
 
+  const handleTabChange = (tab: BoardTab) => {
+    preventUnmountRef.current = true
+    setActiveTab(tab)
+
+    setTimeout(() => {
+      preventUnmountRef.current = false
+    }, 500)
+  }
+
+  useEffect(() => {
+    return () => {
+      // Silent cleanup - no logging
+    }
+  }, [])
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -42,41 +58,42 @@ export default function BoardManagement() {
 
         <div className="flex space-x-2">
           <button
-            onClick={() => setActiveTab("free")}
+            onClick={() => handleTabChange("free")}
             className={`px-4 py-2 text-sm transition-colors ${
               activeTab === "free" ? "bg-black text-white" : "bg-white text-black border border-gray-200"
             }`}
+            type="button"
           >
             Free Board
           </button>
           <button
-            onClick={() => setActiveTab("assignment")}
+            onClick={() => handleTabChange("assignment")}
             className={`px-4 py-2 text-sm transition-colors ${
               activeTab === "assignment" ? "bg-black text-white" : "bg-white text-black border border-gray-200"
             }`}
+            type="button"
           >
             Assignment Board
           </button>
         </div>
       </div>
 
-      {activeTab === "free" && (
-        <FreeBoardManagement onAddPost={openAddFreePostModal} onEditPost={openEditFreePostModal} />
-      )}
+      <div className="tab-content">
+        {activeTab === "free" && (
+          <FreeBoardManagement onAddPost={openAddFreePostModal} onEditPost={openEditFreePostModal} />
+        )}
 
-      {activeTab === "assignment" && (
-        <AssignmentBoardManagement onAddPost={openAddAssignmentModal} onEditPost={openEditAssignmentModal} />
-      )}
+        {activeTab === "assignment" && (
+          <AssignmentBoardManagement onAddPost={openAddAssignmentModal} onEditPost={openEditAssignmentModal} />
+        )}
+      </div>
 
       {/* Modals */}
       {activeModal === "addFree" && <AddFreeBoardPostModal onClose={closeModal} />}
-
       {activeModal === "addAssignment" && <AddAssignmentPostModal onClose={closeModal} />}
-
       {activeModal === "editFree" && editingPostId && (
         <EditFreeBoardPostModal postId={editingPostId} onClose={closeModal} />
       )}
-
       {activeModal === "editAssignment" && editingPostId && (
         <EditAssignmentPostModal postId={editingPostId} onClose={closeModal} />
       )}

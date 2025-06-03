@@ -92,6 +92,7 @@ export default function AdminLoginForm({ onLoginSuccess }: AdminLoginFormProps) 
           onLoginSuccess()
         } else {
           // 명시적으로 /admin으로 리다이렉트
+          console.log("✅ 로그인 성공, admin 페이지로 리다이렉션합니다.")
           window.location.href = "/admin"
         }
       }

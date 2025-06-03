@@ -6,19 +6,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {
-  Search,
-  RefreshCw,
-  PlusCircle,
-  Edit,
-  Trash2,
-  CheckCircle,
-  Clock,
-  Lock,
-  Calendar,
-  Users,
-  Eye,
-} from "lucide-react"
+import { Search, RefreshCw, PlusCircle, Trash2, CheckCircle, Clock, Lock, Calendar, Users, Eye } from "lucide-react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
@@ -379,76 +367,76 @@ export default function AssignmentBoard() {
   //   }
 
   //   console.log("🔐 Password check started:", {
-  //     assignmentId: selectedAssignment.id,
-  //     passwordLength: passwordInput.length,
-  //     hasPassword: selectedAssignment.has_password,
+  //   assignmentId: selectedAssignment.id,
+  //   passwordLength: passwordInput.length,
+  //   hasPassword: selectedAssignment.has_password,
   //   })
 
   //   try {
-  //     const response = await fetch(`/api/assignments/${selectedAssignment.id}/check-password`, {
-  //       method: "POST",
-  //       headers: {
-  //         "Content-Type": "application/json",
-  //       },
-  //       body: JSON.stringify({
-  //         password: passwordInput.trim(),
-  //       }),
-  //     })
+  //   const response = await fetch(`/api/assignments/${selectedAssignment.id}/check-password`, {
+  //   method: "POST",
+  //   headers: {
+  //   "Content-Type": "application/json",
+  //   },
+  //   body: JSON.stringify({
+  //   password: passwordInput.trim(),
+  //   }),
+  //   })
 
-  //     console.log("🔐 Password check response:", {
-  //       status: response.status,
-  //       statusText: response.statusText,
-  //       ok: response.ok,
-  //     })
+  //   console.log("🔐 Password check response:", {
+  //   status: response.status,
+  //   statusText: response.statusText,
+  //   ok: response.ok,
+  //   })
 
-  //     const responseData = await response.json()
-  //     console.log("📄 Response data:", responseData)
+  //   const responseData = await response.json()
+  //   console.log("📄 Response data:", responseData)
 
-  //     if (response.ok && responseData.success) {
-  //       console.log("✅ Password correct, redirecting...")
-  //       setPasswordDialogOpen(false)
-  //       setPasswordInput("")
-  //       setPasswordError(false)
-  //       // Store authentication in sessionStorage
-  //       sessionStorage.setItem(`assignment_${selectedAssignment.id}_authenticated`, "true")
-  //       // Use router.push instead of window.location.href
-  //       window.location.href = `/board/assignment/${selectedAssignment.id}`
-  //     } else {
-  //       console.log("❌ Password incorrect:", responseData)
-  //       setPasswordError(true)
-  //       // Clear the input for security
-  //       setPasswordInput("")
-  //     }
-  //   } catch (error) {
-  //     console.error("💥 Password check error:", error)
-  //     setPasswordError(true)
-  //     setPasswordInput("")
+  //   if (response.ok && responseData.success) {
+  //   console.log("✅ Password correct, redirecting...")
+  //   setPasswordDialogOpen(false)
+  //   setPasswordInput("")
+  //   setPasswordError(false)
+  //   // Store authentication in sessionStorage
+  //   sessionStorage.setItem(`assignment_${selectedAssignment.id}_authenticated`, "true")
+  //   // Use router.push instead of window.location.href
+  //   window.location.href = `/board/assignment/${selectedAssignment.id}`
+  //   } else {
+  //   console.log("❌ Password incorrect:", responseData)
+  //   setPasswordError(true)
+  //   // Clear the input for security
+  //   setPasswordInput("")
   //   }
-  // }
+  //   } catch (error) {
+  //   console.error("💥 Password check error:", error)
+  //   setPasswordError(true)
+  //   setPasswordInput("")
+  //   }
+  //   }
 
   // Edit 버튼 클릭 핸들러 - router.push 사용으로 변경
-  const handleEditClick = (assignmentId: string, event: React.MouseEvent) => {
-    event.stopPropagation()
-    event.preventDefault()
+  // const handleEditClick = (assignmentId: string, event: React.MouseEvent) => {
+  //   event.stopPropagation()
+  //   event.preventDefault()
 
-    console.log("🔧 Edit button clicked for assignment:", assignmentId)
-    console.log("👤 Current user:", currentUser)
-    console.log("🔑 Is instructor:", isInstructor)
+  //   console.log("🔧 Edit button clicked for assignment:", assignmentId)
+  //   console.log("👤 Current user:", currentUser)
+  //   console.log("🔑 Is instructor:", isInstructor)
 
-    // 권한 체크
-    if (!isInstructor) {
-      toast({
-        title: "권한 없음",
-        description: "과제를 수정할 권한이 없습니다.",
-        variant: "destructive",
-      })
-      return
-    }
+  //   // 권한 체크
+  //   if (!isInstructor) {
+  //     toast({
+  //       title: "권한 없음",
+  //       description: "과제를 수정할 권한이 없습니다.",
+  //       variant: "destructive",
+  //     })
+  //     return
+  //   }
 
-    // router.push 사용으로 세션 유지
-    console.log("✅ router.push로 이동합니다")
-    router.push(`/board/assignment/${assignmentId}/edit`)
-  }
+  //   // router.push 사용으로 세션 유지
+  //   console.log("✅ router.push로 이동합니다")
+  //   router.push(`/board/assignment/${assignmentId}/edit`)
+  // }
 
   // 필터링 - 대소문자 무시하고 비교하도록 수정
   const filteredAssignments = assignments.filter((assignment) => {
@@ -662,7 +650,7 @@ export default function AssignmentBoard() {
           <div className="hidden lg:block overflow-x-auto">
             <div className="min-w-full border border-gray-300">
               {/* 테이블 헤더 */}
-              <div className="grid grid-cols-12 gap-4 p-4 bg-black text-white text-xs font-light tracking-[0.15em] uppercase">
+              <div className="grid grid-cols-11 gap-4 p-4 bg-black text-white text-xs font-light tracking-[0.15em] uppercase">
                 <div className="col-span-4">TITLE</div>
                 <div className="col-span-2">INSTRUCTOR</div>
                 <div className="col-span-2">DATE</div>
@@ -670,11 +658,10 @@ export default function AssignmentBoard() {
                 {isInstructor ? (
                   <>
                     <div className="col-span-2">STATUS</div>
-                    <div className="col-span-1">STATS</div>
                     <div className="col-span-1">ACTIONS</div>
                   </>
                 ) : (
-                  <div className="col-span-4">INFO</div>
+                  <div className="col-span-3">INFO</div>
                 )}
               </div>
 
@@ -682,7 +669,7 @@ export default function AssignmentBoard() {
               {filteredAssignments.map((assignment, index) => (
                 <div
                   key={assignment.id}
-                  className={`grid grid-cols-12 gap-4 p-4 border-b border-gray-200 hover:bg-gray-50 transition-colors duration-200 ${
+                  className={`grid grid-cols-11 gap-4 p-4 border-b border-gray-200 hover:bg-gray-50 transition-colors duration-200 ${
                     index % 2 === 0 ? "bg-white" : "bg-gray-25"
                   }`}
                 >
@@ -756,29 +743,9 @@ export default function AssignmentBoard() {
                         </Button>
                       </div>
 
-                      {/* 통계 */}
-                      <div className="col-span-1 flex flex-col justify-center">
-                        <div className="text-sm text-gray-700 font-light flex items-center">
-                          <Eye className="h-3 w-3 mr-1" />
-                          {assignment.views}
-                        </div>
-                        <div className="text-xs text-gray-400 font-light flex items-center mt-1">
-                          <Users className="h-3 w-3 mr-1" />
-                          {assignment.submissions_count}/{assignment.total_students}
-                        </div>
-                      </div>
-
                       {/* 관리 버튼 - 관리자, 강사만 표시 */}
                       <div className="col-span-1 flex items-center justify-center">
                         <div className="flex gap-1">
-                          <Button
-                            onClick={(e) => handleEditClick(assignment.id, e)}
-                            variant="outline"
-                            size="sm"
-                            className="h-8 w-8 p-0 border-gray-300 hover:border-blue-500 hover:bg-blue-500 hover:text-white transition-all duration-300"
-                          >
-                            <Edit className="h-3 w-3" />
-                          </Button>
                           <Button
                             onClick={(e) => handleDelete(assignment.id, e)}
                             variant="outline"
@@ -792,7 +759,7 @@ export default function AssignmentBoard() {
                     </>
                   ) : (
                     /* 학생과 비로그인 사용자 공통 정보 표시 */
-                    <div className="col-span-4 flex items-center">
+                    <div className="col-span-3 flex items-center">
                       <div className="flex items-center gap-4">
                         <div className="flex items-center text-sm text-gray-500">
                           <Eye className="h-3 w-3 mr-1" />
@@ -859,14 +826,6 @@ export default function AssignmentBoard() {
                     {/* 관리자, 강사만 관리 버튼 표시 */}
                     {canManageAssignments && (
                       <div className="flex gap-2 ml-4">
-                        <Button
-                          onClick={(e) => handleEditClick(assignment.id, e)}
-                          variant="outline"
-                          size="sm"
-                          className="h-8 w-8 p-0 border-gray-300 hover:border-blue-500 hover:bg-blue-500 hover:text-white transition-all duration-300"
-                        >
-                          <Edit className="h-3 w-3" />
-                        </Button>
                         <Button
                           onClick={(e) => handleDelete(assignment.id, e)}
                           variant="outline"

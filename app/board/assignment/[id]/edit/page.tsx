@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useSupabaseAuth } from "@/lib/supabase/provider"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import AssignmentEditor from "@/components/board/assignment-editor"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
@@ -34,7 +34,7 @@ interface User {
 
 export default function EditAssignmentPage({ params }: { params: { id: string } }) {
   const router = useRouter()
-  const { getSession, getUser, supabase } = useSupabaseAuth()
+  const supabase = createClientComponentClient()
   const [assignment, setAssignment] = useState<Assignment | null>(null)
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
@@ -42,34 +42,40 @@ export default function EditAssignmentPage({ params }: { params: { id: string } 
 
   useEffect(() => {
     loadAssignmentAndUser()
-  }, [params.id, supabase])
+  }, [params.id])
 
   const loadAssignmentAndUser = async () => {
     try {
-      console.log("🚀 Edit page useEffect triggered with params.id:", params.id)
       setLoading(true)
 
-      // 1. 세션 체크 - 직접 supabase 클라이언트 사용
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
-      const session = sessionData?.session
+      // 세션 체크 - 재시도 로직
+      let session = null
+      let retryCount = 0
+      const maxRetries = 5
 
-      console.log("🔍 Edit page session check:", {
-        hasSession: !!session,
-        userId: session?.user?.id,
-        userEmail: session?.user?.email,
-        error: sessionError,
-      })
+      while (!session && retryCount < maxRetries) {
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+        session = sessionData?.session
+
+        if (!session && retryCount < maxRetries - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 500))
+          retryCount++
+        } else if (!session) {
+          router.push("/login")
+          return
+        } else {
+          break
+        }
+      }
 
       if (!session) {
-        console.log("❌ No session in edit page, redirecting to login")
         router.push("/login")
         return
       }
 
-      // 2. 사용자 정보 가져오기
+      // 사용자 정보 가져오기
       let userData: User | null = null
 
-      // ID로 사용자 검색
       const { data: userById, error: userByIdError } = await supabase
         .from("users")
         .select("*")
@@ -78,10 +84,7 @@ export default function EditAssignmentPage({ params }: { params: { id: string } 
 
       if (userById) {
         userData = userById
-        console.log("✅ User found by ID:", userData)
       } else {
-        console.log("⚠️ User not found by ID, trying email:", userByIdError)
-        // 이메일로 사용자 검색
         const { data: userByEmail, error: userByEmailError } = await supabase
           .from("users")
           .select("*")
@@ -90,9 +93,7 @@ export default function EditAssignmentPage({ params }: { params: { id: string } 
 
         if (userByEmail) {
           userData = userByEmail
-          console.log("✅ User found by email:", userData)
         } else {
-          console.log("❌ User not found by email either:", userByEmailError)
           setError("사용자 정보를 찾을 수 없습니다.")
           return
         }
@@ -100,7 +101,7 @@ export default function EditAssignmentPage({ params }: { params: { id: string } 
 
       setUser(userData)
 
-      // 3. 과제 정보 가져오기
+      // 과제 정보 가져오기
       const { data: assignmentData, error: assignmentError } = await supabase
         .from("assignments")
         .select("*")
@@ -108,37 +109,22 @@ export default function EditAssignmentPage({ params }: { params: { id: string } 
         .single()
 
       if (assignmentError) {
-        console.error("❌ Assignment fetch error:", assignmentError)
         setError("과제를 찾을 수 없습니다.")
         return
       }
 
-      console.log("📝 Assignment data:", assignmentData)
       setAssignment(assignmentData)
 
-      // 4. 권한 체크
+      // 권한 체크
       const isAdmin = userData.role === "admin"
       const isInstructor = userData.role === "instructor"
       const isCreator = assignmentData.created_by === userData.id
 
-      console.log("🔐 Permission check:", {
-        userRole: userData.role,
-        isAdmin,
-        isInstructor,
-        isCreator,
-        assignmentCreatedBy: assignmentData.created_by,
-        userId: userData.id,
-      })
-
       if (!isAdmin && (!isInstructor || !isCreator)) {
-        console.log("❌ No permission to edit this assignment")
         setError("이 과제를 편집할 권한이 없습니다.")
         return
       }
-
-      console.log("✅ All checks passed, assignment loaded successfully")
     } catch (error) {
-      console.error("❌ Error in loadAssignmentAndUser:", error)
       setError("데이터를 불러오는 중 오류가 발생했습니다.")
     } finally {
       setLoading(false)
@@ -149,7 +135,10 @@ export default function EditAssignmentPage({ params }: { params: { id: string } 
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-lg">로딩 중...</div>
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
+            <div className="text-lg">로딩 중...</div>
+          </div>
         </div>
       </div>
     )

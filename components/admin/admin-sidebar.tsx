@@ -25,7 +25,6 @@ export default function AdminSidebar({ activeSection, setActiveSection }: AdminS
   const router = useRouter()
 
   const handleLogout = () => {
-    // Clear the auth cookie
     document.cookie = "adminAuth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict"
     router.push("/admin/login")
   }

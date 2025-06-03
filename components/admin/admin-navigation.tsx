@@ -21,10 +21,10 @@ import { supabase } from "@/lib/supabase/client"
 
 interface AdminNavigationProps {
   activeSection: AdminSection
-  setActiveSection: (section: AdminSection) => void
+  onSectionChange?: (section: AdminSection) => void
 }
 
-export default function AdminNavigation({ activeSection, setActiveSection }: AdminNavigationProps) {
+export default function AdminNavigation({ activeSection, onSectionChange }: AdminNavigationProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   const toggleMobileMenu = () => {
@@ -33,23 +33,24 @@ export default function AdminNavigation({ activeSection, setActiveSection }: Adm
 
   const handleLogout = async () => {
     try {
-      // Clear localStorage
       if (typeof window !== "undefined") {
         localStorage.removeItem("userRole")
       }
 
-      // Clear admin auth cookie
       document.cookie = "adminAuth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict"
 
-      // Sign out from Supabase
       await supabase.auth.signOut()
 
-      // Force redirect
       window.location.href = "/admin/login"
     } catch (error) {
-      console.error("Error signing out:", error)
-      // Force redirect even if there's an error
       window.location.href = "/admin/login"
+    }
+  }
+
+  const handleSectionClick = (section: AdminSection) => {
+    if (onSectionChange) {
+      onSectionChange(section)
+      setIsMobileMenuOpen(false)
     }
   }
 
@@ -86,15 +87,13 @@ export default function AdminNavigation({ activeSection, setActiveSection }: Adm
                 {menuItems.map((item) => (
                   <li key={item.id}>
                     <button
-                      onClick={() => {
-                        setActiveSection(item.id as AdminSection)
-                        setIsMobileMenuOpen(false)
-                      }}
+                      onClick={() => handleSectionClick(item.id as AdminSection)}
                       className={`w-full flex items-center px-4 py-2 text-sm rounded-md transition-colors ${
                         activeSection === item.id
                           ? "bg-gray-100 text-black font-medium"
                           : "text-gray-600 hover:bg-gray-50"
                       }`}
+                      type="button"
                     >
                       <item.icon className="h-5 w-5 mr-3" />
                       {item.label}
@@ -128,10 +127,11 @@ export default function AdminNavigation({ activeSection, setActiveSection }: Adm
             {menuItems.map((item) => (
               <li key={item.id}>
                 <button
-                  onClick={() => setActiveSection(item.id as AdminSection)}
+                  onClick={() => handleSectionClick(item.id as AdminSection)}
                   className={`w-full flex items-center px-3 py-2 text-sm rounded-md transition-colors ${
                     activeSection === item.id ? "bg-gray-100 text-black font-medium" : "text-gray-600 hover:bg-gray-50"
                   }`}
+                  type="button"
                 >
                   <item.icon className="h-5 w-5 mr-3" />
                   {item.label}
