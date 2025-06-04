@@ -1,6 +1,6 @@
 "use client"
 
-import { memo, useState } from "react"
+import { memo, useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { Eye, Heart, MessageCircle, Clock, ImageIcon } from "lucide-react"
@@ -28,8 +28,32 @@ interface PostCardProps {
 function PostCard({ post }: PostCardProps) {
   const [imageError, setImageError] = useState(false)
   const [imageLoading, setImageLoading] = useState(true)
+  const [hasImage, setHasImage] = useState(false)
 
-  console.log(`[PostCard] Rendering card for post: ${post.id}`)
+  // 이미지 존재 여부 확인
+  useEffect(() => {
+    const checkImage = () => {
+      // 1. post.image_url 확인
+      if (post.image_url && isValidImageUrl(post.image_url)) {
+        console.log(`[PostCard] Found image_url for post ${post.id}:`, post.image_url)
+        setHasImage(true)
+        return
+      }
+
+      // 2. content에서 이미지 태그 확인
+      const imgRegex = /<img[^>]+src="([^">]+)"/i
+      const match = post.content?.match(imgRegex)
+      if (match && match[1] && isValidImageUrl(match[1])) {
+        console.log(`[PostCard] Found image in content for post ${post.id}:`, match[1])
+        setHasImage(true)
+        return
+      }
+
+      setHasImage(false)
+    }
+
+    checkImage()
+  }, [post.id, post.image_url, post.content])
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -89,30 +113,42 @@ function PostCard({ post }: PostCardProps) {
   const getPreviewText = (content: string, maxLength = 150) => {
     if (!content) return ""
 
-    // HTML 태그 제거
-    const textOnly = content.replace(/<[^>]*>/g, "")
+    // 이미지 태그를 완전히 제거
+    let cleanText = content.replace(/<img[^>]*>/gi, "")
+
+    // 모든 HTML 태그와 속성 제거
+    cleanText = cleanText.replace(/<[^>]*>/g, "")
+
+    // HTML 속성들 제거 (src=", alt=", class=" 등)
+    cleanText = cleanText.replace(/\b\w+="[^"]*"/g, "")
+    cleanText = cleanText.replace(/\b\w+='[^']*'/g, "")
+
+    // URL 패턴 제거
+    cleanText = cleanText.replace(/https?:\/\/[^\s]+/g, "")
+    cleanText = cleanText.replace(/www\.[^\s]+/g, "")
+
+    // 특수 문자와 불필요한 텍스트 제거
+    cleanText = cleanText.replace(/src="/g, "")
+    cleanText = cleanText.replace(/alt="/g, "")
+    cleanText = cleanText.replace(/class="/g, "")
+    cleanText = cleanText.replace(/style="/g, "")
+    cleanText = cleanText.replace(/width="/g, "")
+    cleanText = cleanText.replace(/height="/g, "")
+
+    // 연속된 공백과 줄바꿈 정리
+    cleanText = cleanText.replace(/\s+/g, " ").trim()
+
+    // 빈 문자열이면 기본 텍스트 반환
+    if (!cleanText || cleanText.length < 10) {
+      return "내용을 확인하려면 클릭하세요."
+    }
 
     // 길이 제한
-    if (textOnly.length <= maxLength) {
-      return textOnly
+    if (cleanText.length <= maxLength) {
+      return cleanText
     }
 
-    return textOnly.substring(0, maxLength) + "..."
-  }
-
-  // content에서 첫 번째 이미지 URL 추출
-  const extractFirstImage = (content: string) => {
-    if (!content) return null
-
-    // img 태그에서 src 추출
-    const imgRegex = /<img[^>]+src="([^">]+)"/i
-    const match = content.match(imgRegex)
-
-    if (match && match[1]) {
-      return match[1]
-    }
-
-    return null
+    return cleanText.substring(0, maxLength) + "..."
   }
 
   // 이미지 URL 검증
@@ -135,9 +171,10 @@ function PostCard({ post }: PostCardProps) {
     }
 
     // 2. content에서 첫 번째 이미지 추출
-    const contentImage = extractFirstImage(post.content)
-    if (contentImage && isValidImageUrl(contentImage)) {
-      return contentImage
+    const imgRegex = /<img[^>]+src="([^">]+)"/i
+    const match = post.content?.match(imgRegex)
+    if (match && match[1] && isValidImageUrl(match[1])) {
+      return match[1]
     }
 
     return null
@@ -149,12 +186,14 @@ function PostCard({ post }: PostCardProps) {
     console.log(`[PostCard] Image error for post ${post.id}:`, displayImage)
     setImageError(true)
     setImageLoading(false)
+    setHasImage(false)
   }
 
   const handleImageLoad = () => {
     console.log(`[PostCard] Image loaded for post ${post.id}:`, displayImage)
     setImageLoading(false)
     setImageError(false)
+    setHasImage(true)
   }
 
   return (
@@ -191,6 +230,14 @@ function PostCard({ post }: PostCardProps) {
                 {getCategoryLabel(post.category)}
               </span>
               <span className="text-xs text-gray-500 tracking-wider font-light">{getTypeLabel(post.type)}</span>
+
+              {/* 이미지 아이콘 표시 */}
+              {hasImage && (
+                <span className="flex items-center bg-black text-white px-2 py-1 text-xs rounded">
+                  <ImageIcon className="h-3 w-3 mr-1" />
+                  <span className="tracking-wider font-light">IMAGE</span>
+                </span>
+              )}
             </div>
             <div className="flex items-center text-xs text-gray-500 tracking-wider font-light">
               <Clock className="h-3 w-3 mr-1" />
@@ -203,7 +250,10 @@ function PostCard({ post }: PostCardProps) {
           </h3>
 
           <p className="text-gray-600 text-sm leading-relaxed mb-4 line-clamp-3 font-light">
-            {getPreviewText(post.content)}
+            {(() => {
+              const preview = getPreviewText(post.content)
+              return preview && preview.length > 0 ? preview : "게시글 내용을 확인하려면 클릭하세요."
+            })()}
           </p>
 
           <div className="flex items-center justify-between">
