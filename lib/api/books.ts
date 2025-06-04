@@ -107,6 +107,35 @@ export async function incrementBookViews(id: string): Promise<void> {
   }
 }
 
+// 판매 수 증가 (누락된 함수 추가)
+export async function incrementBookSales(id: string): Promise<void> {
+  try {
+    console.log("incrementBookSales: Incrementing sales for book ID:", id)
+
+    // 현재 판매 수를 가져온 후 1 증가
+    const { data: book, error: fetchError } = await supabase.from("books").select("sales_count").eq("id", id).single()
+
+    if (fetchError) {
+      console.error("incrementBookSales: Error fetching current sales count:", fetchError)
+      return
+    }
+
+    const { error: updateError } = await supabase
+      .from("books")
+      .update({ sales_count: (book.sales_count || 0) + 1 })
+      .eq("id", id)
+
+    if (updateError) {
+      console.error("incrementBookSales: Error updating sales count:", updateError)
+      return
+    }
+
+    console.log("incrementBookSales: Successfully incremented sales count")
+  } catch (error) {
+    console.error("incrementBookSales: Error incrementing sales count:", error)
+  }
+}
+
 // 태그로 책 검색 (excludeId와 limit 파라미터 포함)
 export async function getBooksByTags(tags: string[], excludeId?: string, limit = 6): Promise<Book[]> {
   try {

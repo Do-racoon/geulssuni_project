@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js"
+import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/supabase"
 
 // 서버 측 환경 변수 사용
@@ -22,7 +22,7 @@ const defaultKey = supabaseServiceKey || supabaseAnonKey || "placeholder-key"
 // 서버 측에서는 가능하면 service role key 사용
 export function createServerClient() {
   try {
-    return createClient<Database>(defaultUrl, defaultKey, {
+    return createSupabaseClient<Database>(defaultUrl, defaultKey, {
       auth: {
         persistSession: false,
       },
@@ -30,7 +30,7 @@ export function createServerClient() {
   } catch (error) {
     console.error("❌ Failed to create server Supabase client:", error)
     // 에러가 발생해도 기본 클라이언트 반환
-    return createClient<Database>("https://placeholder.supabase.co", "placeholder-key", {
+    return createSupabaseClient<Database>("https://placeholder.supabase.co", "placeholder-key", {
       auth: {
         persistSession: false,
       },
@@ -43,6 +43,9 @@ export const supabase = createServerClient()
 
 // 기존 코드와의 호환성을 위해 두 가지 export 제공
 export const supabaseServer = supabase
+
+// 누락된 createClient 내보내기 추가
+export const createClient = createSupabaseClient
 
 export async function getServerSession() {
   try {
