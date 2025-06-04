@@ -442,18 +442,18 @@ export default function AssignmentSubmissionsDisplay({
               {/* 관리자용 삭제 버튼 */}
               {isAdmin && (
                 <Button
-                  variant="ghost"
-                  size="sm"
                   onClick={() => handleDeleteSubmission(submission.id)}
                   disabled={deletingSubmission === submission.id}
-                  className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                  className="bg-red-600 text-white hover:bg-red-700 tracking-widest uppercase font-light px-4"
+                  style={{ borderRadius: "0" }}
+                  type="button"
                 >
                   {deletingSubmission === submission.id ? (
-                    <div className="animate-spin w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full" />
+                    <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
                   ) : (
                     <>
                       <Trash2 className="h-4 w-4 mr-1" />
-                      <span className="font-light tracking-wider">DELETE</span>
+                      <span className="font-light tracking-wider">삭제</span>
                     </>
                   )}
                 </Button>

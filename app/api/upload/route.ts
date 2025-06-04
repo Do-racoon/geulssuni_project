@@ -52,14 +52,15 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // 파일 타입 검증 - 과제 제출용 파일 타입 추가
+      // 파일 타입 검증 - 이미지 파일 우선 지원
       const allowedTypes = [
-        // 이미지 파일
+        // 이미지 파일 (우선 지원)
         "image/jpeg",
         "image/jpg",
         "image/png",
         "image/gif",
         "image/webp",
+        "image/svg+xml",
         // 비디오 파일
         "video/mp4",
         "video/webm",
@@ -160,12 +161,20 @@ export async function POST(request: NextRequest) {
 
       console.log("✅ 업로드 성공:", { path: data.path, publicUrl })
 
+      // 이미지 파일인지 확인하는 함수 추가
+      const isImageFile = (fileType: string) => {
+        return fileType.startsWith("image/")
+      }
+
       return NextResponse.json({
         success: true,
         data: {
           path: data.path,
           publicUrl,
           fileName: file.name,
+          fileType: file.type,
+          isImage: isImageFile(file.type),
+          fileSize: file.size,
         },
         // 기존 응답 형식과의 호환성을 위해 url도 포함
         url: publicUrl,

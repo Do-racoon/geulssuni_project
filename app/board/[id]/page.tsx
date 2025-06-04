@@ -152,21 +152,31 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
       if (!content) return ""
 
       try {
-        // 잘못된 img 태그 구조 수정
+        // 1. 잘못된 img 태그 구조 수정
         let fixedContent = content.replace(/<img([^>]*?)>src="([^"]*?)"/g, '<img$1 src="$2">')
 
-        // img 태그에 스타일 추가
+        // 2. img 태그에 적절한 스타일과 속성 추가
         fixedContent = fixedContent.replace(/<img([^>]*?)src="([^"]*?)"([^>]*?)>/g, (match, before, src, after) => {
+          // 이미 style이 있는지 확인
           if (before.includes("style=") || after.includes("style=")) {
             return match
           }
-          return `<img${before} src="${src}"${after} style="max-width: 100%; height: auto; border-radius: 8px; margin: 16px 0; display: block;" loading="lazy" crossorigin="anonymous">`
+
+          // 이미지 URL 검증
+          try {
+            new URL(src)
+          } catch {
+            console.warn(`[BoardPostPage] Invalid image URL: ${src}`)
+            return `<div class="bg-gray-100 p-4 text-center text-gray-500 border rounded">이미지를 불러올 수 없습니다</div>`
+          }
+
+          return `<img${before} src="${src}"${after} style="max-width: 100%; height: auto; border-radius: 8px; margin: 16px 0; display: block; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" loading="lazy" crossorigin="anonymous" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" /><div style="display: none; background: #f3f4f6; padding: 16px; text-align: center; color: #6b7280; border-radius: 8px; margin: 16px 0;">이미지를 불러올 수 없습니다</div>`
         })
 
-        // 잘못된 텍스트 제거
+        // 3. 잘못된 텍스트 제거
         fixedContent = fixedContent.replace(/(?:^|\s)src="[^"]*"(?:\s|$)/g, " ")
 
-        // 연속된 공백 정리
+        // 4. 연속된 공백 정리
         fixedContent = fixedContent.replace(/\s+/g, " ").trim()
 
         return fixedContent
