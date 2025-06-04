@@ -42,25 +42,58 @@ export async function GET(request: Request, { params }: { params: { id: string }
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
     const { id: assignmentId } = params
-    const formData = await request.formData()
 
-    const studentName = formData.get("studentName") as string
-    const comment = formData.get("comment") as string
-    const file = formData.get("file") as File
+    // Content-Type 확인
+    const contentType = request.headers.get("content-type")
+    console.log("Content-Type:", contentType)
 
-    if (!studentName || !file) {
-      return NextResponse.json({ error: "학생 이름과 파일은 필수입니다." }, { status: 400 })
+    let studentName: string
+    let fileName: string
+    let fileUrl: string
+    let studentId: string | null = null
+    let comment: string | null = null
+
+    if (contentType?.includes("application/json")) {
+      // JSON 형식으로 받는 경우
+      const body = await request.json()
+      console.log("JSON 요청 본문:", body)
+
+      studentName = body.studentName
+      fileName = body.fileName
+      fileUrl = body.fileUrl
+      studentId = body.studentId || null
+      comment = body.comment || null
+    } else {
+      // FormData 형식으로 받는 경우
+      const formData = await request.formData()
+      console.log("FormData 요청")
+
+      studentName = formData.get("studentName") as string
+      fileName = formData.get("fileName") as string
+      fileUrl = formData.get("fileUrl") as string
+      studentId = (formData.get("studentId") as string) || null
+      comment = (formData.get("comment") as string) || null
+    }
+
+    if (!studentName || !fileName || !fileUrl) {
+      console.error("필수 필드 누락:", { studentName, fileName, fileUrl })
+      return NextResponse.json({ error: "학생 이름, 파일명, 파일 URL은 필수입니다." }, { status: 400 })
     }
 
     // 서버 사이드 Supabase 클라이언트 생성
     const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
     // 현재 제출 수 다시 확인 (동시성 문제 방지)
-    const { data: currentAssignment } = await supabase
+    const { data: currentAssignment, error: assignmentError } = await supabase
       .from("assignments")
       .select("max_submissions, current_submissions")
       .eq("id", assignmentId)
       .single()
+
+    if (assignmentError) {
+      console.error("과제 정보 조회 오류:", assignmentError)
+      return NextResponse.json({ error: "과제 정보를 불러올 수 없습니다." }, { status: 500 })
+    }
 
     if (
       currentAssignment?.max_submissions &&
@@ -69,35 +102,17 @@ export async function POST(request: Request, { params }: { params: { id: string 
       return NextResponse.json({ error: "제출 인원이 마감되었습니다." }, { status: 400 })
     }
 
-    // 파일 업로드
-    const fileExt = file.name.split(".").pop()
-    const fileName = `assignments/${assignmentId}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
-
-    const { data: uploadData, error: uploadError } = await supabase.storage.from("uploads").upload(fileName, file, {
-      cacheControl: "3600",
-      upsert: false,
-    })
-
-    if (uploadError) {
-      console.error("파일 업로드 오류:", uploadError)
-      return NextResponse.json({ error: "파일 업로드에 실패했습니다." }, { status: 500 })
-    }
-
-    // 공개 URL 가져오기
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("uploads").getPublicUrl(fileName)
-
-    // 제출 정보 저장 (student_id 없이)
+    // 제출 정보 저장
     const { data: submission, error: submissionError } = await supabase
       .from("assignment_submissions")
       .insert([
         {
           assignment_id: assignmentId,
+          student_id: studentId,
           student_name: studentName,
-          file_name: file.name,
-          file_url: publicUrl,
-          comment: comment || null,
+          file_name: fileName,
+          file_url: fileUrl,
+          comment: comment,
           submitted_at: new Date().toISOString(),
           is_checked: false,
         },
@@ -112,12 +127,17 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
     // 제출 정보 저장 후 current_submissions 증가
     if (submission) {
-      await supabase
+      const { error: updateError } = await supabase
         .from("assignments")
         .update({
           current_submissions: (currentAssignment?.current_submissions || 0) + 1,
         })
         .eq("id", assignmentId)
+
+      if (updateError) {
+        console.error("제출 수 업데이트 오류:", updateError)
+        // 제출은 성공했지만 카운트 업데이트 실패 - 경고만 로그
+      }
     }
 
     return NextResponse.json({ success: true, submission })

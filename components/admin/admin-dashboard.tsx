@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { getSupabaseClient } from "@/lib/supabase/client"
 import AdminNavigation from "./admin-navigation"
 import AdminOverview from "./sections/admin-overview"
 import UserManagement from "./sections/user-management"
@@ -33,8 +33,9 @@ export default function AdminDashboard() {
 
   const authCheckCompletedRef = useRef(false)
   const authCheckInProgressRef = useRef(false)
+  const sessionCheckIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  const supabase = createClientComponentClient()
+  const supabase = getSupabaseClient()
 
   const checkAuth = async () => {
     if (authCheckInProgressRef.current || authCheckCompletedRef.current) {
@@ -46,19 +47,34 @@ export default function AdminDashboard() {
     try {
       setLoading(true)
 
+      // 세션 새로고침 시도
       const {
         data: { session },
         error: sessionError,
-      } = await supabase.auth.getSession()
+      } = await supabase.auth.refreshSession()
 
       if (sessionError || !session) {
-        throw new Error(sessionError?.message || "세션이 없습니다")
+        // 새로고침 실패 시 기존 세션 확인
+        const {
+          data: { session: existingSession },
+          error: getSessionError,
+        } = await supabase.auth.getSession()
+
+        if (getSessionError || !existingSession) {
+          throw new Error("세션이 만료되었습니다. 다시 로그인해주세요.")
+        }
+      }
+
+      const currentSession = session || (await supabase.auth.getSession()).data.session
+
+      if (!currentSession) {
+        throw new Error("세션이 없습니다")
       }
 
       const { data: userData, error: userError } = await supabase
         .from("users")
         .select("role, email, name, is_active")
-        .eq("id", session.user.id)
+        .eq("id", currentSession.user.id)
         .single()
 
       if (userError) {
@@ -70,8 +86,30 @@ export default function AdminDashboard() {
       }
 
       authCheckCompletedRef.current = true
+
+      // 주기적 세션 체크 설정 (5분마다)
+      if (sessionCheckIntervalRef.current) {
+        clearInterval(sessionCheckIntervalRef.current)
+      }
+
+      sessionCheckIntervalRef.current = setInterval(
+        async () => {
+          try {
+            await supabase.auth.refreshSession()
+          } catch (error) {
+            console.error("세션 새로고침 실패:", error)
+          }
+        },
+        5 * 60 * 1000,
+      ) // 5분
     } catch (err) {
       setError(err instanceof Error ? err.message : "인증 확인 중 오류가 발생했습니다")
+
+      // 세션 만료 시 쿠키 정리
+      if (typeof document !== "undefined") {
+        document.cookie = "sb-auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
+      }
+
       window.location.href = "/admin/login"
     } finally {
       setLoading(false)
@@ -84,14 +122,26 @@ export default function AdminDashboard() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_OUT") {
+        // 로그아웃 시 쿠키 정리
+        if (typeof document !== "undefined") {
+          document.cookie = "sb-auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
+        }
         window.location.href = "/admin/login"
+      } else if (event === "TOKEN_REFRESHED" && session) {
+        // 토큰 새로고침 시 쿠키 업데이트
+        if (typeof document !== "undefined") {
+          document.cookie = `sb-auth-token=${session.access_token}; path=/; max-age=${60 * 60 * 24 * 7}; secure; samesite=lax`
+        }
       }
     })
 
     return () => {
       subscription.unsubscribe()
+      if (sessionCheckIntervalRef.current) {
+        clearInterval(sessionCheckIntervalRef.current)
+      }
     }
   }, [])
 

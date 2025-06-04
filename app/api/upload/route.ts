@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
       console.log("📤 업로드 파라미터:", {
         fileName: file?.name,
         fileSize: file?.size,
+        fileType: file?.type,
         bucket,
         folder,
       })
@@ -51,23 +52,42 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // 파일 타입 검증
+      // 파일 타입 검증 - 과제 제출용 파일 타입 추가
       const allowedTypes = [
+        // 이미지 파일
         "image/jpeg",
         "image/jpg",
         "image/png",
         "image/gif",
         "image/webp",
+        // 비디오 파일
         "video/mp4",
         "video/webm",
         "video/ogg",
+        // 문서 파일
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "text/plain",
+        // 압축 파일
+        "application/zip",
+        "application/x-zip-compressed",
+        "application/x-rar-compressed",
+        "application/vnd.rar",
+        // 추가 문서 타입
+        "application/rtf",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-powerpoint",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
       ]
+
       if (!allowedTypes.includes(file.type)) {
         console.error("❌ 지원하지 않는 파일 타입:", file.type)
         return NextResponse.json(
           {
             success: false,
-            error: `지원하지 않는 파일 형식입니다. 지원 형식: ${allowedTypes.join(", ")}`,
+            error: `지원하지 않는 파일 형식입니다. 지원 형식: PDF, DOC, DOCX, TXT, ZIP, RAR, JPG, PNG 등`,
           },
           { status: 400 },
         )
@@ -147,6 +167,8 @@ export async function POST(request: NextRequest) {
           publicUrl,
           fileName: file.name,
         },
+        // 기존 응답 형식과의 호환성을 위해 url도 포함
+        url: publicUrl,
       })
     } catch (parseError) {
       console.error("❌ FormData 파싱 오류:", parseError)

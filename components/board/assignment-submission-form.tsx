@@ -44,21 +44,33 @@ export default function AssignmentSubmissionForm({
 
     try {
       setLoading(true)
+      console.log("제출 확인 요청:", { assignmentId, studentName: currentUser.name })
+
       const response = await fetch(`/api/assignments/${assignmentId}/submissions/check`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ studentName: currentUser.name }),
       })
 
-      if (response.ok) {
-        const data = await response.json()
-        setSubmissionCount(data.submissionCount || 0)
-        setMaxUserSubmissions(data.maxSubmissions || 1)
-        setCanSubmitMore(data.canSubmitMore || false)
-        setExistingSubmissions(data.submissions || [])
+      console.log("API 응답 상태:", response.status)
+      console.log("API 응답 헤더:", response.headers.get("content-type"))
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error("API 오류 응답:", errorText)
+        throw new Error(`API 요청 실패: ${response.status}`)
       }
+
+      const data = await response.json()
+      console.log("제출 확인 응답:", data)
+
+      setSubmissionCount(data.submissionCount || 0)
+      setMaxUserSubmissions(data.maxSubmissions || 1)
+      setCanSubmitMore(data.canSubmitMore || false)
+      setExistingSubmissions(data.submissions || [])
     } catch (error) {
       console.error("기존 제출 확인 오류:", error)
+      toast.error("제출 정보를 불러오는데 실패했습니다.")
     } finally {
       setLoading(false)
     }
@@ -98,13 +110,23 @@ export default function AssignmentSubmissionForm({
 
     try {
       // 제출 직전 인원 재확인
-      const { data: latestAssignment } = await fetch(`/api/assignments/${assignmentId}`).then((res) => res.json())
+      const assignmentResponse = await fetch(`/api/assignments/${assignmentId}`)
 
-      if (
-        latestAssignment.max_submissions > 0 &&
-        latestAssignment.current_submissions >= latestAssignment.max_submissions
-      ) {
+      if (!assignmentResponse.ok) {
+        throw new Error("과제 정보를 불러올 수 없습니다.")
+      }
+
+      const assignmentData = await assignmentResponse.json()
+      console.log("과제 정보 응답:", assignmentData)
+
+      // 안전한 속성 접근
+      const latestAssignment = assignmentData.data || assignmentData
+      const maxSubs = latestAssignment?.max_submissions || 0
+      const currentSubs = latestAssignment?.current_submissions || 0
+
+      if (maxSubs > 0 && currentSubs >= maxSubs) {
         toast.error("제출 인원이 마감되었습니다.")
+        setSubmitting(false)
         return
       }
 

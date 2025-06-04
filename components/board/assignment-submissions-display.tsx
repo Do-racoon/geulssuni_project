@@ -160,16 +160,46 @@ export default function AssignmentSubmissionsDisplay({
   const loadSubmissions = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`/api/assignments/${assignmentId}/submissions/public`, {
+
+      // /public 경로 제거하고 일반 submissions 경로 사용
+      const response = await fetch(`/api/assignments/${assignmentId}/submissions`, {
         cache: "no-store",
       })
 
-      if (response.ok) {
-        const data = await response.json()
-        setSubmissions(data)
+      // 응답 상태 확인
+      if (!response.ok) {
+        console.error(`API Error: ${response.status} ${response.statusText}`)
+
+        // HTML 응답인지 확인
+        const contentType = response.headers.get("content-type")
+        if (contentType && contentType.includes("text/html")) {
+          console.error("Received HTML instead of JSON - API endpoint may not exist")
+          toast.error("API 엔드포인트를 찾을 수 없습니다.")
+          return
+        }
+
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      // JSON 파싱 시도
+      const text = await response.text()
+      if (!text) {
+        console.log("Empty response received")
+        setSubmissions([])
+        return
+      }
+
+      try {
+        const data = JSON.parse(text)
+        setSubmissions(Array.isArray(data) ? data : [])
+      } catch (parseError) {
+        console.error("JSON Parse Error:", parseError)
+        console.error("Response text:", text.substring(0, 200))
+        toast.error("서버 응답을 파싱할 수 없습니다.")
       }
     } catch (error) {
       console.error("제출 목록 로딩 오류:", error)
+      toast.error("제출 목록을 불러오는데 실패했습니다.")
     } finally {
       setLoading(false)
     }

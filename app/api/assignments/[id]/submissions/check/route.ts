@@ -13,10 +13,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
     // 서버 사이드 Supabase 클라이언트 생성
     const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-    // 과제 정보 조회 (max_submissions 확인)
+    // 과제 정보 조회 (max_submissions 확인) - 컬럼 이름 수정
     const { data: assignment, error: assignmentError } = await supabase
       .from("assignments")
-      .select("max_submissions")
+      .select("max_submissions") // max_user_submissions에서 max_submissions로 수정
       .eq("id", assignmentId)
       .single()
 
@@ -39,7 +39,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     }
 
     const submissionCount = existingSubmissions?.length || 0
-    const maxSubmissions = assignment.max_submissions || 1
+    const maxSubmissions = assignment.max_submissions || 1 // 컬럼 이름 수정
     const canSubmitMore = submissionCount < maxSubmissions
 
     return NextResponse.json({
