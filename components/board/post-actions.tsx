@@ -1,170 +1,355 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { Heart, Share2 } from "lucide-react"
+import { useState, useEffect, useCallback, memo } from "react"
+import { Heart, Trash2, MoreVertical, Share2, Flag } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { createSupabaseClient } from "@/lib/supabase/client"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { getSupabaseClient } from "@/lib/supabase/client"
+import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 
 interface PostActionsProps {
   post: {
     id: string
-    likes: number
-    title: string
+    likes?: number
+    author_id?: string
+    title?: string
   }
 }
 
-export default function PostActions({ post }: PostActionsProps) {
+const PostActions = memo(function PostActions({ post }: PostActionsProps) {
+  const [user, setUser] = useState<any>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [isLiked, setIsLiked] = useState(false)
-  const [likesCount, setLikesCount] = useState(post.likes || 0)
-  const [isLoading, setIsLoading] = useState(false)
-  const [hasCheckedLikeStatus, setHasCheckedLikeStatus] = useState(false)
+  const [likeCount, setLikeCount] = useState(post.likes || 0)
+  const [isLiking, setIsLiking] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [hasInitialized, setHasInitialized] = useState(false)
+  const router = useRouter()
 
-  console.log(`[PostActions] Component mounted for post: ${post.id}`)
+  console.log(`[PostActions] Component rendered for post: ${post.id}`)
 
-  // 좋아요 상태 확인 함수를 useCallback으로 메모이제이션
-  const checkLikeStatus = useCallback(async () => {
-    if (hasCheckedLikeStatus) {
-      console.log(`[PostActions] Like status already checked for post: ${post.id}`)
+  // 사용자 데이터 로드 함수
+  const loadUserData = useCallback(async () => {
+    if (hasInitialized) {
+      console.log(`[PostActions] Already initialized for post: ${post.id}`)
       return
     }
 
-    try {
-      console.log(`[PostActions] Checking like status for post: ${post.id}`)
-      const supabase = createSupabaseClient()
+    console.log(`[PostActions] Loading user data for post: ${post.id}`)
+    setIsLoading(true)
 
+    try {
+      const supabase = getSupabaseClient()
       const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) {
-        console.log(`[PostActions] No user found, skipping like status check`)
-        setHasCheckedLikeStatus(true)
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession()
+
+      console.log(`[PostActions] Session check:`, {
+        hasSession: !!session,
+        userId: session?.user?.id,
+        error: sessionError?.message,
+      })
+
+      if (!session || !session.user) {
+        console.log(`[PostActions] No session found`)
+        setUser(null)
+        setHasInitialized(true)
+        setIsLoading(false)
         return
       }
 
-      const response = await fetch(`/api/board-posts/${post.id}/like-status`)
-      if (response.ok) {
-        const data = await response.json()
-        console.log(`[PostActions] Like status response:`, data)
-        setIsLiked(data.isLiked)
-      } else {
-        console.error(`[PostActions] Failed to check like status:`, response.status)
+      // 사용자 프로필 조회
+      const { data: userProfile, error: profileError } = await supabase
+        .from("users")
+        .select("id, name, email, role, class_level, is_active")
+        .eq("id", session.user.id)
+        .single()
+
+      console.log(`[PostActions] User profile:`, {
+        found: !!userProfile,
+        role: userProfile?.role,
+        error: profileError?.message,
+      })
+
+      if (profileError || !userProfile || !userProfile.is_active) {
+        console.log(`[PostActions] Profile issue`)
+        setUser(null)
+        setHasInitialized(true)
+        setIsLoading(false)
+        return
+      }
+
+      const userData = {
+        id: userProfile.id,
+        name: userProfile.name,
+        email: userProfile.email,
+        role: userProfile.role,
+        class_level: userProfile.class_level,
+      }
+
+      setUser(userData)
+      setIsAdmin(userProfile.role === "admin")
+
+      console.log(`[PostActions] User authenticated:`, userData)
+
+      // 좋아요 상태 확인
+      if (userData.id) {
+        await checkLikeStatus(userData.id)
       }
     } catch (error) {
-      console.error(`[PostActions] Error checking like status:`, error)
+      console.error(`[PostActions] Error loading user data:`, error)
+      setUser(null)
     } finally {
-      setHasCheckedLikeStatus(true)
+      setHasInitialized(true)
+      setIsLoading(false)
     }
-  }, [post.id, hasCheckedLikeStatus])
+  }, [post.id, hasInitialized])
 
-  // 좋아요 토글 함수
+  // 좋아요 상태 확인
+  const checkLikeStatus = useCallback(
+    async (userId: string) => {
+      try {
+        console.log(`[PostActions] Checking like status for post: ${post.id}, user: ${userId}`)
+        const response = await fetch(`/api/board-posts/${post.id}/like-status?userId=${userId}`)
+        if (response.ok) {
+          const { isLiked } = await response.json()
+          console.log(`[PostActions] Like status: ${isLiked}`)
+          setIsLiked(isLiked)
+        }
+      } catch (error) {
+        console.error(`[PostActions] Error checking like status:`, error)
+      }
+    },
+    [post.id],
+  )
+
+  // 좋아요 토글
   const handleLike = useCallback(async () => {
-    if (isLoading) {
+    if (!user) {
+      toast.error("좋아요를 누르려면 로그인이 필요합니다.")
+      router.push("/login")
+      return
+    }
+
+    if (isLiking) {
       console.log(`[PostActions] Like action already in progress`)
       return
     }
 
-    setIsLoading(true)
+    setIsLiking(true)
     console.log(`[PostActions] Toggling like for post: ${post.id}`)
 
     try {
-      const supabase = createSupabaseClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) {
-        alert("로그인이 필요합니다.")
-        return
-      }
-
       const response = await fetch(`/api/board-posts/${post.id}/like`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        body: JSON.stringify({ userId: user.id }),
       })
 
       if (response.ok) {
         const data = await response.json()
         console.log(`[PostActions] Like toggle response:`, data)
         setIsLiked(data.isLiked)
-        setLikesCount(data.likesCount)
+        setLikeCount(data.likesCount)
+        toast.success(data.isLiked ? "좋아요를 눌렀습니다." : "좋아요를 취소했습니다.")
       } else {
         console.error(`[PostActions] Failed to toggle like:`, response.status)
-        alert("좋아요 처리 중 오류가 발생했습니다.")
+        toast.error("좋아요 처리 중 오류가 발생했습니다.")
       }
     } catch (error) {
       console.error(`[PostActions] Error toggling like:`, error)
-      alert("좋아요 처리 중 오류가 발생했습니다.")
+      toast.error("좋아요 처리 중 오류가 발생했습니다.")
     } finally {
-      setIsLoading(false)
+      setIsLiking(false)
     }
-  }, [post.id, isLoading])
+  }, [user, post.id, isLiking, router])
 
-  // 공유 함수
+  // 게시글 삭제
+  const handleDelete = useCallback(async () => {
+    if (!confirm("정말로 이 게시글을 삭제하시겠습니까?")) {
+      return
+    }
+
+    setIsDeleting(true)
+    console.log(`[PostActions] Deleting post: ${post.id}`)
+
+    try {
+      const response = await fetch(`/api/board-posts/${post.id}`, {
+        method: "DELETE",
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "게시글 삭제에 실패했습니다.")
+      }
+
+      toast.success("게시글이 삭제되었습니다.")
+      router.push("/board")
+    } catch (error) {
+      console.error(`[PostActions] Delete error:`, error)
+      toast.error(error instanceof Error ? error.message : "게시글 삭제 중 오류가 발생했습니다.")
+    } finally {
+      setIsDeleting(false)
+    }
+  }, [post.id, router])
+
+  // 공유 기능
   const handleShare = useCallback(async () => {
     console.log(`[PostActions] Sharing post: ${post.id}`)
 
     try {
-      if (navigator.share) {
-        await navigator.share({
-          title: post.title,
-          url: window.location.href,
-        })
-        console.log(`[PostActions] Native share completed`)
-      } else {
+      if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(window.location.href)
-        alert("링크가 클립보드에 복사되었습니다.")
-        console.log(`[PostActions] Link copied to clipboard`)
+        toast.success("링크가 복사되었습니다!")
+      } else {
+        // Fallback for older browsers
+        const textArea = document.createElement("textarea")
+        textArea.value = window.location.href
+        textArea.style.position = "fixed"
+        textArea.style.left = "-999999px"
+        textArea.style.top = "-999999px"
+        document.body.appendChild(textArea)
+        textArea.focus()
+        textArea.select()
+
+        try {
+          document.execCommand("copy")
+          toast.success("링크가 복사되었습니다!")
+        } catch (err) {
+          toast.error("링크 복사에 실패했습니다.")
+          console.error(`[PostActions] Fallback copy failed:`, err)
+        } finally {
+          document.body.removeChild(textArea)
+        }
       }
     } catch (error) {
-      console.error(`[PostActions] Error sharing:`, error)
-      try {
-        await navigator.clipboard.writeText(window.location.href)
-        alert("링크가 클립보드에 복사되었습니다.")
-      } catch (clipboardError) {
-        console.error(`[PostActions] Clipboard fallback failed:`, clipboardError)
-        alert("공유 기능을 사용할 수 없습니다.")
-      }
+      console.error(`[PostActions] Error copying URL:`, error)
+      toast.error("링크 복사에 실패했습니다.")
     }
-  }, [post.title])
+  }, [post.id])
 
-  // 컴포넌트 마운트 시 좋아요 상태 확인 (한 번만)
-  useEffect(() => {
-    console.log(`[PostActions] useEffect triggered for post: ${post.id}, hasChecked: ${hasCheckedLikeStatus}`)
-    checkLikeStatus()
-  }, [checkLikeStatus]) // checkLikeStatus는 useCallback으로 메모이제이션됨
+  // 신고 기능
+  const handleReport = useCallback(async () => {
+    if (!user) {
+      toast.error("신고하려면 로그인이 필요합니다.")
+      router.push("/login")
+      return
+    }
 
-  // post.likes가 변경될 때만 likesCount 업데이트
+    const reason = prompt("신고 사유를 입력해주세요:")
+    if (!reason) return
+
+    console.log(`[PostActions] Reporting post: ${post.id}`)
+
+    try {
+      const response = await fetch("/api/reports", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          postId: post.id,
+          userId: user.id,
+          reason,
+        }),
+      })
+
+      if (response.ok) {
+        toast.success("신고가 접수되었습니다.")
+      } else {
+        toast.error("신고 접수에 실패했습니다.")
+      }
+    } catch (error) {
+      console.error(`[PostActions] Error reporting post:`, error)
+      toast.error("신고 처리 중 오류가 발생했습니다.")
+    }
+  }, [user, post.id, router])
+
+  // 컴포넌트 마운트 시 사용자 데이터 로드
   useEffect(() => {
-    console.log(`[PostActions] Updating likes count from ${likesCount} to ${post.likes}`)
-    setLikesCount(post.likes || 0)
-  }, [post.likes])
+    console.log(`[PostActions] useEffect triggered for post: ${post.id}, initialized: ${hasInitialized}`)
+    loadUserData()
+  }, [loadUserData])
+
+  // post.likes 변경 시 likeCount 업데이트
+  useEffect(() => {
+    if (post.likes !== likeCount) {
+      console.log(`[PostActions] Updating like count from ${likeCount} to ${post.likes}`)
+      setLikeCount(post.likes || 0)
+    }
+  }, [post.likes, likeCount])
+
+  const canDeletePost = isAdmin || post.author_id === user?.id
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-between border-t border-b border-black py-4 mb-8">
+        <div className="flex items-center space-x-4">
+          <div className="h-8 w-20 bg-gray-200 animate-pulse rounded-none"></div>
+          <div className="h-8 w-24 bg-gray-200 animate-pulse rounded-none"></div>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="flex items-center space-x-4 py-6 border-t border-gray-200">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={handleLike}
-        disabled={isLoading}
-        className={`flex items-center space-x-2 ${
-          isLiked ? "text-red-600 hover:text-red-700" : "text-gray-600 hover:text-gray-700"
-        }`}
-      >
-        <Heart className={`h-5 w-5 ${isLiked ? "fill-current" : ""}`} />
-        <span className="tracking-wider font-light">{isLoading ? "..." : likesCount}</span>
-      </Button>
+    <div className="flex items-center justify-between border-t border-b border-black py-4 mb-8">
+      <div className="flex items-center space-x-4">
+        <Button
+          onClick={handleLike}
+          disabled={isLiking || !user}
+          variant="outline"
+          size="sm"
+          className={`flex items-center border-black hover:bg-black hover:text-white tracking-wider font-light rounded-none ${
+            isLiked ? "bg-black text-white" : "bg-white text-black"
+          }`}
+        >
+          <Heart className={`h-4 w-4 mr-2 ${isLiked ? "fill-current" : ""}`} />
+          {isLiking ? "..." : `LIKE ${likeCount}`}
+        </Button>
 
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={handleShare}
-        className="flex items-center space-x-2 text-gray-600 hover:text-gray-700"
-      >
-        <Share2 className="h-5 w-5" />
-        <span className="tracking-wider font-light">SHARE</span>
-      </Button>
+        <Button
+          onClick={handleShare}
+          variant="outline"
+          size="sm"
+          className="flex items-center border-black hover:bg-black hover:text-white tracking-wider font-light rounded-none"
+        >
+          <Share2 className="h-4 w-4 mr-2" />
+          SHARE
+        </Button>
+      </div>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-gray-100 rounded-none">
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="border border-black rounded-none">
+          <DropdownMenuItem onClick={handleReport} className="tracking-wider font-light">
+            <Flag className="h-4 w-4 mr-2" />
+            REPORT
+          </DropdownMenuItem>
+
+          {canDeletePost && (
+            <DropdownMenuItem
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="text-red-600 focus:text-red-600 tracking-wider font-light"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              {isDeleting ? "DELETING..." : "DELETE"}
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
-}
+})
+
+export default PostActions
