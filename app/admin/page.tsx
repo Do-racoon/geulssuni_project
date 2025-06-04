@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import AdminDashboard from "@/components/admin/admin-dashboard"
 import AdminLoginForm from "@/components/admin/admin-login-form"
@@ -23,121 +23,177 @@ export default function AdminPage() {
 
   const [showDebug, setShowDebug] = useState(false)
   const supabase = createClientComponentClient()
+  const checkingRef = useRef(false)
+  const mountedRef = useRef(true)
 
   const checkAuth = async () => {
+    // 중복 실행 방지
+    if (checkingRef.current) {
+      console.log("🔄 Auth check already in progress, skipping")
+      return
+    }
+
+    checkingRef.current = true
+
     try {
+      console.log("🔍 Starting auth check...")
       setAuthState((prev) => ({ ...prev, isLoading: true, error: undefined }))
 
-      // 1. 세션 확인
+      // 1. 세션 확인 with timeout
+      const sessionPromise = supabase.auth.getSession()
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Session check timeout")), 10000),
+      )
+
       const {
         data: { session },
         error: sessionError,
-      } = await supabase.auth.getSession()
+      } = (await Promise.race([sessionPromise, timeoutPromise])) as any
 
-      console.log("Session check:", session, sessionError)
+      console.log("Session check result:", {
+        hasSession: !!session,
+        userId: session?.user?.id,
+        email: session?.user?.email,
+        error: sessionError?.message,
+      })
 
       if (sessionError) {
         console.error("Session error:", sessionError)
-        setAuthState({
-          isLoading: false,
-          isAuthenticated: false,
-          isAdmin: false,
-          user: null,
-          error: undefined,
-        })
+        if (mountedRef.current) {
+          setAuthState({
+            isLoading: false,
+            isAuthenticated: false,
+            isAdmin: false,
+            user: null,
+            error: undefined,
+          })
+        }
         return
       }
 
       if (!session || !session.user) {
         console.log("No session or user found")
-        setAuthState({
-          isLoading: false,
-          isAuthenticated: false,
-          isAdmin: false,
-          user: null,
-        })
+        if (mountedRef.current) {
+          setAuthState({
+            isLoading: false,
+            isAuthenticated: false,
+            isAdmin: false,
+            user: null,
+          })
+        }
         return
       }
 
       const user = session.user
-      console.log("User from session:", user)
+      console.log("User from session:", user.id, user.email)
 
-      // 2. 사용자 역할 확인 - 먼저 ID로, 실패하면 이메일로
+      // 2. 사용자 역할 확인 with timeout
       let userData = null
       let dbError = null
 
-      // ID로 검색 시도
-      const { data: userByIdData, error: userByIdError } = await supabase
-        .from("users")
-        .select("role, email, name, is_active")
-        .eq("id", user.id)
-        .single()
+      try {
+        // ID로 검색 시도
+        const userByIdPromise = supabase.from("users").select("role, email, name, is_active").eq("id", user.id).single()
 
-      if (userByIdError) {
-        console.log("User not found by ID, trying email:", user.email)
+        const { data: userByIdData, error: userByIdError } = (await Promise.race([
+          userByIdPromise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error("User query timeout")), 8000)),
+        ])) as any
 
-        // 이메일로 검색 시도
-        const { data: userByEmailData, error: userByEmailError } = await supabase
-          .from("users")
-          .select("role, email, name, is_active")
-          .eq("email", user.email)
-          .single()
+        if (userByIdError) {
+          console.log("User not found by ID, trying email:", user.email)
 
-        userData = userByEmailData
-        dbError = userByEmailError
-      } else {
-        userData = userByIdData
-        dbError = userByIdError
+          // 이메일로 검색 시도
+          const userByEmailPromise = supabase
+            .from("users")
+            .select("role, email, name, is_active")
+            .eq("email", user.email)
+            .single()
+
+          const { data: userByEmailData, error: userByEmailError } = (await Promise.race([
+            userByEmailPromise,
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Email query timeout")), 8000)),
+          ])) as any
+
+          userData = userByEmailData
+          dbError = userByEmailError
+        } else {
+          userData = userByIdData
+          dbError = userByIdError
+        }
+      } catch (queryError) {
+        console.error("Database query error:", queryError)
+        dbError = queryError
       }
 
       console.log("User data from DB:", userData, dbError)
 
       if (dbError) {
         console.error("Database error:", dbError)
-        setAuthState({
-          isLoading: false,
-          isAuthenticated: true,
-          isAdmin: false,
-          user: user,
-          error: `데이터베이스 오류: ${dbError.message}`,
-        })
+        if (mountedRef.current) {
+          setAuthState({
+            isLoading: false,
+            isAuthenticated: true,
+            isAdmin: false,
+            user: user,
+            error: `데이터베이스 연결 오류: ${dbError.message}`,
+          })
+        }
         return
       }
 
       const isAdmin = userData?.role === "admin"
       console.log("Is admin:", isAdmin, "Role:", userData?.role)
 
-      setAuthState({
-        isLoading: false,
-        isAuthenticated: true,
-        isAdmin,
-        user: { ...user, ...userData },
-      })
+      if (mountedRef.current) {
+        setAuthState({
+          isLoading: false,
+          isAuthenticated: true,
+          isAdmin,
+          user: { ...user, ...userData },
+        })
+      }
     } catch (error) {
       console.error("Auth check error:", error)
-      setAuthState({
-        isLoading: false,
-        isAuthenticated: false,
-        isAdmin: false,
-        user: null,
-        error: error instanceof Error ? error.message : "인증 확인 중 오류가 발생했습니다.",
-      })
+      if (mountedRef.current) {
+        setAuthState({
+          isLoading: false,
+          isAuthenticated: false,
+          isAdmin: false,
+          user: null,
+          error: error instanceof Error ? error.message : "인증 확인 중 오류가 발생했습니다.",
+        })
+      }
+    } finally {
+      checkingRef.current = false
     }
   }
 
   useEffect(() => {
+    mountedRef.current = true
+
+    // 초기 인증 체크
     checkAuth()
 
+    // 인증 상태 변경 리스너
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("Auth state changed:", event, session?.user?.email)
+
+      // 상태 변경 시 약간의 지연 후 체크 (중복 실행 방지)
       setTimeout(() => {
-        checkAuth()
-      }, 100)
+        if (mountedRef.current && !checkingRef.current) {
+          checkAuth()
+        }
+      }, 500)
     })
 
-    return () => subscription.unsubscribe()
+    // 컴포넌트 언마운트 시 정리
+    return () => {
+      mountedRef.current = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   // 로딩 중
@@ -163,7 +219,13 @@ export default function AdminPage() {
               <p className="text-sm mt-1">{authState.error}</p>
             </div>
           )}
-          <AdminLoginForm onLoginSuccess={checkAuth} />
+          <AdminLoginForm
+            onLoginSuccess={() => {
+              if (!checkingRef.current) {
+                setTimeout(checkAuth, 1000)
+              }
+            }}
+          />
 
           <button
             onClick={() => setShowDebug(!showDebug)}
@@ -197,7 +259,10 @@ export default function AdminPage() {
               onClick={async () => {
                 console.log("Signing out...")
                 await supabase.auth.signOut()
-                setTimeout(checkAuth, 100)
+                // 로그아웃 후 페이지 새로고침
+                setTimeout(() => {
+                  window.location.href = "/admin/login"
+                }, 1000)
               }}
               className="w-full bg-gray-600 text-white py-2 px-4 rounded hover:bg-gray-700"
             >
