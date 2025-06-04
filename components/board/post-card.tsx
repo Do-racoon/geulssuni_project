@@ -1,230 +1,158 @@
 "use client"
 
+import { memo } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { useState } from "react"
-import { Heart, MessageCircle, Pin, Trash2, MoreVertical } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import type { BoardPost } from "@/lib/api/board"
+import { Eye, Heart, MessageCircle, Clock } from "lucide-react"
 
 interface PostCardProps {
-  post: BoardPost
-  onLike: (postId: string) => void
-  isAdmin?: boolean
-  onDelete?: (postId: string) => void
-  onTogglePin?: (postId: string) => void
+  post: {
+    id: string
+    title: string
+    content: string
+    category: string
+    type: string
+    created_at: string
+    views: number
+    likes: number
+    comments_count: number
+    author: {
+      id: string
+      name: string
+    }
+    author_id: string
+  }
 }
 
-// HTML 태그 제거 및 텍스트만 추출하는 함수
-const cleanContent = (content: string) => {
-  if (!content) return ""
+function PostCard({ post }: PostCardProps) {
+  console.log(`[PostCard] Rendering card for post: ${post.id}`)
 
-  // 이미지 태그를 [이미지] 텍스트로 변경
-  let cleanText = content.replace(/<img[^>]*>/g, "")
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60))
 
-  // 다른 HTML 태그 모두 제거
-  cleanText = cleanText.replace(/<[^>]*>/g, "")
-
-  // 연속된 공백과 줄바꿈 정리
-  cleanText = cleanText.replace(/\s+/g, " ").trim()
-
-  // src="..." 같은 잘못된 텍스트 제거
-  cleanText = cleanText.replace(/src="[^"]*"/g, "")
-
-  return cleanText
-}
-
-export default function PostCard({ post, onLike, isAdmin = false, onDelete, onTogglePin }: PostCardProps) {
-  const [isDeleting, setIsDeleting] = useState(false)
-
-  const formattedDate = new Date(post.created_at).toLocaleDateString("ko-KR", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  })
-
-  const getCategoryLabel = (category: string, type: string) => {
-    if (type === "free") {
-      switch (category) {
-        case "general":
-          return "FREE"
-        case "sharing":
-          return "SHARE"
-        case "open":
-          return "QUESTION"
-        case "tech":
-          return "TECH"
-        case "design":
-          return "DESIGN"
-        default:
-          return category.toUpperCase()
-      }
-    }
-    return category.toUpperCase()
-  }
-
-  const getCategoryColor = (category: string, type: string) => {
-    if (type === "free") {
-      switch (category) {
-        case "general":
-          return "bg-white text-black border border-black"
-        case "sharing":
-          return "bg-white text-black border border-black"
-        case "open":
-          return "bg-white text-black border border-black"
-        case "tech":
-          return "bg-white text-black border border-black"
-        case "design":
-          return "bg-white text-black border border-black"
-        default:
-          return "bg-white text-black border border-black"
-      }
-    }
-    return "bg-white text-black border border-black"
-  }
-
-  const handleDelete = async () => {
-    if (!confirm("정말로 이 게시글을 삭제하시겠습니까?")) {
-      return
-    }
-
-    setIsDeleting(true)
-    try {
-      const response = await fetch(`/api/board-posts/${post.id}`, {
-        method: "DELETE",
+    if (diffInHours < 1) {
+      return "방금 전"
+    } else if (diffInHours < 24) {
+      return `${diffInHours}시간 전`
+    } else if (diffInHours < 24 * 7) {
+      const days = Math.floor(diffInHours / 24)
+      return `${days}일 전`
+    } else {
+      return date.toLocaleDateString("ko-KR", {
+        month: "short",
+        day: "numeric",
       })
-
-      if (response.ok) {
-        onDelete?.(post.id)
-      } else {
-        alert("게시글 삭제에 실패했습니다.")
-      }
-    } catch (error) {
-      console.error("Delete error:", error)
-      alert("게시글 삭제 중 오류가 발생했습니다.")
-    } finally {
-      setIsDeleting(false)
     }
   }
 
-  const handleTogglePin = async () => {
-    try {
-      const response = await fetch(`/api/board-posts/${post.id}/pin`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ is_pinned: !post.is_pinned }),
-      })
-
-      if (response.ok) {
-        onTogglePin?.(post.id)
-      } else {
-        alert("게시글 고정 상태 변경에 실패했습니다.")
-      }
-    } catch (error) {
-      console.error("Pin toggle error:", error)
-      alert("게시글 고정 상태 변경 중 오류가 발생했습니다.")
+  const getCategoryLabel = (category: string) => {
+    switch (category) {
+      case "general":
+        return "FREE"
+      case "sharing":
+        return "SHARE"
+      case "question":
+        return "QUESTION"
+      case "tech":
+        return "TECH"
+      case "design":
+        return "DESIGN"
+      default:
+        return category.toUpperCase()
     }
   }
 
-  // 사용자 이름으로 아바타 이미지 생성
+  const getTypeLabel = (type: string) => {
+    switch (type) {
+      case "free":
+        return "FREE"
+      case "notice":
+        return "NOTICE"
+      case "qna":
+        return "Q&A"
+      default:
+        return type.toUpperCase()
+    }
+  }
+
   const getAvatarUrl = (name: string) => {
     return `/placeholder.svg?height=32&width=32&query=${encodeURIComponent(name || "user")}`
   }
 
+  // content에서 HTML 태그 제거하고 미리보기 텍스트 생성
+  const getPreviewText = (content: string, maxLength = 150) => {
+    if (!content) return ""
+
+    // HTML 태그 제거
+    const textOnly = content.replace(/<[^>]*>/g, "")
+
+    // 길이 제한
+    if (textOnly.length <= maxLength) {
+      return textOnly
+    }
+
+    return textOnly.substring(0, maxLength) + "..."
+  }
+
   return (
-    <div className="border border-black bg-white hover:shadow-md transition-shadow h-[420px] flex flex-col">
-      <div className="p-6 flex flex-col h-full">
-        <div className="flex justify-between items-start mb-4">
-          <div className="flex-1">
-            <div className="flex items-center mb-2">
-              {post.is_pinned && (
-                <span className="mr-2 text-black">
-                  <Pin className="h-4 w-4" />
-                </span>
-              )}
-              <span
-                className={`text-xs px-2 py-1 ${getCategoryColor(post.category, post.type)} tracking-wider font-light`}
-              >
-                {getCategoryLabel(post.category, post.type)}
-              </span>
-            </div>
-            <Link href={`/board/${post.id}`} className="block">
-              <h3 className="text-xl font-light tracking-wider hover:underline">{post.title}</h3>
-            </Link>
+    <Link href={`/board/${post.id}`} className="block">
+      <div className="border border-gray-200 hover:border-black transition-colors p-6 bg-white hover:shadow-sm">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center space-x-2">
+            <span className="text-xs px-2 py-1 bg-white text-black border border-black tracking-wider font-light">
+              {getCategoryLabel(post.category)}
+            </span>
+            <span className="text-xs text-gray-500 tracking-wider font-light">{getTypeLabel(post.type)}</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="text-xs text-gray-500 tracking-wider">{formattedDate}</div>
-            {isAdmin && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-gray-100">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="border border-black">
-                  <DropdownMenuItem onClick={handleTogglePin} className="tracking-wider font-light">
-                    <Pin className="h-4 w-4 mr-2" />
-                    {post.is_pinned ? "UNPIN" : "PIN"}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={handleDelete}
-                    disabled={isDeleting}
-                    className="text-red-600 tracking-wider font-light"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    {isDeleting ? "DELETING..." : "DELETE"}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
+          <div className="flex items-center text-xs text-gray-500 tracking-wider font-light">
+            <Clock className="h-3 w-3 mr-1" />
+            {formatDate(post.created_at)}
           </div>
         </div>
 
-        <Link href={`/board/${post.id}`} className="block flex-1">
-          <div className="mb-1 h-[60px] overflow-hidden">
-            <p className="text-gray-700 line-clamp-3 font-light">{cleanContent(post.content)}</p>
-          </div>
+        <h3 className="text-lg font-light tracking-wider mb-3 line-clamp-2 hover:text-gray-700 transition-colors">
+          {post.title}
+        </h3>
 
-          {post.image_url && (
-            <div className="mb-4">
-              <div className="relative h-36 w-full overflow-hidden rounded border border-gray-200">
-                <Image src={post.image_url || "/placeholder.svg"} alt={post.title} fill className="object-cover" />
-              </div>
-            </div>
-          )}
-        </Link>
+        <p className="text-gray-600 text-sm leading-relaxed mb-4 line-clamp-3 font-light">
+          {getPreviewText(post.content)}
+        </p>
 
-        <div className="flex items-center justify-between mt-auto pt-2 border-t border-gray-100">
+        <div className="flex items-center justify-between">
           <div className="flex items-center">
-            <div className="relative w-8 h-8 overflow-hidden mr-2">
-              <Image src={getAvatarUrl(post.author?.name || "Anonymous")} alt={post.author?.name || "Author"} fill />
+            <div className="relative w-6 h-6 overflow-hidden mr-2">
+              <Image
+                src={getAvatarUrl(post.author?.name || "Anonymous")}
+                alt={post.author?.name || "Author"}
+                fill
+                className="object-cover"
+                style={{ objectFit: "cover" }}
+              />
             </div>
-            <span className="text-sm tracking-wider font-light">{post.author?.name}</span>
+            <span className="text-sm text-gray-700 tracking-wider font-light">{post.author?.name || "Anonymous"}</span>
           </div>
 
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                onLike(post.id)
-              }}
-              className={`flex items-center text-sm ${post.isLiked ? "text-black" : "text-gray-500"} hover:text-black transition-colors`}
-              aria-label={post.isLiked ? "좋아요 취소" : "좋아요"}
-            >
-              <Heart className={`h-4 w-4 mr-1 ${post.isLiked ? "fill-black" : ""}`} />
-              <span className="tracking-wider font-light">{post.likes}</span>
-            </button>
-            <div className="flex items-center text-sm text-gray-500">
-              <MessageCircle className="h-4 w-4 mr-1" />
+          <div className="flex items-center space-x-4 text-xs text-gray-500">
+            <div className="flex items-center">
+              <Eye className="h-3 w-3 mr-1" />
+              <span className="tracking-wider font-light">{post.views || 0}</span>
+            </div>
+            <div className="flex items-center">
+              <Heart className="h-3 w-3 mr-1" />
+              <span className="tracking-wider font-light">{post.likes || 0}</span>
+            </div>
+            <div className="flex items-center">
+              <MessageCircle className="h-3 w-3 mr-1" />
               <span className="tracking-wider font-light">{post.comments_count || 0}</span>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </Link>
   )
 }
+
+// React.memo를 사용하여 불필요한 리렌더링 방지
+export default memo(PostCard)

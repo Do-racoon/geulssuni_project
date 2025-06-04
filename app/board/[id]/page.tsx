@@ -21,9 +21,11 @@ function isValidUUID(str: string): boolean {
 }
 
 export default async function BoardPostPage({ params }: BoardPostPageProps) {
+  console.log(`[BoardPostPage] Loading post with ID: ${params.id}`)
+
   // UUID 형식 검증
   if (!isValidUUID(params.id)) {
-    console.log("Invalid UUID format:", params.id)
+    console.log(`[BoardPostPage] Invalid UUID format: ${params.id}`)
     notFound()
   }
 
@@ -32,8 +34,9 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
     try {
       // 서버 컴포넌트용 Supabase 클라이언트 생성
       supabase = createServerClient()
+      console.log(`[BoardPostPage] Supabase server client created`)
     } catch (error) {
-      console.error("Failed to create Supabase client:", error)
+      console.error("[BoardPostPage] Failed to create Supabase client:", error)
       return (
         <div className="container mx-auto py-24 px-4">
           <h1 className="text-2xl font-bold text-red-600">데이터베이스 연결 오류</h1>
@@ -47,10 +50,13 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
 
     async function checkIfAssignment(id: string) {
       try {
+        console.log(`[BoardPostPage] Checking if ${id} is an assignment`)
         const { data: assignmentData, error } = await supabase.from("assignments").select("id").eq("id", id).single()
-        return !error && assignmentData
+        const isAssignment = !error && assignmentData
+        console.log(`[BoardPostPage] Assignment check result: ${isAssignment}`)
+        return isAssignment
       } catch (error) {
-        console.error("Error checking assignments:", error)
+        console.error("[BoardPostPage] Error checking assignments:", error)
         return false
       }
     }
@@ -58,14 +64,16 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
     // 조회수 증가 함수
     async function incrementViews(postId: string) {
       try {
+        console.log(`[BoardPostPage] Incrementing views for post: ${postId}`)
         await supabase.rpc("increment_post_views", { post_id: postId })
+        console.log(`[BoardPostPage] Views incremented successfully`)
       } catch (error) {
-        console.error("Error incrementing views:", error)
+        console.error("[BoardPostPage] Error incrementing views:", error)
       }
     }
 
     try {
-      console.log("Querying post with ID:", params.id)
+      console.log(`[BoardPostPage] Querying post with ID: ${params.id}`)
 
       const { data: post, error } = await supabase
         .from("board_posts")
@@ -77,21 +85,21 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
         .single()
 
       if (error) {
-        console.log("Database error occurred:", error)
+        console.log(`[BoardPostPage] Database error occurred:`, error)
 
         if (error.code === "PGRST116") {
-          console.log("No rows found, checking assignments...")
+          console.log(`[BoardPostPage] No rows found, checking assignments...`)
           const isAssignment = await checkIfAssignment(params.id)
 
           if (isAssignment) {
-            console.log("Found assignment, redirecting...")
+            console.log(`[BoardPostPage] Found assignment, redirecting...`)
             redirect(`/board/assignment/${params.id}`)
           }
 
-          console.log("Not found in any table")
+          console.log(`[BoardPostPage] Not found in any table`)
           notFound()
         } else {
-          console.error("Database error details:", error)
+          console.error(`[BoardPostPage] Database error details:`, error)
           return (
             <div className="container mx-auto py-24 px-4">
               <h1 className="text-2xl font-bold text-red-600">데이터베이스 오류</h1>
@@ -105,7 +113,7 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
       }
 
       if (!post) {
-        console.log("Post is null")
+        console.log(`[BoardPostPage] Post is null`)
         notFound()
       }
 
@@ -113,10 +121,10 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
       try {
         await incrementViews(params.id)
       } catch (error) {
-        console.error("Failed to increment views:", error)
+        console.error("[BoardPostPage] Failed to increment views:", error)
       }
 
-      console.log("Post found:", post.title)
+      console.log(`[BoardPostPage] Post found: ${post.title}`)
 
       const formattedDate = new Date(post.created_at).toLocaleDateString("ko-KR", {
         year: "numeric",
@@ -180,7 +188,7 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
 
           return fixedContent
         } catch (error) {
-          console.error("Error fixing HTML content:", error)
+          console.error("[BoardPostPage] Error fixing HTML content:", error)
           return content.replace(/<[^>]*>/g, "")
         }
       }
@@ -199,7 +207,7 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
             return <div className="whitespace-pre-wrap text-gray-800 leading-relaxed font-light">{fixedContent}</div>
           }
         } catch (error) {
-          console.error("Error rendering content:", error)
+          console.error("[BoardPostPage] Error rendering content:", error)
           return <div className="whitespace-pre-wrap text-gray-800 leading-relaxed font-light">{post.content}</div>
         }
       }
@@ -274,7 +282,7 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
         </main>
       )
     } catch (error) {
-      console.error("Unexpected error in BoardPostPage:", error)
+      console.error("[BoardPostPage] Unexpected error in query section:", error)
 
       return (
         <div className="container mx-auto py-24 px-4">
@@ -305,7 +313,7 @@ export default async function BoardPostPage({ params }: BoardPostPageProps) {
       )
     }
   } catch (error) {
-    console.error("Unexpected error in BoardPostPage:", error)
+    console.error("[BoardPostPage] Unexpected error in main function:", error)
     return (
       <div className="container mx-auto py-24 px-4">
         <h1 className="text-2xl font-bold text-red-600">시스템 오류</h1>

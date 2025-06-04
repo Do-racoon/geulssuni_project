@@ -3,13 +3,21 @@ import type { Database } from "@/types/supabase"
 
 // 단일 클라이언트 인스턴스를 위한 싱글톤 패턴
 let _supabaseInstance: any = null
+let _instanceCount = 0
 
 export function createSupabaseClient() {
   if (_supabaseInstance) {
+    console.log(`[Supabase] Reusing existing client instance (count: ${_instanceCount})`)
     return _supabaseInstance
   }
 
+  console.log(`[Supabase] Creating new client instance`)
   _supabaseInstance = createClientComponentClient<Database>()
+  _instanceCount++
+
+  // 인스턴스 생성 추적
+  console.log(`[Supabase] Client instance created (total: ${_instanceCount})`)
+
   return _supabaseInstance
 }
 
@@ -18,11 +26,13 @@ export const createClient = createSupabaseClient
 export const createSupabaseClientTyped = createSupabaseClient
 export const getSupabaseClient = createSupabaseClient
 
-// 지연 초기화된 인스턴스
+// 지연 초기화된 인스턴스 - 더 안전한 프록시 구현
 export const supabase = new Proxy({} as any, {
   get(target, prop) {
     if (!_supabaseInstance) {
+      console.log(`[Supabase] Lazy initializing client for property: ${String(prop)}`)
       _supabaseInstance = createClientComponentClient<Database>()
+      _instanceCount++
     }
     return _supabaseInstance[prop]
   },
@@ -40,6 +50,21 @@ export async function testSupabaseConnection() {
     console.error("Supabase connection test failed:", error)
     return { success: false, error }
   }
+}
+
+// 인스턴스 상태 확인 함수
+export function getInstanceInfo() {
+  return {
+    hasInstance: !!_supabaseInstance,
+    instanceCount: _instanceCount,
+  }
+}
+
+// 강제 리셋 함수 (디버깅용)
+export function resetSupabaseInstance() {
+  console.log(`[Supabase] Resetting instance (was count: ${_instanceCount})`)
+  _supabaseInstance = null
+  _instanceCount = 0
 }
 
 // 파일 업로드 헬퍼 함수

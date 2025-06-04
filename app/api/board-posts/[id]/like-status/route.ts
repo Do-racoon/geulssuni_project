@@ -1,19 +1,21 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
-import { NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from "next/server"
+import { createServerClient } from "@/lib/supabase/server"
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+  console.log(`[API] Checking like status for post: ${params.id}`)
+
   try {
+    const supabase = createServerClient()
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get("userId")
 
     if (!userId) {
-      return NextResponse.json({ error: "사용자 ID가 필요합니다." }, { status: 400 })
+      console.log(`[API] No userId provided for like status check`)
+      return NextResponse.json({ isLiked: false })
     }
 
-    const supabase = createRouteHandlerClient({ cookies })
+    console.log(`[API] Checking like status for user: ${userId}, post: ${params.id}`)
 
-    // 좋아요 상태 확인
     const { data, error } = await supabase
       .from("post_likes")
       .select("id")
@@ -22,14 +24,16 @@ export async function GET(request: Request, { params }: { params: { id: string }
       .single()
 
     if (error && error.code !== "PGRST116") {
-      // PGRST116는 결과가 없을 때 발생하는 에러 코드
-      console.error("Error checking like status:", error)
-      return NextResponse.json({ error: "좋아요 상태 확인 중 오류가 발생했습니다." }, { status: 500 })
+      console.error(`[API] Error checking like status:`, error)
+      return NextResponse.json({ error: "Failed to check like status" }, { status: 500 })
     }
 
-    return NextResponse.json({ isLiked: !!data })
+    const isLiked = !!data
+    console.log(`[API] Like status result: ${isLiked}`)
+
+    return NextResponse.json({ isLiked })
   } catch (error) {
-    console.error("Error checking like status:", error)
-    return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 })
+    console.error(`[API] Unexpected error checking like status:`, error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

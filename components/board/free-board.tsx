@@ -1,314 +1,319 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
+import { useState, useEffect, useCallback, useMemo } from "react"
+import { Search, Filter, ChevronDown } from "lucide-react"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import PostCard from "@/components/board/post-card"
-import { Search, Plus } from "lucide-react"
-import { getFreeBoardPosts } from "@/lib/api/board"
-import type { BoardPost } from "@/lib/api/board"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createSupabaseClient } from "@/lib/supabase/client"
 
-export default function FreeBoard() {
-  const router = useRouter()
-  const [searchQuery, setSearchQuery] = useState("")
+interface Post {
+  id: string
+  title: string
+  content: string
+  category: string
+  type: string
+  created_at: string
+  views: number
+  likes: number
+  comments_count: number
+  author: {
+    id: string
+    name: string
+  }
+  author_id: string
+}
+
+export default function FreeBoardManagement() {
+  const [posts, setPosts] = useState<Post[]>([])
+  const [filteredPosts, setFilteredPosts] = useState<Post[]>([])
+  const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
-  const [posts, setPosts] = useState<BoardPost[]>([])
-  const [filteredPosts, setFilteredPosts] = useState<BoardPost[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [user, setUser] = useState<any>(null)
-  const [userLoading, setUserLoading] = useState(true)
+  const [selectedType, setSelectedType] = useState("all")
+  const [isLoading, setIsLoading] = useState(false)
+  const [hasLoadedPosts, setHasLoadedPosts] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
 
-  // 카테고리 정의
-  const categories = [
-    { value: "all", label: "ALL" },
-    { value: "general", label: "FREE" },
-    { value: "open", label: "QUESTION" },
-    { value: "sharing", label: "SHARE" },
-  ]
+  const postsPerPage = 10
 
-  // 사용자 정보 가져오기
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        setUserLoading(true)
+  console.log(`[FreeBoardManagement] Component mounted`)
 
-        // 1단계: Supabase 세션 확인
-        const supabase = createClientComponentClient()
-        const {
-          data: { session },
-          error: sessionError,
-        } = await supabase.auth.getSession()
-
-        console.log("🔍 세션 확인:", {
-          hasSession: !!session,
-          userId: session?.user?.id,
-          userEmail: session?.user?.email,
-          sessionError: sessionError?.message,
-        })
-
-        if (!session || !session.user) {
-          console.log("❌ 세션 없음 - 로그인 상태가 아님")
-          setUser(null)
-          return
-        }
-
-        console.log("✅ 세션 존재 - 사용자 프로필 조회 시작")
-
-        // 2단계: 사용자 프로필 조회 (single() 대신 배열로 처리)
-        const { data: userProfiles, error: profileError } = await supabase
-          .from("users")
-          .select("id, name, email, role, class_level, is_active")
-          .eq("id", session.user.id)
-
-        console.log("👤 사용자 프로필 조회 결과:", {
-          found: !!userProfiles && userProfiles.length > 0,
-          count: userProfiles?.length || 0,
-          profiles: userProfiles,
-          error: profileError?.message,
-          errorCode: profileError?.code,
-          errorDetails: profileError?.details,
-        })
-
-        if (profileError) {
-          console.error("❌ 프로필 조회 오류:", profileError)
-
-          // 이메일로 다시 시도
-          console.log("📧 이메일로 사용자 검색 시도:", session.user.email)
-          const { data: userByEmail, error: emailError } = await supabase
-            .from("users")
-            .select("id, name, email, role, class_level, is_active")
-            .eq("email", session.user.email)
-
-          console.log("📧 이메일 검색 결과:", {
-            found: !!userByEmail && userByEmail.length > 0,
-            count: userByEmail?.length || 0,
-            profiles: userByEmail,
-            error: emailError?.message,
-          })
-
-          if (emailError || !userByEmail || userByEmail.length === 0) {
-            console.log("❌ 이메일로도 사용자를 찾을 수 없음")
-            setUser(null)
-            return
-          }
-
-          // 이메일로 찾은 사용자 중 첫 번째 사용
-          userProfiles = userByEmail
-        }
-
-        // 프로필이 없거나 비어있는 경우
-        if (!userProfiles || userProfiles.length === 0) {
-          console.log("❌ 사용자 프로필이 존재하지 않음")
-          setUser(null)
-          return
-        }
-
-        // 여러 프로필이 있는 경우 첫 번째 사용 (중복 데이터 처리)
-        const userProfile = userProfiles[0]
-
-        if (userProfiles.length > 1) {
-          console.warn(`⚠️ 중복된 사용자 프로필 발견 (${userProfiles.length}개), 첫 번째 프로필 사용:`, userProfile)
-        }
-
-        if (!userProfile.is_active) {
-          console.log("❌ 비활성 사용자:", {
-            hasProfile: !!userProfile,
-            isActive: userProfile.is_active,
-          })
-          setUser(null)
-          return
-        }
-
-        // 3단계: 사용자 정보 설정
-        const userData = {
-          id: userProfile.id,
-          name: userProfile.name,
-          email: userProfile.email,
-          role: userProfile.role,
-          class_level: userProfile.class_level,
-        }
-
-        console.log("✅ 사용자 인증 성공:", userData)
-        setUser(userData)
-      } catch (error) {
-        console.error("❌ 사용자 정보 가져오기 오류:", error)
-        setUser(null)
-      } finally {
-        setUserLoading(false)
+  // 게시글 로드 함수를 useCallback으로 메모이제이션
+  const loadPosts = useCallback(
+    async (page = 1) => {
+      if (hasLoadedPosts && page === 1) {
+        console.log(`[FreeBoardManagement] Posts already loaded`)
+        return
       }
-    }
 
-    fetchUser()
-  }, [])
+      setIsLoading(true)
+      console.log(`[FreeBoardManagement] Loading posts for page: ${page}`)
 
-  // 실제 데이터베이스에서 게시글 가져오기
-  useEffect(() => {
-    const loadPosts = async () => {
       try {
-        setIsLoading(true)
-        const data = await getFreeBoardPosts(selectedCategory === "all" ? "all" : selectedCategory)
-        setPosts(data)
+        const supabase = createSupabaseClient()
+        const offset = (page - 1) * postsPerPage
+
+        // 전체 게시글 수 조회
+        const { count } = await supabase
+          .from("board_posts")
+          .select("*", { count: "exact", head: true })
+          .eq("type", "free")
+
+        const totalCount = count || 0
+        const calculatedTotalPages = Math.ceil(totalCount / postsPerPage)
+
+        // 게시글 조회
+        const { data: postsData, error } = await supabase
+          .from("board_posts")
+          .select(`
+          id,
+          title,
+          content,
+          category,
+          type,
+          created_at,
+          views,
+          likes,
+          comments_count,
+          author_id,
+          author:users!author_id(id, name)
+        `)
+          .eq("type", "free")
+          .order("created_at", { ascending: false })
+          .range(offset, offset + postsPerPage - 1)
+
+        if (error) {
+          console.error(`[FreeBoardManagement] Error loading posts:`, error)
+          return
+        }
+
+        console.log(`[FreeBoardManagement] Loaded ${postsData?.length || 0} posts`)
+        setPosts(postsData || [])
+        setTotalPages(calculatedTotalPages)
+        setCurrentPage(page)
+
+        if (page === 1) {
+          setHasLoadedPosts(true)
+        }
       } catch (error) {
-        console.error("게시글 로딩 오류:", error)
-        setPosts([])
+        console.error(`[FreeBoardManagement] Unexpected error loading posts:`, error)
       } finally {
         setIsLoading(false)
       }
-    }
+    },
+    [hasLoadedPosts, postsPerPage],
+  )
 
-    loadPosts()
-  }, [selectedCategory])
+  // 검색 및 필터링 함수를 useCallback으로 메모이제이션
+  const filterPosts = useCallback(() => {
+    console.log(
+      `[FreeBoardManagement] Filtering posts with search: "${searchTerm}", category: ${selectedCategory}, type: ${selectedType}`,
+    )
 
-  // 검색 필터링
-  useEffect(() => {
-    let filtered = [...posts]
+    let filtered = posts
 
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
+    // 검색어 필터링
+    if (searchTerm.trim()) {
       filtered = filtered.filter(
         (post) =>
-          post.title.toLowerCase().includes(query) ||
-          post.content.toLowerCase().includes(query) ||
-          post.author?.name.toLowerCase().includes(query),
+          post.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          post.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          post.author.name.toLowerCase().includes(searchTerm.toLowerCase()),
       )
     }
 
+    // 카테고리 필터링
+    if (selectedCategory !== "all") {
+      filtered = filtered.filter((post) => post.category === selectedCategory)
+    }
+
+    // 타입 필터링
+    if (selectedType !== "all") {
+      filtered = filtered.filter((post) => post.type === selectedType)
+    }
+
+    console.log(`[FreeBoardManagement] Filtered ${filtered.length} posts from ${posts.length} total`)
     setFilteredPosts(filtered)
-  }, [searchQuery, posts])
+  }, [posts, searchTerm, selectedCategory, selectedType])
 
-  // 좋아요 처리 함수
-  const handleLike = async (postId: string) => {
-    if (!user) {
-      alert("좋아요를 누르려면 로그인이 필요합니다.")
-      router.push("/login")
-      return
+  // 페이지 변경 핸들러
+  const handlePageChange = useCallback(
+    (page: number) => {
+      console.log(`[FreeBoardManagement] Changing to page: ${page}`)
+      loadPosts(page)
+    },
+    [loadPosts],
+  )
+
+  // 검색어 변경 핸들러
+  const handleSearchChange = useCallback((value: string) => {
+    console.log(`[FreeBoardManagement] Search term changed: "${value}"`)
+    setSearchTerm(value)
+  }, [])
+
+  // 카테고리 변경 핸들러
+  const handleCategoryChange = useCallback((category: string) => {
+    console.log(`[FreeBoardManagement] Category changed: ${category}`)
+    setSelectedCategory(category)
+  }, [])
+
+  // 타입 변경 핸들러
+  const handleTypeChange = useCallback((type: string) => {
+    console.log(`[FreeBoardManagement] Type changed: ${type}`)
+    setSelectedType(type)
+  }, [])
+
+  // 컴포넌트 마운트 시 게시글 로드 (한 번만)
+  useEffect(() => {
+    console.log(`[FreeBoardManagement] useEffect for loadPosts triggered, hasLoaded: ${hasLoadedPosts}`)
+    loadPosts(1)
+  }, [loadPosts])
+
+  // 필터링 조건 변경 시 필터링 실행
+  useEffect(() => {
+    console.log(`[FreeBoardManagement] useEffect for filterPosts triggered`)
+    filterPosts()
+  }, [filterPosts])
+
+  // 메모이제이션된 카테고리 옵션
+  const categoryOptions = useMemo(
+    () => [
+      { value: "all", label: "ALL CATEGORIES" },
+      { value: "general", label: "GENERAL" },
+      { value: "sharing", label: "SHARING" },
+      { value: "question", label: "QUESTION" },
+      { value: "tech", label: "TECH" },
+      { value: "design", label: "DESIGN" },
+    ],
+    [],
+  )
+
+  // 메모이제이션된 타입 옵션
+  const typeOptions = useMemo(
+    () => [
+      { value: "all", label: "ALL TYPES" },
+      { value: "free", label: "FREE" },
+      { value: "notice", label: "NOTICE" },
+      { value: "qna", label: "Q&A" },
+    ],
+    [],
+  )
+
+  // 메모이제이션된 게시글 목록
+  const postList = useMemo(() => {
+    const postsToShow = searchTerm || selectedCategory !== "all" || selectedType !== "all" ? filteredPosts : posts
+
+    if (postsToShow.length === 0) {
+      return (
+        <div className="text-center py-12">
+          <p className="text-gray-500 tracking-wider font-light">
+            {isLoading ? "Loading posts..." : "No posts found."}
+          </p>
+        </div>
+      )
     }
-    // 실제 좋아요 API 호출 구현 필요
-    console.log(`좋아요: ${postId}`)
-  }
 
-  const handleWriteClick = async () => {
-    console.log("Write button clicked, user:", user)
-    console.log("User loading:", userLoading)
-
-    if (userLoading) {
-      console.log("User still loading, waiting...")
-      return
-    }
-
-    if (!user) {
-      console.log("No user found, redirecting to login")
-      alert("글을 작성하려면 로그인이 필요합니다.")
-      router.push("/login")
-      return
-    }
-
-    console.log("User authenticated, navigating to create page")
-    router.push("/board/create")
-  }
-
-  if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-          <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-            <div className="w-full sm:w-[180px] h-10 bg-gray-200 animate-pulse"></div>
-            <div className="w-full sm:w-[300px] h-10 bg-gray-200 animate-pulse"></div>
-          </div>
-          <div className="w-full sm:w-auto h-10 bg-gray-200 animate-pulse"></div>
-        </div>
-        <div className="space-y-4">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-32 bg-gray-200 animate-pulse"></div>
-          ))}
-        </div>
+      <div className="grid gap-6">
+        {postsToShow.map((post) => (
+          <PostCard key={post.id} post={post} />
+        ))}
       </div>
     )
-  }
+  }, [posts, filteredPosts, searchTerm, selectedCategory, selectedType, isLoading])
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-        <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-full sm:w-[240px] h-11 bg-white border border-black hover:bg-gray-50 focus:border-black transition-colors">
-              <SelectValue placeholder="CATEGORY" />
-            </SelectTrigger>
-            <SelectContent className="border border-black">
-              {categories.map((category) => (
-                <SelectItem key={category.value} value={category.value} className="py-3 tracking-wider font-light">
-                  {category.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <div className="relative w-full sm:w-[320px]">
-            <Search className="absolute left-3 top-3.5 h-4 w-4 text-black" />
-            <Input
-              type="search"
-              placeholder="SEARCH"
-              className="pl-10 h-11 bg-white border border-black hover:bg-gray-50 focus:border-black transition-colors tracking-wider font-light"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
+      {/* 검색 및 필터 */}
+      <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="Search posts..."
+            value={searchTerm}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            className="pl-10 border-black focus:border-black tracking-wider font-light rounded-none"
+          />
         </div>
 
-        <Button
-          onClick={handleWriteClick}
-          disabled={userLoading}
-          className="w-full sm:w-auto h-11 px-6 bg-black hover:bg-gray-800 text-white tracking-wider font-light disabled:opacity-50"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          {userLoading ? "LOADING..." : "WRITE"}
-        </Button>
+        <div className="flex gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="border-black hover:bg-black hover:text-white tracking-wider font-light rounded-none"
+              >
+                <Filter className="h-4 w-4 mr-2" />
+                {categoryOptions.find((opt) => opt.value === selectedCategory)?.label}
+                <ChevronDown className="h-4 w-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="border-black rounded-none">
+              {categoryOptions.map((option) => (
+                <DropdownMenuItem
+                  key={option.value}
+                  onClick={() => handleCategoryChange(option.value)}
+                  className="tracking-wider font-light"
+                >
+                  {option.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="border-black hover:bg-black hover:text-white tracking-wider font-light rounded-none"
+              >
+                {typeOptions.find((opt) => opt.value === selectedType)?.label}
+                <ChevronDown className="h-4 w-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="border-black rounded-none">
+              {typeOptions.map((option) => (
+                <DropdownMenuItem
+                  key={option.value}
+                  onClick={() => handleTypeChange(option.value)}
+                  className="tracking-wider font-light"
+                >
+                  {option.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
-      {/* 사용자 상태 디버그 정보 */}
-      {process.env.NODE_ENV === "development" && (
-        <div className="bg-gray-100 p-4 rounded text-sm">
-          <p>User Loading: {userLoading ? "true" : "false"}</p>
-          <p>User: {user ? `${user.name} (${user.email})` : "null"}</p>
-        </div>
-      )}
+      {/* 게시글 목록 */}
+      {postList}
 
-      {filteredPosts.length > 0 ? (
-        <div className="grid gap-4">
-          {filteredPosts.map((post) => (
-            <PostCard key={post.id} post={post} onLike={handleLike} />
-          ))}
+      {/* 페이지네이션 */}
+      {totalPages > 1 && !searchTerm && selectedCategory === "all" && selectedType === "all" && (
+        <div className="flex justify-center items-center space-x-2 mt-8">
+          <Button
+            variant="outline"
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1 || isLoading}
+            className="border-black hover:bg-black hover:text-white tracking-wider font-light rounded-none"
+          >
+            PREV
+          </Button>
+          <span className="px-4 py-2 tracking-wider font-light">
+            {currentPage} / {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages || isLoading}
+            className="border-black hover:bg-black hover:text-white tracking-wider font-light rounded-none"
+          >
+            NEXT
+          </Button>
         </div>
-      ) : (
-        <Card className="border border-black">
-          <CardContent className="flex flex-col items-center justify-center py-10">
-            <p className="text-center text-gray-500 mb-4 tracking-wider font-light">
-              {searchQuery ? "NO RESULTS FOUND" : "NO POSTS YET"}
-            </p>
-            <div className="flex gap-2">
-              {searchQuery && (
-                <Button
-                  onClick={() => setSearchQuery("")}
-                  variant="outline"
-                  className="border border-black hover:bg-gray-50 tracking-wider font-light"
-                >
-                  RESET SEARCH
-                </Button>
-              )}
-              <Button
-                onClick={handleWriteClick}
-                disabled={userLoading}
-                className="bg-black hover:bg-gray-800 text-white tracking-wider font-light disabled:opacity-50"
-              >
-                {userLoading ? "LOADING..." : "WRITE FIRST POST"}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
       )}
     </div>
   )
