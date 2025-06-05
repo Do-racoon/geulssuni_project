@@ -675,23 +675,6 @@ export default function AssignmentSubmissionsDisplay({
           </p>
         </div>
       )}
-
-      {/* 세션 없음 경고 */}
-      {!currentUser && !authLoading && (
-        <div className="bg-red-50 border border-red-200 p-4 flex items-center gap-3">
-          <AlertTriangle className="h-5 w-5 text-red-500" />
-          <div className="flex-1">
-            <p className="text-sm text-red-700">
-              <span className="font-medium">인증 세션이 만료되었습니다.</span> 관리자 기능을 사용하려면 다시
-              로그인해주세요.
-            </p>
-          </div>
-          <Button onClick={handleLoginRedirect} size="sm" className="bg-red-600 text-white hover:bg-red-700">
-            <LogIn className="h-4 w-4 mr-1" />
-            로그인
-          </Button>
-        </div>
-      )}
     </div>
   )
 }

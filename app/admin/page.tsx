@@ -25,60 +25,35 @@ export default function AdminPage() {
   const supabase = createClientComponentClient()
   const checkingRef = useRef(false)
   const mountedRef = useRef(true)
-  const retryCountRef = useRef(0)
+  const authCheckedRef = useRef(false)
 
   const checkAuth = async () => {
+    // 이미 인증 체크가 완료되었으면 다시 실행하지 않음
+    if (authCheckedRef.current) {
+      console.log("🔒 Auth already checked, skipping")
+      return
+    }
+
     // 중복 실행 방지
     if (checkingRef.current) {
       console.log("🔄 Auth check already in progress, skipping")
       return
     }
 
-    // 최대 재시도 횟수 제한
-    if (retryCountRef.current > 5) {
-      console.log("🚫 Max retry attempts reached")
-      if (mountedRef.current) {
-        setAuthState({
-          isLoading: false,
-          isAuthenticated: false,
-          isAdmin: false,
-          user: null,
-          error: "인증 확인 중 오류가 발생했습니다. 페이지를 새로고침해주세요.",
-        })
-      }
-      return
-    }
-
     checkingRef.current = true
-    retryCountRef.current++
 
     try {
-      console.log(`🔍 Starting auth check (attempt ${retryCountRef.current})...`)
+      console.log("🔍 Starting auth check...")
       setAuthState((prev) => ({ ...prev, isLoading: true, error: undefined }))
 
-      // 1. 세션 확인 with timeout
-      const sessionPromise = supabase.auth.getSession()
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Session check timeout")), 10000),
-      )
-
-      const {
-        data: { session },
-        error: sessionError,
-      } = (await Promise.race([sessionPromise, timeoutPromise])) as any
-
-      console.log("Session check result:", {
-        hasSession: !!session,
-        userId: session?.user?.id,
-        email: session?.user?.email,
-        error: sessionError?.message,
-        attempt: retryCountRef.current,
-      })
+      // 1. 세션 확인
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
 
       if (sessionError) {
-        console.error("Session error:", sessionError)
         throw new Error(`세션 오류: ${sessionError.message}`)
       }
+
+      const session = sessionData.session
 
       if (!session || !session.user) {
         console.log("No session or user found")
@@ -89,6 +64,7 @@ export default function AdminPage() {
             isAdmin: false,
             user: null,
           })
+          authCheckedRef.current = true
         }
         return
       }
@@ -96,69 +72,74 @@ export default function AdminPage() {
       const user = session.user
       console.log("User from session:", user.id, user.email)
 
-      // 2. 사용자 역할 확인 with timeout and retry
-      let userData = null
-      let dbError = null
-
+      // 2. 사용자 역할 확인 - 간소화된 버전
       try {
         // ID로 검색 시도
-        const userByIdPromise = supabase.from("users").select("role, email, name, is_active").eq("id", user.id).single()
+        const { data: userData, error: userError } = await supabase
+          .from("users")
+          .select("role, email, name, is_active")
+          .eq("id", user.id)
+          .single()
 
-        const { data: userByIdData, error: userByIdError } = (await Promise.race([
-          userByIdPromise,
-          new Promise((_, reject) => setTimeout(() => reject(new Error("User query timeout")), 8000)),
-        ])) as any
+        if (userError) {
+          throw userError
+        }
 
-        if (userByIdError) {
-          console.log("User not found by ID, trying email:", user.email)
+        const isAdmin = userData?.role === "admin"
+        console.log("Is admin:", isAdmin, "Role:", userData?.role)
 
-          // 이메일로 검색 시도
-          const userByEmailPromise = supabase
+        if (mountedRef.current) {
+          setAuthState({
+            isLoading: false,
+            isAuthenticated: true,
+            isAdmin,
+            user: { ...user, ...userData },
+          })
+          authCheckedRef.current = true
+        }
+      } catch (dbError) {
+        console.error("Database error:", dbError)
+
+        // 이메일로 재시도
+        try {
+          const { data: userByEmail, error: emailError } = await supabase
             .from("users")
             .select("role, email, name, is_active")
             .eq("email", user.email)
             .single()
 
-          const { data: userByEmailData, error: userByEmailError } = (await Promise.race([
-            userByEmailPromise,
-            new Promise((_, reject) => setTimeout(() => reject(new Error("Email query timeout")), 8000)),
-          ])) as any
+          if (emailError) {
+            throw emailError
+          }
 
-          userData = userByEmailData
-          dbError = userByEmailError
-        } else {
-          userData = userByIdData
-          dbError = userByIdError
+          const isAdmin = userByEmail?.role === "admin"
+          console.log("Is admin (by email):", isAdmin, "Role:", userByEmail?.role)
+
+          if (mountedRef.current) {
+            setAuthState({
+              isLoading: false,
+              isAuthenticated: true,
+              isAdmin,
+              user: { ...user, ...userByEmail },
+            })
+            authCheckedRef.current = true
+          }
+        } catch (finalError) {
+          console.error("Final database error:", finalError)
+          if (mountedRef.current) {
+            setAuthState({
+              isLoading: false,
+              isAuthenticated: true,
+              isAdmin: false,
+              user: user,
+              error: `데이터베이스 오류: ${finalError.message}`,
+            })
+            authCheckedRef.current = true
+          }
         }
-      } catch (queryError) {
-        console.error("Database query error:", queryError)
-        dbError = queryError
       }
-
-      console.log("User data from DB:", userData, dbError)
-
-      if (dbError) {
-        console.error("Database error:", dbError)
-        throw new Error(`데이터베이스 오류: ${dbError.message}`)
-      }
-
-      const isAdmin = userData?.role === "admin"
-      console.log("Is admin:", isAdmin, "Role:", userData?.role)
-
-      if (mountedRef.current) {
-        setAuthState({
-          isLoading: false,
-          isAuthenticated: true,
-          isAdmin,
-          user: { ...user, ...userData },
-        })
-      }
-
-      // 성공 시 재시도 카운터 리셋
-      retryCountRef.current = 0
     } catch (error) {
       console.error("Auth check error:", error)
-
       if (mountedRef.current) {
         setAuthState({
           isLoading: false,
@@ -167,16 +148,7 @@ export default function AdminPage() {
           user: null,
           error: error instanceof Error ? error.message : "인증 확인 중 오류가 발생했습니다.",
         })
-      }
-
-      // 네트워크 오류인 경우 재시도
-      if (retryCountRef.current <= 3 && error instanceof Error && error.message.includes("timeout")) {
-        console.log(`🔄 Retrying auth check in 2 seconds (attempt ${retryCountRef.current + 1})...`)
-        setTimeout(() => {
-          if (mountedRef.current && !checkingRef.current) {
-            checkAuth()
-          }
-        }, 2000)
+        authCheckedRef.current = true
       }
     } finally {
       checkingRef.current = false
@@ -185,30 +157,14 @@ export default function AdminPage() {
 
   useEffect(() => {
     mountedRef.current = true
-    retryCountRef.current = 0
+    authCheckedRef.current = false
 
     // 초기 인증 체크
     checkAuth()
 
-    // 인증 상태 변경 리스너
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state changed:", event, session?.user?.email)
-
-      // 상태 변경 시 약간의 지연 후 체크 (중복 실행 방지)
-      setTimeout(() => {
-        if (mountedRef.current && !checkingRef.current) {
-          retryCountRef.current = 0 // 상태 변경 시 재시도 카운터 리셋
-          checkAuth()
-        }
-      }, 1000)
-    })
-
     // 컴포넌트 언마운트 시 정리
     return () => {
       mountedRef.current = false
-      subscription.unsubscribe()
     }
   }, [])
 
@@ -219,9 +175,6 @@ export default function AdminPage() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
           <p>인증 상태 확인 중...</p>
-          {retryCountRef.current > 1 && (
-            <p className="text-sm text-gray-500 mt-2">재시도 중... ({retryCountRef.current}/5)</p>
-          )}
         </div>
       </div>
     )
@@ -238,7 +191,7 @@ export default function AdminPage() {
               <p className="text-sm mt-1">{authState.error}</p>
               <button
                 onClick={() => {
-                  retryCountRef.current = 0
+                  authCheckedRef.current = false
                   checkAuth()
                 }}
                 className="mt-2 text-sm bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700"
@@ -249,10 +202,8 @@ export default function AdminPage() {
           )}
           <AdminLoginForm
             onLoginSuccess={() => {
-              retryCountRef.current = 0
-              if (!checkingRef.current) {
-                setTimeout(checkAuth, 1000)
-              }
+              authCheckedRef.current = false
+              window.location.reload()
             }}
           />
 
@@ -289,9 +240,7 @@ export default function AdminPage() {
                 console.log("Signing out...")
                 await supabase.auth.signOut()
                 // 로그아웃 후 페이지 새로고침
-                setTimeout(() => {
-                  window.location.href = "/admin/login"
-                }, 1000)
+                window.location.reload()
               }}
               className="w-full bg-gray-600 text-white py-2 px-4 rounded hover:bg-gray-700"
             >

@@ -11,7 +11,7 @@ interface User {
   name: string
   email: string
   phone: string
-  class_name: string
+  class_level: string | null
   role: "user" | "instructor" | "admin"
   created_at: string
   is_active: boolean
@@ -171,11 +171,10 @@ export default function UserManagement() {
           name: updatedUser.name,
           email: updatedUser.email,
           phone: updatedUser.phone,
-          class_name: updatedUser.class_name,
+          class_level: updatedUser.class_level,
           role: updatedUser.role,
           is_active: updatedUser.is_active,
           nickname: updatedUser.nickname,
-          updated_at: new Date().toISOString(),
         })
         .eq("id", updatedUser.id)
 
@@ -313,11 +312,11 @@ export default function UserManagement() {
                 </th>
                 <th
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                  onClick={() => handleSort("class_name")}
+                  onClick={() => handleSort("class_level")}
                 >
                   <div className="flex items-center">
                     클래스
-                    {sortField === "class_name" &&
+                    {sortField === "class_level" &&
                       (sortDirection === "asc" ? (
                         <ChevronUp className="h-4 w-4 ml-1" />
                       ) : (
@@ -385,7 +384,7 @@ export default function UserManagement() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
-                      {user.class_name || (user.role !== "user" ? "해당없음" : "미지정")}
+                      {user.class_level || (user.role !== "user" ? "해당없음" : "미지정")}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
