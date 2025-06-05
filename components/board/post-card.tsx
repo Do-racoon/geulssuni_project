@@ -33,22 +33,31 @@ function PostCard({ post }: PostCardProps) {
   // 이미지 존재 여부 확인
   useEffect(() => {
     const checkImage = () => {
+      console.log(`[PostCard] Checking image for post ${post.id}`)
+      console.log(`[PostCard] Post image_url:`, post.image_url)
+      console.log(`[PostCard] Post content preview:`, post.content?.substring(0, 200))
+
       // 1. post.image_url 확인
       if (post.image_url && isValidImageUrl(post.image_url)) {
-        console.log(`[PostCard] Found image_url for post ${post.id}:`, post.image_url)
+        console.log(`[PostCard] ✅ Found image_url for post ${post.id}:`, post.image_url)
         setHasImage(true)
         return
       }
 
       // 2. content에서 이미지 태그 확인
-      const imgRegex = /<img[^>]+src="([^">]+)"/i
-      const match = post.content?.match(imgRegex)
-      if (match && match[1] && isValidImageUrl(match[1])) {
-        console.log(`[PostCard] Found image in content for post ${post.id}:`, match[1])
-        setHasImage(true)
-        return
+      if (post.content) {
+        const imgRegex = /<img[^>]+src="([^">]+)"/i
+        const match = post.content.match(imgRegex)
+        console.log(`[PostCard] Image regex match:`, match)
+
+        if (match && match[1] && isValidImageUrl(match[1])) {
+          console.log(`[PostCard] ✅ Found image in content for post ${post.id}:`, match[1])
+          setHasImage(true)
+          return
+        }
       }
 
+      console.log(`[PostCard] ❌ No image found for post ${post.id}`)
       setHasImage(false)
     }
 
@@ -233,10 +242,13 @@ function PostCard({ post }: PostCardProps) {
 
               {/* 이미지 아이콘 표시 */}
               {hasImage && (
-                <span className="flex items-center bg-black text-white px-2 py-1 text-xs rounded">
-                  <ImageIcon className="h-3 w-3 mr-1" />
-                  <span className="tracking-wider font-light">IMAGE</span>
-                </span>
+                <>
+                  {console.log(`[PostCard] 🏷️ Rendering IMAGE tag for post ${post.id}`)}
+                  <span className="flex items-center bg-black text-white px-2 py-1 text-xs rounded">
+                    <ImageIcon className="h-3 w-3 mr-1" />
+                    <span className="tracking-wider font-light">IMAGE</span>
+                  </span>
+                </>
               )}
             </div>
             <div className="flex items-center text-xs text-gray-500 tracking-wider font-light">
@@ -289,6 +301,12 @@ function PostCard({ post }: PostCardProps) {
           </div>
         </div>
       </div>
+      {/* 개발 환경 디버그 정보 */}
+      {process.env.NODE_ENV === "development" && (
+        <div className="text-xs text-red-500 mt-2">
+          DEBUG: hasImage={hasImage.toString()}, image_url={post.image_url || "none"}
+        </div>
+      )}
     </Link>
   )
 }

@@ -25,6 +25,7 @@ export default function AdminPage() {
   const supabase = createClientComponentClient()
   const checkingRef = useRef(false)
   const mountedRef = useRef(true)
+  const retryCountRef = useRef(0)
 
   const checkAuth = async () => {
     // 중복 실행 방지
@@ -33,10 +34,26 @@ export default function AdminPage() {
       return
     }
 
+    // 최대 재시도 횟수 제한
+    if (retryCountRef.current > 5) {
+      console.log("🚫 Max retry attempts reached")
+      if (mountedRef.current) {
+        setAuthState({
+          isLoading: false,
+          isAuthenticated: false,
+          isAdmin: false,
+          user: null,
+          error: "인증 확인 중 오류가 발생했습니다. 페이지를 새로고침해주세요.",
+        })
+      }
+      return
+    }
+
     checkingRef.current = true
+    retryCountRef.current++
 
     try {
-      console.log("🔍 Starting auth check...")
+      console.log(`🔍 Starting auth check (attempt ${retryCountRef.current})...`)
       setAuthState((prev) => ({ ...prev, isLoading: true, error: undefined }))
 
       // 1. 세션 확인 with timeout
@@ -55,20 +72,12 @@ export default function AdminPage() {
         userId: session?.user?.id,
         email: session?.user?.email,
         error: sessionError?.message,
+        attempt: retryCountRef.current,
       })
 
       if (sessionError) {
         console.error("Session error:", sessionError)
-        if (mountedRef.current) {
-          setAuthState({
-            isLoading: false,
-            isAuthenticated: false,
-            isAdmin: false,
-            user: null,
-            error: undefined,
-          })
-        }
-        return
+        throw new Error(`세션 오류: ${sessionError.message}`)
       }
 
       if (!session || !session.user) {
@@ -87,7 +96,7 @@ export default function AdminPage() {
       const user = session.user
       console.log("User from session:", user.id, user.email)
 
-      // 2. 사용자 역할 확인 with timeout
+      // 2. 사용자 역할 확인 with timeout and retry
       let userData = null
       let dbError = null
 
@@ -130,16 +139,7 @@ export default function AdminPage() {
 
       if (dbError) {
         console.error("Database error:", dbError)
-        if (mountedRef.current) {
-          setAuthState({
-            isLoading: false,
-            isAuthenticated: true,
-            isAdmin: false,
-            user: user,
-            error: `데이터베이스 연결 오류: ${dbError.message}`,
-          })
-        }
-        return
+        throw new Error(`데이터베이스 오류: ${dbError.message}`)
       }
 
       const isAdmin = userData?.role === "admin"
@@ -153,8 +153,12 @@ export default function AdminPage() {
           user: { ...user, ...userData },
         })
       }
+
+      // 성공 시 재시도 카운터 리셋
+      retryCountRef.current = 0
     } catch (error) {
       console.error("Auth check error:", error)
+
       if (mountedRef.current) {
         setAuthState({
           isLoading: false,
@@ -164,6 +168,16 @@ export default function AdminPage() {
           error: error instanceof Error ? error.message : "인증 확인 중 오류가 발생했습니다.",
         })
       }
+
+      // 네트워크 오류인 경우 재시도
+      if (retryCountRef.current <= 3 && error instanceof Error && error.message.includes("timeout")) {
+        console.log(`🔄 Retrying auth check in 2 seconds (attempt ${retryCountRef.current + 1})...`)
+        setTimeout(() => {
+          if (mountedRef.current && !checkingRef.current) {
+            checkAuth()
+          }
+        }, 2000)
+      }
     } finally {
       checkingRef.current = false
     }
@@ -171,6 +185,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     mountedRef.current = true
+    retryCountRef.current = 0
 
     // 초기 인증 체크
     checkAuth()
@@ -184,9 +199,10 @@ export default function AdminPage() {
       // 상태 변경 시 약간의 지연 후 체크 (중복 실행 방지)
       setTimeout(() => {
         if (mountedRef.current && !checkingRef.current) {
+          retryCountRef.current = 0 // 상태 변경 시 재시도 카운터 리셋
           checkAuth()
         }
-      }, 500)
+      }, 1000)
     })
 
     // 컴포넌트 언마운트 시 정리
@@ -203,6 +219,9 @@ export default function AdminPage() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
           <p>인증 상태 확인 중...</p>
+          {retryCountRef.current > 1 && (
+            <p className="text-sm text-gray-500 mt-2">재시도 중... ({retryCountRef.current}/5)</p>
+          )}
         </div>
       </div>
     )
@@ -217,10 +236,20 @@ export default function AdminPage() {
             <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg mb-4">
               <p className="font-semibold">오류 발생</p>
               <p className="text-sm mt-1">{authState.error}</p>
+              <button
+                onClick={() => {
+                  retryCountRef.current = 0
+                  checkAuth()
+                }}
+                className="mt-2 text-sm bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700"
+              >
+                다시 시도
+              </button>
             </div>
           )}
           <AdminLoginForm
             onLoginSuccess={() => {
+              retryCountRef.current = 0
               if (!checkingRef.current) {
                 setTimeout(checkAuth, 1000)
               }
