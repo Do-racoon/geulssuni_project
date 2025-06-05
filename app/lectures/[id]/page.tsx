@@ -32,6 +32,7 @@ export default function LectureDetailPage({ params }: { params: { id: string } }
   const router = useRouter()
   const [lecture, setLecture] = useState<Lecture | null>(null)
   const [loading, setLoading] = useState(true)
+  const [defaultContactUrl, setDefaultContactUrl] = useState("")
 
   useEffect(() => {
     async function fetchLecture() {
@@ -67,7 +68,23 @@ export default function LectureDetailPage({ params }: { params: { id: string } }
       }
     }
 
+    // 기본 연락처 URL 가져오기
+    const fetchDefaultContactUrl = async () => {
+      try {
+        const response = await fetch("/api/settings/default_contact_url")
+        if (response.ok) {
+          const data = await response.json()
+          if (data.value) {
+            setDefaultContactUrl(data.value)
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch default contact URL:", error)
+      }
+    }
+
     fetchLecture()
+    fetchDefaultContactUrl()
   }, [params.id])
 
   if (loading) {
@@ -165,7 +182,7 @@ export default function LectureDetailPage({ params }: { params: { id: string } }
         </div>
 
         <div className="mb-8">
-          <AskQuestionButton contactUrl={lecture.contact_url} />
+          <AskQuestionButton contactUrl={lecture.contact_url || defaultContactUrl} />
         </div>
       </div>
     </div>

@@ -2,6 +2,7 @@
 
 import { MessageCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useState, useEffect } from "react"
 
 interface AskQuestionButtonProps {
   contactUrl?: string
@@ -12,12 +13,34 @@ export default function AskQuestionButton({
   contactUrl,
   kakaoOpenChatUrl = "https://open.kakao.com/o/your-openchat-link",
 }: AskQuestionButtonProps) {
+  const [kakaoLink, setKakaoLink] = useState(kakaoOpenChatUrl)
+
+  useEffect(() => {
+    // Admin settings에서 카카오 문의 링크 가져오기
+    const fetchKakaoLink = async () => {
+      try {
+        const response = await fetch("/api/settings/default_contact_url")
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success && data.value) {
+            setKakaoLink(data.value)
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch kakao inquiry link:", error)
+        // 에러 시 기본값 사용
+      }
+    }
+
+    fetchKakaoLink()
+  }, [])
+
   const handleContact = () => {
     if (contactUrl) {
       window.open(contactUrl, "_blank", "noopener,noreferrer")
     } else {
-      // 기본 카카오톡 오픈채팅으로 이동
-      window.open(kakaoOpenChatUrl, "_blank", "noopener,noreferrer")
+      // Admin settings에서 가져온 카카오톡 링크 사용
+      window.open(kakaoLink, "_blank", "noopener,noreferrer")
     }
   }
 

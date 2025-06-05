@@ -18,7 +18,7 @@ export default function AdminSettings() {
   const [settings, setSettings] = useState({
     site_name: "",
     site_description: "",
-    kakao_inquiry_link: "",
+    default_contact_url: "",
     hero_video_url: "",
     hero_fallback_image: "",
   })
@@ -38,7 +38,7 @@ export default function AdminSettings() {
           ...prev,
           site_name: data.settings.site_name || "",
           site_description: data.settings.site_description || "",
-          kakao_inquiry_link: data.settings.kakao_inquiry_link || "",
+          default_contact_url: data.settings.default_contact_url || "",
           hero_video_url: data.settings.hero_video_url || "",
           hero_fallback_image: data.settings.hero_fallback_image || "",
         }))
@@ -225,13 +225,13 @@ export default function AdminSettings() {
             <div className="flex gap-2">
               <Input
                 id="kakaoLink"
-                value={settings.kakao_inquiry_link}
-                onChange={(e) => setSettings((prev) => ({ ...prev, kakao_inquiry_link: e.target.value }))}
+                value={settings.default_contact_url}
+                onChange={(e) => setSettings((prev) => ({ ...prev, default_contact_url: e.target.value }))}
                 placeholder="https://open.kakao.com/o/your-link"
                 disabled={isSaving}
               />
               <Button
-                onClick={() => updateSetting("kakao_inquiry_link", settings.kakao_inquiry_link)}
+                onClick={() => updateSetting("default_contact_url", settings.default_contact_url)}
                 disabled={isSaving}
                 size="sm"
               >

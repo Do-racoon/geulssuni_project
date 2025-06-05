@@ -5,12 +5,14 @@ import type React from "react"
 import { useState } from "react"
 import { X, Upload } from "lucide-react"
 import Image from "next/image"
+import { uploadFile } from "@/lib/upload-client"
 
 interface AddPortfolioModalProps {
   onClose: () => void
+  onSave: (portfolio: any) => Promise<void>
 }
 
-export default function AddPortfolioModal({ onClose }: AddPortfolioModalProps) {
+export default function AddPortfolioModal({ onClose, onSave }: AddPortfolioModalProps) {
   const [title, setTitle] = useState("")
   const [category, setCategory] = useState("Editorial")
   const [creator, setCreator] = useState("")
@@ -18,31 +20,65 @@ export default function AddPortfolioModal({ onClose }: AddPortfolioModalProps) {
   const [image, setImage] = useState<string | null>(null)
   const [featured, setFeatured] = useState(false)
   const [status, setStatus] = useState("published")
+  const [isUploading, setIsUploading] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // In a real app, this would call an API to create the portfolio item
-    console.log({
-      title,
-      category,
-      creator,
-      description,
-      image,
-      featured,
-      status,
-      createdAt: new Date().toISOString(),
-    })
+    try {
+      const portfolioData = {
+        title,
+        category,
+        creator,
+        short_description: description,
+        thumbnail_url: image || "",
+        link: "",
+        featured,
+        status,
+      }
 
-    // Close the modal
-    onClose()
+      await onSave(portfolioData)
+    } catch (error) {
+      console.error("Error saving portfolio:", error)
+      alert("Failed to save portfolio. Please try again.")
+    }
   }
 
-  // Simulate image upload
-  const handleImageUpload = () => {
-    // In a real app, this would open a file picker and upload the image
-    // For demo purposes, we'll just set a placeholder image
-    setImage("/placeholder.svg?height=600&width=800")
+  // 실제 이미지 업로드 함수
+  const handleImageUpload = async () => {
+    const input = document.createElement("input")
+    input.type = "file"
+    input.accept = "image/*"
+
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+
+      try {
+        setIsUploading(true)
+        console.log("Uploading image:", file.name)
+
+        const result = await uploadFile(file, {
+          bucket: "uploads",
+          folder: "portfolio",
+        })
+
+        if (result.success && result.data) {
+          setImage(result.data.publicUrl)
+          console.log("Image uploaded successfully:", result.data.publicUrl)
+        } else {
+          console.error("Upload failed:", result.error)
+          alert(`Upload failed: ${result.error}`)
+        }
+      } catch (error) {
+        console.error("Upload error:", error)
+        alert("Failed to upload image. Please try again.")
+      } finally {
+        setIsUploading(false)
+      }
+    }
+
+    input.click()
   }
 
   return (
@@ -69,10 +105,11 @@ export default function AddPortfolioModal({ onClose }: AddPortfolioModalProps) {
               <button
                 type="button"
                 onClick={handleImageUpload}
-                className="mt-2 w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md text-sm"
+                disabled={isUploading}
+                className="mt-2 w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md text-sm disabled:opacity-50"
               >
                 <Upload className="h-4 w-4 mr-2" />
-                Upload Image
+                {isUploading ? "Uploading..." : "Upload Image"}
               </button>
             </div>
 
@@ -95,19 +132,23 @@ export default function AddPortfolioModal({ onClose }: AddPortfolioModalProps) {
                 <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
                   Category
                 </label>
-                <select
+                <input
+                  type="text"
                   id="category"
+                  list="category-options"
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
+                  placeholder="Enter or select a category"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-black"
-                >
-                  <option value="Editorial">Editorial</option>
-                  <option value="Architecture">Architecture</option>
-                  <option value="Fashion">Fashion</option>
-                  <option value="Abstract">Abstract</option>
-                  <option value="Branding">Branding</option>
-                  <option value="Packaging">Packaging</option>
-                </select>
+                />
+                <datalist id="category-options">
+                  <option value="Editorial" />
+                  <option value="Architecture" />
+                  <option value="Fashion" />
+                  <option value="Abstract" />
+                  <option value="Branding" />
+                  <option value="Packaging" />
+                </datalist>
               </div>
             </div>
 
