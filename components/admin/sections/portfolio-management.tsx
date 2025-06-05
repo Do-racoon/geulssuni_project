@@ -22,6 +22,7 @@ import { toast } from "@/hooks/use-toast"
 import { format } from "date-fns"
 import { supabase } from "@/lib/supabase/client"
 import EditPortfolioModal from "@/components/admin/modals/edit-portfolio-modal"
+import AddPortfolioModal from "@/components/admin/modals/add-portfolio-modal"
 
 // Define the Portfolio type
 interface Portfolio {
@@ -49,6 +50,7 @@ export default function PortfolioManagement() {
   } | null>(null)
   const [editingItem, setEditingItem] = useState<Portfolio | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
 
   useEffect(() => {
     async function fetchPortfolioItems() {
@@ -119,22 +121,59 @@ export default function PortfolioManagement() {
       item.short_description.toLowerCase().includes(searchQuery.toLowerCase()),
   )
 
-  // Function to add a new portfolio item
-  const addNewItem = () => {
-    const newItem: Portfolio = {
-      id: `new-${Date.now()}`,
-      title: "",
-      category: "",
-      short_description: "",
-      thumbnail_url: "",
-      link: "",
-      creator: "Admin",
-      featured: false,
-      status: "draft",
-      created_at: new Date().toISOString(),
-    }
+  // 포트폴리오 추가 모달 열기
+  const openAddModal = () => {
+    setIsAddModalOpen(true)
+  }
 
-    setPortfolioItems([newItem, ...portfolioItems])
+  // 포트폴리오 추가 모달 닫기
+  const closeAddModal = () => {
+    setIsAddModalOpen(false)
+  }
+
+  // 포트폴리오 아이템 추가
+  const handleAddPortfolio = async (newPortfolio: Omit<Portfolio, "id" | "created_at">) => {
+    try {
+      setIsLoading(true)
+
+      const { data, error } = await supabase
+        .from("portfolio")
+        .insert({
+          title: newPortfolio.title,
+          category: newPortfolio.category,
+          short_description: newPortfolio.short_description,
+          thumbnail_url: newPortfolio.thumbnail_url,
+          link: newPortfolio.link,
+          creator: newPortfolio.creator,
+          featured: newPortfolio.featured,
+          status: newPortfolio.status,
+        })
+        .select()
+
+      if (error) throw error
+
+      // 새 아이템 추가
+      if (data && data.length > 0) {
+        setPortfolioItems([data[0], ...portfolioItems])
+      }
+
+      toast({
+        title: "Portfolio added",
+        description: "The portfolio item has been successfully added.",
+      })
+
+      // 모달 닫기
+      closeAddModal()
+    } catch (error) {
+      console.error("Error adding portfolio:", error)
+      toast({
+        title: "Error",
+        description: "Failed to add portfolio item. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   // 편집 모달 열기
@@ -263,7 +302,7 @@ export default function PortfolioManagement() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <Button onClick={addNewItem}>
+          <Button onClick={openAddModal}>
             <Plus className="mr-2 h-4 w-4" />
             Add Portfolio Item
           </Button>
@@ -415,6 +454,9 @@ export default function PortfolioManagement() {
       {isEditModalOpen && editingItem && (
         <EditPortfolioModal portfolio={editingItem} onClose={closeEditModal} onSave={handleSavePortfolio} />
       )}
+
+      {/* Add Portfolio Modal */}
+      {isAddModalOpen && <AddPortfolioModal onClose={closeAddModal} onSave={handleAddPortfolio} />}
     </Card>
   )
 }
