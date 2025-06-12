@@ -5,6 +5,9 @@ import type React from "react"
 import { useState } from "react"
 import { Eye, EyeOff, Lock } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
+import { createClient } from "@supabase/supabase-js"
+
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
 export default function ChangePasswordForm() {
   const [currentPassword, setCurrentPassword] = useState("")
@@ -34,10 +37,34 @@ export default function ChangePasswordForm() {
     setIsLoading(true)
 
     try {
-      // In a real app, this would be an API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Get current session for auth token
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
 
-      // Simulate successful password change
+      if (!session) {
+        setError("Please log in again to change your password")
+        return
+      }
+
+      const response = await fetch("/api/change-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          currentPassword,
+          newPassword,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to change password")
+      }
+
       toast({
         title: "Password changed successfully",
         description: "Your password has been updated.",
@@ -48,7 +75,7 @@ export default function ChangePasswordForm() {
       setNewPassword("")
       setConfirmPassword("")
     } catch (err) {
-      setError("Failed to change password. Please try again.")
+      setError(err instanceof Error ? err.message : "Failed to change password. Please try again.")
     } finally {
       setIsLoading(false)
     }

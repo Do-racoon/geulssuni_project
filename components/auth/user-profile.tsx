@@ -25,6 +25,19 @@ interface UserData {
   updated_at: string
 }
 
+const validatePassword = (password: string) => {
+  const requirements = {
+    minLength: password.length >= 8,
+    hasLowercase: /[a-z]/.test(password),
+    hasUppercase: /[A-Z]/.test(password),
+    hasNumber: /[0-9]/.test(password),
+    hasSpecial: /[!@#$%^&*()_+\-=[\]{};':"|<>?,./`~]/.test(password),
+  }
+
+  const isValid = Object.values(requirements).every((req) => req)
+  return { isValid, requirements }
+}
+
 export default function UserProfile() {
   const router = useRouter()
   const { toast } = useToast()
@@ -41,6 +54,16 @@ export default function UserProfile() {
     confirmPassword: "",
   })
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false)
+  const [passwordValidation, setPasswordValidation] = useState({
+    isValid: false,
+    requirements: {
+      minLength: false,
+      hasLowercase: false,
+      hasUppercase: false,
+      hasNumber: false,
+      hasSpecial: false,
+    },
+  })
 
   const supabase = createClientComponentClient()
 
@@ -117,6 +140,12 @@ export default function UserProfile() {
       ...prev,
       [name]: value,
     }))
+
+    // Validate new password in real-time
+    if (name === "newPassword") {
+      const validation = validatePassword(value)
+      setPasswordValidation(validation)
+    }
   }
 
   const handlePasswordUpdate = async (e: React.FormEvent) => {
@@ -131,10 +160,11 @@ export default function UserProfile() {
       return
     }
 
-    if (passwordForm.newPassword.length < 6) {
+    const validation = validatePassword(passwordForm.newPassword)
+    if (!validation.isValid) {
       toast({
-        title: "오류",
-        description: "비밀번호는 최소 6자 이상이어야 합니다.",
+        title: "비밀번호 요구사항 미충족",
+        description: "비밀번호가 모든 요구사항을 만족하지 않습니다.",
         variant: "destructive",
       })
       return
@@ -149,7 +179,21 @@ export default function UserProfile() {
       })
 
       if (error) {
-        throw error
+        // Handle specific Supabase errors
+        if (error.message.includes("Password should contain")) {
+          toast({
+            title: "비밀번호 요구사항 오류",
+            description: "비밀번호는 대문자, 소문자, 숫자, 특수문자를 각각 최소 1개씩 포함해야 합니다.",
+            variant: "destructive",
+          })
+        } else {
+          toast({
+            title: "오류",
+            description: error.message || "비밀번호 변경에 실패했습니다.",
+            variant: "destructive",
+          })
+        }
+        return
       }
 
       toast({
@@ -163,12 +207,22 @@ export default function UserProfile() {
         newPassword: "",
         confirmPassword: "",
       })
+      setPasswordValidation({
+        isValid: false,
+        requirements: {
+          minLength: false,
+          hasLowercase: false,
+          hasUppercase: false,
+          hasNumber: false,
+          hasSpecial: false,
+        },
+      })
       setIsChangingPassword(false)
     } catch (error: any) {
       console.error("Error updating password:", error)
       toast({
         title: "오류",
-        description: error.message || "비밀번호 변경에 실패했습니다.",
+        description: "비밀번호 변경 중 오류가 발생했습니다.",
         variant: "destructive",
       })
     } finally {
@@ -315,7 +369,8 @@ export default function UserProfile() {
                     onChange={handlePasswordChange}
                     placeholder="새 비밀번호를 입력하세요"
                     required
-                    minLength={6}
+                    minLength={8}
+                    className={passwordForm.newPassword && !passwordValidation.isValid ? "border-red-500" : ""}
                   />
                   <button
                     type="button"
@@ -325,6 +380,55 @@ export default function UserProfile() {
                     {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+
+                {/* Password Requirements */}
+                {passwordForm.newPassword && (
+                  <div className="mt-2 text-sm space-y-1">
+                    <p className="font-medium text-gray-700">비밀번호 요구사항:</p>
+                    <div className="space-y-1">
+                      <div
+                        className={`flex items-center gap-2 ${passwordValidation.requirements.minLength ? "text-green-600" : "text-red-500"}`}
+                      >
+                        <div
+                          className={`w-2 h-2 rounded-full ${passwordValidation.requirements.minLength ? "bg-green-500" : "bg-red-500"}`}
+                        ></div>
+                        <span>최소 8자 이상</span>
+                      </div>
+                      <div
+                        className={`flex items-center gap-2 ${passwordValidation.requirements.hasLowercase ? "text-green-600" : "text-red-500"}`}
+                      >
+                        <div
+                          className={`w-2 h-2 rounded-full ${passwordValidation.requirements.hasLowercase ? "bg-green-500" : "bg-red-500"}`}
+                        ></div>
+                        <span>소문자 포함 (a-z)</span>
+                      </div>
+                      <div
+                        className={`flex items-center gap-2 ${passwordValidation.requirements.hasUppercase ? "text-green-600" : "text-red-500"}`}
+                      >
+                        <div
+                          className={`w-2 h-2 rounded-full ${passwordValidation.requirements.hasUppercase ? "bg-green-500" : "bg-red-500"}`}
+                        ></div>
+                        <span>대문자 포함 (A-Z)</span>
+                      </div>
+                      <div
+                        className={`flex items-center gap-2 ${passwordValidation.requirements.hasNumber ? "text-green-600" : "text-red-500"}`}
+                      >
+                        <div
+                          className={`w-2 h-2 rounded-full ${passwordValidation.requirements.hasNumber ? "bg-green-500" : "bg-red-500"}`}
+                        ></div>
+                        <span>숫자 포함 (0-9)</span>
+                      </div>
+                      <div
+                        className={`flex items-center gap-2 ${passwordValidation.requirements.hasSpecial ? "text-green-600" : "text-red-500"}`}
+                      >
+                        <div
+                          className={`w-2 h-2 rounded-full ${passwordValidation.requirements.hasSpecial ? "bg-green-500" : "bg-red-500"}`}
+                        ></div>
+                        <span>특수문자 포함 (!@#$%^&* 등)</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -338,7 +442,12 @@ export default function UserProfile() {
                     onChange={handlePasswordChange}
                     placeholder="새 비밀번호를 다시 입력하세요"
                     required
-                    minLength={6}
+                    minLength={8}
+                    className={
+                      passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword
+                        ? "border-red-500"
+                        : ""
+                    }
                   />
                   <button
                     type="button"
@@ -348,10 +457,20 @@ export default function UserProfile() {
                     {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+                {passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword && (
+                  <p className="text-red-500 text-sm mt-1">비밀번호가 일치하지 않습니다.</p>
+                )}
               </div>
 
               <div className="flex gap-2">
-                <Button type="submit" disabled={isUpdatingPassword}>
+                <Button
+                  type="submit"
+                  disabled={
+                    isUpdatingPassword ||
+                    !passwordValidation.isValid ||
+                    passwordForm.newPassword !== passwordForm.confirmPassword
+                  }
+                >
                   {isUpdatingPassword ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
@@ -373,6 +492,16 @@ export default function UserProfile() {
                       currentPassword: "",
                       newPassword: "",
                       confirmPassword: "",
+                    })
+                    setPasswordValidation({
+                      isValid: false,
+                      requirements: {
+                        minLength: false,
+                        hasLowercase: false,
+                        hasUppercase: false,
+                        hasNumber: false,
+                        hasSpecial: false,
+                      },
                     })
                   }}
                 >
