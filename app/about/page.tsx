@@ -59,9 +59,31 @@ async function getPortfolioData() {
   }
 }
 
+async function getPhotoData() {
+  try {
+    const { data: photos, error } = await supabase.from("photo").select("*").order("created_at", { ascending: false })
+
+    if (error) {
+      // If table doesn't exist, return empty array instead of crashing
+      if (error.message.includes('relation "public.photo" does not exist')) {
+        console.log("Photo table doesn't exist yet. Please run the SQL script to create it.")
+        return []
+      }
+      console.error("Error fetching photos:", error)
+      return []
+    }
+
+    return photos || []
+  } catch (error) {
+    console.error("Error fetching photos:", error)
+    return []
+  }
+}
+
 export default async function AboutPage() {
   const authors = await getAuthorsData()
   const portfolio = await getPortfolioData()
+  const photos = await getPhotoData()
 
   return (
     <div className="container mx-auto py-8 px-4">
@@ -78,7 +100,7 @@ export default async function AboutPage() {
         </div>
       </div>
 
-      <AboutClient authors={authors} portfolio={portfolio} features={features} />
+      <AboutClient authors={authors} portfolio={portfolio} photos={photos} features={features} />
     </div>
   )
 }

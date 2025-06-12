@@ -1,5 +1,18 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    serverComponentsExternalPackages: ['@supabase/supabase-js']
+  },
+  // 파일 업로드 크기 제한 설정
+  api: {
+    bodyParser: {
+      sizeLimit: '50mb',
+    },
+  },
+  // 서버리스 함수 크기 제한 설정
+  serverRuntimeConfig: {
+    maxDuration: 30,
+  },
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -7,28 +20,7 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: '**',
-      },
-      {
-        protocol: 'http',
-        hostname: 'localhost',
-      },
-    ],
-    domains: [
-      'localhost',
-      'placeholder.svg',
-      // Supabase 이미지 도메인 추가
-      process.env.NEXT_PUBLIC_SUPABASE_URL?.replace('https://', '').replace('http://', '') || '',
-    ].filter(Boolean),
-    dangerouslyAllowSVG: true,
-    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
     unoptimized: true,
-  },
-  experimental: {
-    serverComponentsExternalPackages: ['@supabase/supabase-js'],
   },
 }
 

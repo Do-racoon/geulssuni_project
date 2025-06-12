@@ -5,6 +5,7 @@ import Image from "next/image"
 import CompanyIntro from "./company-intro"
 import AuthorShowcase from "./author-showcase"
 import PortfolioHighlights from "./portfolio-highlights"
+import PhotoGallery from "./photo-gallery"
 import AuthorDetailModal from "./author-detail-modal"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -12,10 +13,11 @@ import { Separator } from "@/components/ui/separator"
 interface AboutClientProps {
   authors: any[]
   portfolio: any[]
+  photos: any[]
   features: any[]
 }
 
-export default function AboutClient({ authors, portfolio, features }: AboutClientProps) {
+export default function AboutClient({ authors, portfolio, photos, features }: AboutClientProps) {
   const [selectedAuthor, setSelectedAuthor] = useState<any | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [activeSection, setActiveSection] = useState("intro")
@@ -50,6 +52,13 @@ export default function AboutClient({ authors, portfolio, features }: AboutClien
             onClick={() => setActiveSection("portfolio")}
           >
             Portfolio
+          </Button>
+          <Button
+            variant="ghost"
+            className={`px-6 py-2 ${activeSection === "photos" ? "border-b-2 border-black" : ""}`}
+            onClick={() => setActiveSection("photos")}
+          >
+            Photos
           </Button>
         </div>
       </div>
@@ -98,6 +107,13 @@ export default function AboutClient({ authors, portfolio, features }: AboutClien
       {activeSection === "portfolio" && (
         <div className="mb-16 animate-fadeIn">
           <PortfolioHighlights portfolio={portfolio} />
+        </div>
+      )}
+
+      {/* Photos Section */}
+      {activeSection === "photos" && (
+        <div className="mb-16 animate-fadeIn">
+          <PhotoGallery photos={photos} />
         </div>
       )}
 

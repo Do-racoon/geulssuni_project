@@ -16,7 +16,6 @@ export default function AskQuestionButton({
   const [kakaoLink, setKakaoLink] = useState(kakaoOpenChatUrl)
 
   useEffect(() => {
-    // Admin settings에서 카카오 문의 링크 가져오기
     const fetchKakaoLink = async () => {
       try {
         const response = await fetch("/api/settings/default_contact_url")
@@ -28,7 +27,6 @@ export default function AskQuestionButton({
         }
       } catch (error) {
         console.error("Failed to fetch kakao inquiry link:", error)
-        // 에러 시 기본값 사용
       }
     }
 
@@ -39,7 +37,6 @@ export default function AskQuestionButton({
     if (contactUrl) {
       window.open(contactUrl, "_blank", "noopener,noreferrer")
     } else {
-      // Admin settings에서 가져온 카카오톡 링크 사용
       window.open(kakaoLink, "_blank", "noopener,noreferrer")
     }
   }

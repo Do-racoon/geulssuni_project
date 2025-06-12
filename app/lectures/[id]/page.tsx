@@ -22,10 +22,6 @@ interface Lecture {
   price?: number
   is_published?: boolean
   instructor?: string
-  author?: {
-    name: string
-    profession?: string
-  }
 }
 
 export default function LectureDetailPage({ params }: { params: { id: string } }) {
@@ -35,40 +31,34 @@ export default function LectureDetailPage({ params }: { params: { id: string } }
   const [defaultContactUrl, setDefaultContactUrl] = useState("")
 
   useEffect(() => {
-    async function fetchLecture() {
+    const fetchLecture = async () => {
       try {
-        // UUID 형식 검증
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
         if (!uuidRegex.test(params.id)) {
-          console.error("Invalid UUID format:", params.id)
           setLecture(null)
           setLoading(false)
           return
         }
 
-        // 기존의 author 관계 조인 제거하고 단순한 쿼리로 변경
         const { data, error } = await supabase.from("lectures").select("*").eq("id", params.id).limit(1)
 
         if (error) {
           console.error("Error fetching lecture:", error)
           setLecture(null)
         } else if (data && data.length > 0) {
-          const lectureData = data[0]
-          setLecture(lectureData)
+          setLecture(data[0])
         } else {
-          console.log("No lecture found with this ID")
           setLecture(null)
         }
       } catch (error) {
-        console.error("Error:", error)
+        console.error("Error in fetchLecture:", error)
         setLecture(null)
       } finally {
         setLoading(false)
       }
     }
 
-    // 기본 연락처 URL 가져오기
     const fetchDefaultContactUrl = async () => {
       try {
         const response = await fetch("/api/settings/default_contact_url")
@@ -79,13 +69,17 @@ export default function LectureDetailPage({ params }: { params: { id: string } }
           }
         }
       } catch (error) {
-        console.error("Failed to fetch default contact URL:", error)
+        console.error("Error fetching default contact URL:", error)
       }
     }
 
     fetchLecture()
     fetchDefaultContactUrl()
   }, [params.id])
+
+  const handleBackClick = () => {
+    router.push("/lectures")
+  }
 
   if (loading) {
     return (
@@ -103,7 +97,7 @@ export default function LectureDetailPage({ params }: { params: { id: string } }
         <div className="flex flex-col items-center justify-center h-64">
           <p className="text-xl mb-4">강의를 찾을 수 없습니다</p>
           <p className="text-gray-500 mb-6">요청하신 강의가 존재하지 않거나 공개되지 않았습니다.</p>
-          <Button onClick={() => router.push("/lectures")}>강의 목록으로 돌아가기</Button>
+          <Button onClick={handleBackClick}>강의 목록으로 돌아가기</Button>
         </div>
       </div>
     )
@@ -111,7 +105,7 @@ export default function LectureDetailPage({ params }: { params: { id: string } }
 
   return (
     <div className="container mx-auto py-8 px-4">
-      <Button variant="ghost" className="mb-6" onClick={() => router.push("/lectures")}>
+      <Button variant="ghost" className="mb-6" onClick={handleBackClick}>
         <ArrowLeft className="mr-2 h-4 w-4" />
         강의 목록으로 돌아가기
       </Button>
@@ -160,7 +154,7 @@ export default function LectureDetailPage({ params }: { params: { id: string } }
 
         {lecture.tags && lecture.tags.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-6">
-            {lecture.tags.map((tag: string, index: number) => (
+            {lecture.tags.map((tag, index) => (
               <Badge key={index} variant="outline" className="flex items-center gap-1">
                 <Tag className="h-3 w-3" />
                 {tag}
@@ -173,12 +167,7 @@ export default function LectureDetailPage({ params }: { params: { id: string } }
 
         <div className="prose max-w-none mb-8">
           <h2 className="text-2xl font-semibold mb-4">강의 소개</h2>
-          <div
-            className="whitespace-pre-wrap text-gray-700"
-            dangerouslySetInnerHTML={{
-              __html: lecture.description || "강의 설명이 없습니다.",
-            }}
-          />
+          <div className="whitespace-pre-wrap text-gray-700">{lecture.description || "강의 설명이 없습니다."}</div>
         </div>
 
         <div className="mb-8">

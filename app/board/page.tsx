@@ -1,13 +1,10 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { Plus } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import FreeBoardManagement from "@/components/board/free-board"
 import AssignmentBoard from "@/components/board/assignment-board"
 import { createSupabaseClient } from "@/lib/supabase/client"
-import Link from "next/link"
 
 export default function BoardPage() {
   const [activeTab, setActiveTab] = useState("free")
@@ -15,16 +12,9 @@ export default function BoardPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [hasCheckedAuth, setHasCheckedAuth] = useState(false)
 
-  console.log(`[BoardPage] Component mounted, activeTab: ${activeTab}`)
-
-  // 사용자 인증 확인 함수를 useCallback으로 메모이제이션
   const checkAuth = useCallback(async () => {
-    if (hasCheckedAuth) {
-      console.log(`[BoardPage] Auth already checked`)
-      return
-    }
+    if (hasCheckedAuth) return
 
-    console.log(`[BoardPage] Checking authentication`)
     setIsLoading(true)
 
     try {
@@ -34,19 +24,11 @@ export default function BoardPage() {
         error: sessionError,
       } = await supabase.auth.getSession()
 
-      if (sessionError) {
-        console.error(`[BoardPage] Session error:`, sessionError)
+      if (sessionError || !session?.user) {
         setUser(null)
         return
       }
 
-      if (!session?.user) {
-        console.log(`[BoardPage] No session found`)
-        setUser(null)
-        return
-      }
-
-      // 사용자 프로필 조회
       const { data: userProfile, error: profileError } = await supabase
         .from("users")
         .select("id, name, email, role, class_level, is_active")
@@ -54,7 +36,6 @@ export default function BoardPage() {
         .single()
 
       if (profileError || !userProfile?.is_active) {
-        console.log(`[BoardPage] User profile not found or inactive`)
         setUser(null)
         return
       }
@@ -67,10 +48,8 @@ export default function BoardPage() {
         class_level: userProfile.class_level,
       }
 
-      console.log(`[BoardPage] User authenticated:`, userData.name)
       setUser(userData)
     } catch (error) {
-      console.error(`[BoardPage] Error checking auth:`, error)
       setUser(null)
     } finally {
       setIsLoading(false)
@@ -78,31 +57,16 @@ export default function BoardPage() {
     }
   }, [hasCheckedAuth])
 
-  // 탭 변경 핸들러를 useCallback으로 메모이제이션
-  const handleTabChange = useCallback(
-    (value: string) => {
-      console.log(`[BoardPage] Tab changed from ${activeTab} to ${value}`)
-      setActiveTab(value)
-    },
-    [activeTab],
-  )
+  const handleTabChange = useCallback((value: string) => {
+    setActiveTab(value)
+  }, [])
 
-  // 컴포넌트 마운트 시 인증 확인 (한 번만)
   useEffect(() => {
-    console.log(`[BoardPage] useEffect triggered, hasChecked: ${hasCheckedAuth}`)
     checkAuth()
   }, [checkAuth])
 
-  // 메모이제이션된 컴포넌트들
-  const freeBoardComponent = useMemo(() => {
-    console.log(`[BoardPage] Rendering FreeBoardManagement`)
-    return <FreeBoardManagement />
-  }, [])
-
-  const assignmentBoardComponent = useMemo(() => {
-    console.log(`[BoardPage] Rendering AssignmentBoard`)
-    return <AssignmentBoard />
-  }, [])
+  const freeBoardComponent = useMemo(() => <FreeBoardManagement />, [])
+  const assignmentBoardComponent = useMemo(() => <AssignmentBoard />, [])
 
   if (isLoading) {
     return (
@@ -122,25 +86,6 @@ export default function BoardPage() {
       <div className="container mx-auto py-24 px-4">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-4xl font-light tracking-widest uppercase">Board</h1>
-          {user && (
-            <div className="flex space-x-4">
-              <Link href="/board/create">
-                <Button className="bg-black text-white hover:bg-gray-800 tracking-wider font-light rounded-none">
-                  <Plus className="h-4 w-4 mr-2" />
-                  NEW POST
-                </Button>
-              </Link>
-              <Link href="/board/assignment/create">
-                <Button
-                  variant="outline"
-                  className="border-black text-black hover:bg-black hover:text-white tracking-wider font-light rounded-none"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  NEW ASSIGNMENT
-                </Button>
-              </Link>
-            </div>
-          )}
         </div>
 
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">

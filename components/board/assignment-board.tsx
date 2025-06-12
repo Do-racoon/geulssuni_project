@@ -1,12 +1,11 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, RefreshCw, PlusCircle, Trash2, CheckCircle, Clock, Lock, Calendar, Users, Eye } from "lucide-react"
+import { Search, RefreshCw, Trash2, CheckCircle, Clock, Lock, Calendar, Users, Eye } from "lucide-react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
@@ -20,7 +19,7 @@ interface Assignment {
   title: string
   content: string
   description: string
-  class_level: string // beginner, intermediate, advanced
+  class_level: string
   author_id: string
   author?: {
     name: string
@@ -36,8 +35,8 @@ interface Assignment {
   is_completed: boolean
   created_at: string
   updated_at: string
-  password?: string // 비밀번호 필드 추가
-  has_password?: boolean // 비밀번호 유무 표시용
+  password?: string
+  has_password?: boolean
 }
 
 interface User {
@@ -48,6 +47,10 @@ interface User {
   class_level?: string
 }
 
+/**
+ * 과제 게시판 컴포넌트
+ * 과제 목록을 표시하고 관리 기능 제공
+ */
 export default function AssignmentBoard() {
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [loading, setLoading] = useState(true)
@@ -60,22 +63,16 @@ export default function AssignmentBoard() {
   const { toast } = useToast()
   const router = useRouter()
 
-  // 비밀번호 관련 상태 제거
-  // const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
-  // const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null)
-  // const [passwordInput, setPasswordInput] = useState("")
-  // const [passwordError, setPasswordError] = useState(false)
-
   const supabase = createClientComponentClient()
 
-  // 사용자 권한 관련 변수들 - 관리자, 강사만 관리 기능 사용 가능
+  // 사용자 권한 관련 변수들
   const isInstructor =
     currentUser?.role === "instructor" || currentUser?.role === "admin" || currentUser?.role === "teacher"
   const isLoggedInStudent = currentUser?.role === "user"
   const isLoggedIn = !!currentUser
-  const canCreateAssignment = isInstructor // 관리자, 강사만 과제 생성 가능
+  const canCreateAssignment = isInstructor
   const canSelectLevel = isInstructor
-  const canManageAssignments = isInstructor // 관리자, 강사만 수정/삭제 가능
+  const canManageAssignments = isInstructor
 
   // 실시간 인증 상태 추적
   useEffect(() => {
@@ -85,7 +82,7 @@ export default function AssignmentBoard() {
       try {
         setAuthLoading(true)
 
-        // 1. 현재 세션 확인
+        // 현재 세션 확인
         const {
           data: { session },
           error: sessionError,
@@ -101,7 +98,7 @@ export default function AssignmentBoard() {
 
         const authUser = session.user
 
-        // 2. 사용자 프로필 조회 (ID 우선, 실패시 이메일)
+        // 사용자 프로필 조회
         let userData = null
 
         // ID로 검색
@@ -139,7 +136,10 @@ export default function AssignmentBoard() {
           }
         }
       } catch (error) {
-        console.error("Auth error:", error)
+        // 오류 발생 시 사용자 정보 초기화
+        if (mounted) {
+          setCurrentUser(null)
+        }
       } finally {
         if (mounted) {
           setAuthLoading(false)
@@ -153,7 +153,7 @@ export default function AssignmentBoard() {
     // 인증 상태 변경 감지
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange(async () => {
       setTimeout(() => {
         if (mounted) {
           loadUserData()
@@ -167,18 +167,22 @@ export default function AssignmentBoard() {
     }
   }, [supabase])
 
+  // 인증 로딩이 완료되면 과제 목록 로드
   useEffect(() => {
     if (!authLoading) {
       loadUserAndAssignments()
     }
   }, [authLoading])
 
+  /**
+   * 사용자 정보와 과제 목록을 로드하는 함수
+   */
   const loadUserAndAssignments = async () => {
     try {
       setLoading(true)
       setError(null)
 
-      // API 대신 직접 Supabase에서 데이터 가져오기
+      // Supabase에서 데이터 가져오기
       const { data, error: supabaseError } = await supabase
         .from("assignments")
         .select(`
@@ -221,10 +225,7 @@ export default function AssignmentBoard() {
       setAssignments(processedData)
       setError(null)
     } catch (error) {
-      console.error("과제 로딩 오류:", error)
-      setError(error instanceof Error ? error.message : "과제를 불러오는 중 오류가 발생했습니다.")
-
-      // 폴백: API 시도 (에러 처리 강화)
+      // API 폴백 시도
       try {
         const response = await fetch("/api/assignments", {
           method: "GET",
@@ -254,7 +255,6 @@ export default function AssignmentBoard() {
         setAssignments(processedData)
         setError(null)
       } catch (apiError) {
-        console.error("API 폴백도 실패:", apiError)
         setError(`API 오류: ${apiError instanceof Error ? apiError.message : "알 수 없는 오류"}`)
       }
     } finally {
@@ -262,8 +262,11 @@ export default function AssignmentBoard() {
     }
   }
 
+  /**
+   * 검수 상태 토글 핸들러
+   */
   const handleReviewToggle = async (assignmentId: string) => {
-    // 권한 체크 - 관리자, 강사만 가능
+    // 권한 체크
     if (!isInstructor) {
       toast({
         title: "권한 없음",
@@ -299,7 +302,6 @@ export default function AssignmentBoard() {
         })
       }
     } catch (error) {
-      console.error("검수 상태 업데이트 오류:", error)
       toast({
         title: "오류 발생",
         description: "검수 상태 변경 중 오류가 발생했습니다.",
@@ -308,10 +310,13 @@ export default function AssignmentBoard() {
     }
   }
 
+  /**
+   * 과제 삭제 핸들러
+   */
   const handleDelete = async (assignmentId: string, event: React.MouseEvent) => {
     event.stopPropagation()
 
-    // 권한 체크 - 관리자, 강사만 가능
+    // 권한 체크
     if (!isInstructor) {
       toast({
         title: "권한 없음",
@@ -345,7 +350,6 @@ export default function AssignmentBoard() {
         })
       }
     } catch (error) {
-      console.error("삭제 오류:", error)
       toast({
         title: "오류 발생",
         description: "과제 삭제 중 오류가 발생했습니다.",
@@ -354,91 +358,14 @@ export default function AssignmentBoard() {
     }
   }
 
-  // 과제 클릭 핸들러
+  /**
+   * 과제 클릭 핸들러
+   */
   const handleAssignmentClick = (assignment: Assignment) => {
     window.location.href = `/board/assignment/${assignment.id}`
   }
 
-  // 비밀번호 확인 핸들러 제거
-  // const handlePasswordCheck = async () => {
-  //   if (!selectedAssignment || !passwordInput.trim()) {
-  //     setPasswordError(true)
-  //     return
-  //   }
-
-  //   console.log("🔐 Password check started:", {
-  //   assignmentId: selectedAssignment.id,
-  //   passwordLength: passwordInput.length,
-  //   hasPassword: selectedAssignment.has_password,
-  //   })
-
-  //   try {
-  //   const response = await fetch(`/api/assignments/${selectedAssignment.id}/check-password`, {
-  //   method: "POST",
-  //   headers: {
-  //   "Content-Type": "application/json",
-  //   },
-  //   body: JSON.stringify({
-  //   password: passwordInput.trim(),
-  //   }),
-  //   })
-
-  //   console.log("🔐 Password check response:", {
-  //   status: response.status,
-  //   statusText: response.statusText,
-  //   ok: response.ok,
-  //   })
-
-  //   const responseData = await response.json()
-  //   console.log("📄 Response data:", responseData)
-
-  //   if (response.ok && responseData.success) {
-  //   console.log("✅ Password correct, redirecting...")
-  //   setPasswordDialogOpen(false)
-  //   setPasswordInput("")
-  //   setPasswordError(false)
-  //   // Store authentication in sessionStorage
-  //   sessionStorage.setItem(`assignment_${selectedAssignment.id}_authenticated`, "true")
-  //   // Use router.push instead of window.location.href
-  //   window.location.href = `/board/assignment/${selectedAssignment.id}`
-  //   } else {
-  //   console.log("❌ Password incorrect:", responseData)
-  //   setPasswordError(true)
-  //   // Clear the input for security
-  //   setPasswordInput("")
-  //   }
-  //   } catch (error) {
-  //   console.error("💥 Password check error:", error)
-  //   setPasswordError(true)
-  //   setPasswordInput("")
-  //   }
-  //   }
-
-  // Edit 버튼 클릭 핸들러 - router.push 사용으로 변경
-  // const handleEditClick = (assignmentId: string, event: React.MouseEvent) => {
-  //   event.stopPropagation()
-  //   event.preventDefault()
-
-  //   console.log("🔧 Edit button clicked for assignment:", assignmentId)
-  //   console.log("👤 Current user:", currentUser)
-  //   console.log("🔑 Is instructor:", isInstructor)
-
-  //   // 권한 체크
-  //   if (!isInstructor) {
-  //     toast({
-  //       title: "권한 없음",
-  //       description: "과제를 수정할 권한이 없습니다.",
-  //       variant: "destructive",
-  //     })
-  //     return
-  //   }
-
-  //   // router.push 사용으로 세션 유지
-  //   console.log("✅ router.push로 이동합니다")
-  //   router.push(`/board/assignment/${assignmentId}/edit`)
-  // }
-
-  // 필터링 - 대소문자 무시하고 비교하도록 수정
+  // 필터링
   const filteredAssignments = assignments.filter((assignment) => {
     const matchesSearch =
       searchQuery === "" ||
@@ -446,10 +373,9 @@ export default function AssignmentBoard() {
       assignment.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
       assignment.description.toLowerCase().includes(searchQuery.toLowerCase())
 
-    // 레벨 필터링 - 대소문자 무시하고 비교
+    // 레벨 필터링
     let matchesLevel = true
     if (currentUser?.role === "user" && currentUser?.class_level) {
-      // 대소문자 무시하고 비교
       const userLevel = currentUser.class_level.toLowerCase().trim()
       const assignmentLevel = assignment.class_level.toLowerCase().trim()
       matchesLevel = assignmentLevel === userLevel
@@ -457,7 +383,7 @@ export default function AssignmentBoard() {
       matchesLevel = assignment.class_level.toLowerCase() === selectedLevel.toLowerCase()
     }
 
-    // 검수 상태 필터링 - 관리자/강사만 필터링 가능
+    // 검수 상태 필터링
     const matchesReview =
       !isInstructor ||
       reviewFilter === "all" ||
@@ -467,6 +393,9 @@ export default function AssignmentBoard() {
     return matchesSearch && matchesLevel && matchesReview
   })
 
+  /**
+   * 레벨 텍스트 변환 함수
+   */
   const getLevelText = (level: string) => {
     switch (level.toLowerCase().trim()) {
       case "beginner":
@@ -480,6 +409,9 @@ export default function AssignmentBoard() {
     }
   }
 
+  /**
+   * 레벨 색상 변환 함수
+   */
   const getLevelColor = (level: string) => {
     switch (level.toLowerCase().trim()) {
       case "beginner":
@@ -493,6 +425,7 @@ export default function AssignmentBoard() {
     }
   }
 
+  // 로딩 상태 표시
   if (authLoading || loading) {
     return (
       <div className="space-y-8">
@@ -509,7 +442,7 @@ export default function AssignmentBoard() {
 
   return (
     <div className="space-y-8 max-w-full overflow-hidden">
-      {/* 헤더 - 디올 스타일 */}
+      {/* 헤더 */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
         <div>
           <h2 className="text-2xl sm:text-3xl font-light tracking-[0.2em] uppercase text-black">ASSIGNMENTS</h2>
@@ -517,27 +450,6 @@ export default function AssignmentBoard() {
             <p className="text-sm text-gray-500 mt-2 font-light tracking-wider">
               {getLevelText(currentUser.class_level || "")} LEVEL ONLY
             </p>
-          )}
-
-          {/* 디버깅 정보 추가 */}
-          {process.env.NODE_ENV === "development" && (
-            <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 text-xs space-y-1">
-              <p>
-                <strong>Current User:</strong> {currentUser ? `${currentUser.name} (${currentUser.email})` : "null"}
-              </p>
-              <p>
-                <strong>User Role:</strong> {currentUser?.role || "없음"}
-              </p>
-              <p>
-                <strong>Is Instructor:</strong> {isInstructor ? "✅ Yes" : "❌ No"}
-              </p>
-              <p>
-                <strong>Can Create Assignment:</strong> {canCreateAssignment ? "✅ Yes" : "❌ No"}
-              </p>
-              <p>
-                <strong>Assignments Count:</strong> {assignments.length}
-              </p>
-            </div>
           )}
         </div>
 
@@ -572,7 +484,7 @@ export default function AssignmentBoard() {
         </div>
       )}
 
-      {/* 검색 및 필터 - 반응형 개선 */}
+      {/* 검색 및 필터 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -622,16 +534,13 @@ export default function AssignmentBoard() {
         )}
       </div>
 
-      {/* 게시글 목록 - 반응형 개선 */}
+      {/* 게시글 목록 */}
       {assignments.length === 0 ? (
         <div className="text-center py-20 border border-gray-200">
           <p className="text-gray-500 mb-6 font-light tracking-wider text-lg">NO ASSIGNMENTS AVAILABLE</p>
           {canCreateAssignment && (
             <Button asChild className="bg-black text-white hover:bg-gray-800 font-light tracking-wider uppercase">
-              <Link href="/board/assignment/create">
-                <PlusCircle className="mr-2 h-4 w-4" />
-                CREATE ASSIGNMENT
-              </Link>
+              <Link href="/board/assignment/create">CREATE ASSIGNMENT</Link>
             </Button>
           )}
         </div>
@@ -767,13 +676,11 @@ export default function AssignmentBoard() {
                         </div>
                         <div className="flex items-center text-sm text-gray-500">
                           <Calendar className="h-3 w-3 mr-1" />
-                          <span>Due: {new Date(assignment.due_date).toLocaleDateString()}</span>
+                          SUBMISSIONS: {assignment.submissions_count}
                         </div>
                         <div className="flex items-center text-sm text-gray-500">
                           <Users className="h-3 w-3 mr-1" />
-                          <span>
-                            {assignment.submissions_count}/{assignment.total_students}
-                          </span>
+                          STUDENTS: {assignment.total_students}
                         </div>
                       </div>
                     </div>
@@ -783,196 +690,86 @@ export default function AssignmentBoard() {
             </div>
           </div>
 
-          {/* 모바일/태블릿 카드 뷰 */}
+          {/* 모바일 카드 뷰 */}
           <div className="lg:hidden space-y-4">
             {filteredAssignments.map((assignment) => (
-              <Card
-                key={assignment.id}
-                className="border border-gray-200 hover:shadow-md transition-shadow duration-200"
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Badge className={`${getLevelColor(assignment.class_level)} text-xs font-light tracking-wider`}>
-                          {getLevelText(assignment.class_level)}
-                        </Badge>
-                        {assignment.has_password && (
-                          <Badge className="bg-yellow-50 text-yellow-700 border border-yellow-200 text-xs font-light tracking-wider">
-                            <Lock className="h-3 w-3 mr-1" />
-                            PROTECTED
-                          </Badge>
-                        )}
-                        {isInstructor &&
-                          (assignment.review_status === "completed" ? (
-                            <Badge className="bg-green-50 text-green-700 border border-green-200 text-xs font-light tracking-wider">
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                              COMPLETED
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-gray-100 text-gray-700 border border-gray-200 text-xs font-light tracking-wider">
-                              <Clock className="h-3 w-3 mr-1" />
-                              PENDING
-                            </Badge>
-                          ))}
-                      </div>
-                      <h3
-                        className="font-light text-lg tracking-wide cursor-pointer hover:text-gray-600 transition-colors duration-200"
-                        onClick={() => handleAssignmentClick(assignment)}
-                      >
-                        {assignment.title}
-                      </h3>
-                    </div>
-                    {/* 관리자, 강사만 관리 버튼 표시 */}
-                    {canManageAssignments && (
-                      <div className="flex gap-2 ml-4">
-                        <Button
-                          onClick={(e) => handleDelete(assignment.id, e)}
-                          variant="outline"
-                          size="sm"
-                          className="h-8 w-8 p-0 border-gray-300 hover:border-red-500 hover:bg-red-500 hover:text-white transition-all duration-300"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
+              <Card key={assignment.id} onClick={() => handleAssignmentClick(assignment)} className="cursor-pointer">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <div className="flex items-center gap-2">
+                    <Badge className={`${getLevelColor(assignment.class_level)} text-xs font-light tracking-wider`}>
+                      {getLevelText(assignment.class_level)}
+                    </Badge>
+                    {assignment.has_password && (
+                      <Badge className="bg-yellow-50 text-yellow-700 border border-yellow-200 text-xs font-light tracking-wider">
+                        <Lock className="h-3 w-3 mr-1" />
+                        PROTECTED
+                      </Badge>
                     )}
                   </div>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <p className="text-sm text-gray-600 mb-4 font-light line-clamp-2">{assignment.description}</p>
-
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-gray-500 font-light">Instructor</p>
-                      <p className="font-light">{assignment.author?.name || "UNKNOWN"}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500 font-light">Created</p>
-                      <p className="font-light">{new Date(assignment.created_at).toLocaleDateString()}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500 font-light flex items-center">
-                        <Calendar className="h-3 w-3 mr-1" />
-                        Due Date
-                      </p>
-                      <p className="font-light">{new Date(assignment.due_date).toLocaleDateString()}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500 font-light">Stats</p>
-                      <div className="flex items-center gap-3">
-                        <span className="flex items-center font-light">
-                          <Eye className="h-3 w-3 mr-1" />
-                          {assignment.views}
-                        </span>
-                        <span className="flex items-center font-light">
-                          <Users className="h-3 w-3 mr-1" />
-                          {assignment.submissions_count}/{assignment.total_students}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 관리자/강사만 검수 상태 변경 버튼 표시 */}
                   {isInstructor && (
-                    <div className="mt-4 pt-4 border-t border-gray-200">
+                    <div className="flex gap-1">
                       <Button
-                        onClick={() => handleReviewToggle(assignment.id)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleReviewToggle(assignment.id)
+                        }}
                         variant="outline"
                         size="sm"
-                        className="w-full text-xs border-gray-300 hover:border-black hover:bg-black hover:text-white transition-all duration-300 font-light tracking-wider"
+                        className="h-8 p-0 border-gray-300 hover:border-black hover:bg-black hover:text-white transition-all duration-300 font-light tracking-wider"
                       >
                         {assignment.review_status === "completed" ? "MARK PENDING" : "MARK COMPLETED"}
                       </Button>
+                      <Button
+                        onClick={(e) => handleDelete(assignment.id, e)}
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0 border-gray-300 hover:border-red-500 hover:bg-red-500 hover:text-white transition-all duration-300"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
                     </div>
                   )}
+                </CardHeader>
+                <CardContent>
+                  <h3 className="font-light text-lg tracking-wide hover:text-gray-600 transition-colors duration-200 line-clamp-1">
+                    {assignment.title}
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-1 line-clamp-2 font-light">{assignment.description}</p>
+                  <div className="mt-4 flex justify-between items-center">
+                    <div className="text-sm text-gray-700 font-light">{assignment.author?.name || "UNKNOWN"}</div>
+                    <div className="text-sm text-gray-700 font-light">
+                      {new Date(assignment.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <div className="mt-2 flex justify-between items-center">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center text-sm text-gray-500">
+                        <Eye className="h-3 w-3 mr-1" />
+                        <span>{assignment.views}</span>
+                      </div>
+                      <div className="flex items-center text-sm text-gray-500">
+                        <Calendar className="h-3 w-3 mr-1" />
+                        DUE: {new Date(assignment.due_date).toLocaleDateString()}
+                      </div>
+                      <div className="flex items-center text-sm text-gray-500">
+                        <Users className="h-3 w-3 mr-1" />
+                        STUDENTS: {assignment.total_students}
+                      </div>
+                    </div>
+                    {/* 학생 뷰에선 검수상태 표시 안함 */}
+                    {!isInstructor && assignment.review_status === "completed" && (
+                      <Badge className="bg-green-50 text-green-700 border border-green-200 text-xs font-light tracking-wider">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        COMPLETED
+                      </Badge>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             ))}
           </div>
         </>
       )}
-
-      {/* 상태 표시 - 반응형 개선 */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between text-sm text-gray-500 font-light tracking-wider pt-6 border-t border-gray-200 gap-4">
-        <div>
-          {filteredAssignments.length} OF {assignments.length} ASSIGNMENTS
-        </div>
-        <div className="flex flex-wrap gap-4 items-center">
-          {isInstructor && (
-            <>
-              <span className="flex items-center gap-2">
-                <span className="w-3 h-3 inline-block bg-green-500 rounded-sm"></span> COMPLETED
-              </span>
-              <span className="flex items-center gap-2">
-                <span className="w-3 h-3 inline-block bg-gray-400 rounded-sm"></span> PENDING
-              </span>
-            </>
-          )}
-          <span className="flex items-center gap-2">
-            <span className="w-3 h-3 inline-block bg-yellow-500 rounded-sm"></span> PROTECTED
-          </span>
-        </div>
-      </div>
-
-      {/* 비밀번호 확인 모달 제거 */}
-      {/* <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
-        <DialogContent className="sm:max-w-md mx-4">
-          <DialogHeader>
-            <DialogTitle className="text-center text-xl font-light tracking-widest uppercase text-black">
-              PASSWORD REQUIRED
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <p className="text-center text-gray-600 font-light">
-              This assignment is password protected. Please enter the password to continue.
-            </p>
-            <div className="space-y-4">
-              <Input
-                type="password"
-                placeholder="Enter password"
-                value={passwordInput}
-                onChange={(e) => {
-                  setPasswordInput(e.target.value)
-                  setPasswordError(false)
-                }}
-                className={`w-full border-gray-300 focus:border-black text-black ${passwordError ? "border-red-500 focus:border-red-500" : ""}`}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault()
-                    handlePasswordCheck()
-                  }
-                }}
-                autoFocus
-              />
-              {passwordError && (
-                <div className="space-y-2">
-                  <p className="text-red-500 text-sm font-medium">❌ Incorrect password. Please try again.</p>
-                  <p className="text-gray-400 text-xs">
-                    💡 Check the password and make sure it matches exactly (case-sensitive).
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setPasswordDialogOpen(false)}
-              className="border-black text-black hover:bg-black hover:text-white tracking-widest uppercase font-light w-full sm:w-auto"
-            >
-              CANCEL
-            </Button>
-            <Button
-              type="button"
-              onClick={handlePasswordCheck}
-              className="bg-black text-white hover:bg-gray-800 tracking-widest uppercase font-light w-full sm:w-auto"
-            >
-              CONTINUE
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog> */}
     </div>
   )
 }

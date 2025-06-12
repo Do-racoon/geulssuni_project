@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -35,17 +34,16 @@ export default function AssignmentCreateModal({ onAssignmentCreated }: Assignmen
 
   const [errors, setErrors] = useState<Record<string, string>>({})
 
-  // class_level 매핑 함수 추가
-  const mapClassLevel = (level: string) => {
-    const mapping = {
-      beginner: "Beginner", // beginner -> Beginner
-      intermediate: "Intermediate", // intermediate -> Intermediate
-      advanced: "Advanced", // advanced -> Advanced
+  const mapClassLevel = (level: string): string => {
+    const mapping: Record<string, string> = {
+      beginner: "Beginner",
+      intermediate: "Intermediate",
+      advanced: "Advanced",
     }
     return mapping[level] || level
   }
 
-  const validateForm = () => {
+  const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {}
 
     if (!formData.title.trim()) {
@@ -80,9 +78,6 @@ export default function AssignmentCreateModal({ onAssignmentCreated }: Assignmen
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    console.log("🔍 폼 검증 결과:", validateForm())
-    console.log("🔍 현재 폼 데이터:", formData)
-
     if (!validateForm()) {
       toast.error("입력 정보를 확인해주세요")
       return
@@ -91,26 +86,18 @@ export default function AssignmentCreateModal({ onAssignmentCreated }: Assignmen
     setLoading(true)
 
     try {
-      console.log("🚀 과제 등록 시작...")
-
-      // Supabase 클라이언트 생성
       const supabase = createClientComponentClient()
 
-      // 현재 세션 확인
       const {
         data: { session },
         error: sessionError,
       } = await supabase.auth.getSession()
 
       if (sessionError || !session?.user) {
-        console.error("❌ 세션 없음:", sessionError)
         toast.error("로그인이 필요합니다")
         return
       }
 
-      console.log("✅ 세션 존재:", session.user.email)
-
-      // 사용자 프로필 조회
       const { data: userData, error: userError } = await supabase
         .from("users")
         .select("id, name, email, role, class_level")
@@ -118,31 +105,22 @@ export default function AssignmentCreateModal({ onAssignmentCreated }: Assignmen
         .single()
 
       if (userError || !userData) {
-        console.error("❌ 사용자 프로필 조회 실패:", userError)
         toast.error("사용자 정보를 찾을 수 없습니다")
         return
       }
 
-      console.log("👤 현재 사용자:", userData)
-
-      // 과제 데이터 준비 (class_level 매핑 적용)
       const mappedClassLevel = mapClassLevel(formData.class_level)
-      console.log("🔄 class_level 매핑:", formData.class_level, "->", mappedClassLevel)
 
       const assignmentData = {
         title: formData.title.trim(),
         content: formData.content.trim(),
         description: formData.content.trim(),
-        class_level: mappedClassLevel, // 매핑된 값 사용
+        class_level: mappedClassLevel,
         password: formData.password,
         author_id: userData.id,
         instructor_id: userData.id,
       }
 
-      console.log("📝 과제 데이터:", assignmentData)
-      console.log("📝 과제 데이터 전송 시작:", JSON.stringify(assignmentData, null, 2))
-
-      // API 호출
       const response = await fetch("/api/assignments", {
         method: "POST",
         headers: {
@@ -151,15 +129,9 @@ export default function AssignmentCreateModal({ onAssignmentCreated }: Assignmen
         body: JSON.stringify(assignmentData),
       })
 
-      console.log("📡 API 응답 상태:", response.status)
-
       if (response.ok) {
-        const result = await response.json()
-        console.log("✅ 과제 등록 성공:", result)
+        toast.success("과제가 성공적으로 등록되었습니다!")
 
-        toast.success("과제가 성공적으로 등록되었습니다! 🎉")
-
-        // 폼 초기화
         setFormData({
           title: "",
           content: "",
@@ -169,33 +141,24 @@ export default function AssignmentCreateModal({ onAssignmentCreated }: Assignmen
         })
         setSelectedFiles([])
         setErrors({})
-
-        // 모달 닫기
         setOpen(false)
-
-        // 부모 컴포넌트에 새로고침 요청
         onAssignmentCreated()
       } else {
-        // 에러 응답을 더 자세히 확인
         const contentType = response.headers.get("content-type")
         let errorMessage = ""
 
         if (contentType && contentType.includes("application/json")) {
           const errorData = await response.json()
           errorMessage = errorData.error || errorData.message || "알 수 없는 오류"
-          console.error("❌ JSON 에러 응답:", errorData)
         } else {
           const errorText = await response.text()
           errorMessage = errorText
-          console.error("❌ 텍스트 에러 응답:", errorText)
         }
 
         toast.error(`과제 등록 실패: ${errorMessage}`)
-        return
       }
     } catch (error) {
-      console.error("💥 과제 등록 오류:", error)
-      toast.error(`과제 등록 중 오류가 발생했습니다: ${error.message}`)
+      toast.error("과제 등록 중 오류가 발생했습니다")
     } finally {
       setLoading(false)
     }
@@ -216,13 +179,14 @@ export default function AssignmentCreateModal({ onAssignmentCreated }: Assignmen
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="flex items-center gap-2">
-          <PlusCircle className="h-4 w-4" />새 과제 등록
+        <Button className="w-full sm:w-auto h-11 px-6 bg-black hover:bg-gray-800 text-white tracking-wider font-light">
+          <PlusCircle className="h-4 w-4 mr-2" />
+          NEW ASSIGNMENT
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">새 과제 등록 📝</DialogTitle>
+          <DialogTitle className="text-2xl font-bold">새 과제 등록</DialogTitle>
         </DialogHeader>
 
         <Tabs defaultValue="edit" className="w-full">
@@ -233,7 +197,6 @@ export default function AssignmentCreateModal({ onAssignmentCreated }: Assignmen
 
           <TabsContent value="edit" className="space-y-6">
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* 기본 정보 */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">기본 정보</CardTitle>
@@ -297,7 +260,6 @@ export default function AssignmentCreateModal({ onAssignmentCreated }: Assignmen
                 </CardContent>
               </Card>
 
-              {/* 과제 내용 */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">과제 내용</CardTitle>
@@ -316,7 +278,6 @@ export default function AssignmentCreateModal({ onAssignmentCreated }: Assignmen
                     {errors.content && <p className="text-sm text-red-500">{errors.content}</p>}
                   </div>
 
-                  {/* 파일 첨부 */}
                   <div className="space-y-2">
                     <Label htmlFor="files">첨부파일</Label>
                     <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
@@ -344,7 +305,6 @@ export default function AssignmentCreateModal({ onAssignmentCreated }: Assignmen
                 </CardContent>
               </Card>
 
-              {/* 버튼 */}
               <div className="flex justify-end gap-4">
                 <Button type="button" variant="outline" onClick={resetForm} disabled={loading}>
                   초기화

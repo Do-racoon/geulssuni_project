@@ -15,6 +15,7 @@ import {
   X,
   LogOut,
   Briefcase,
+  Camera,
 } from "lucide-react"
 import type { AdminSection } from "./admin-dashboard"
 import { supabase } from "@/lib/supabase/client"
@@ -63,6 +64,7 @@ export default function AdminNavigation({ activeSection, onSectionChange }: Admi
     { id: "faq", label: "FAQ", icon: HelpCircle },
     { id: "authors", label: "Authors", icon: Users2 },
     { id: "portfolio", label: "Portfolio", icon: Briefcase },
+    { id: "photos", label: "Photos", icon: Camera },
     { id: "settings", label: "Settings", icon: Settings },
   ]
 

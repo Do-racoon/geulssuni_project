@@ -62,7 +62,21 @@ export async function getLecture(id: string) {
 
 export async function createLecture(lecture: Partial<Lecture>) {
   try {
-    const { data, error } = await supabase.from("lectures").insert([lecture]).select()
+    const { data, error } = await supabase
+      .from("lectures")
+      .insert([
+        {
+          title: lecture.title,
+          description: lecture.description,
+          contact_url: lecture.contact_url, // contactUrl -> contact_url로 수정
+          thumbnail_url: lecture.thumbnail_url,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          is_published: lecture.is_published ?? false,
+          views: 0,
+        },
+      ])
+      .select()
 
     if (error) {
       console.error("Error creating lecture:", error)

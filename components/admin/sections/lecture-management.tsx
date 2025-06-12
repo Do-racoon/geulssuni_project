@@ -7,7 +7,7 @@ import AddLectureModal from "../modals/add-lecture-modal"
 import EditLectureModal from "../modals/edit-lecture-modal"
 import CopyLectureModal from "../modals/copy-lecture-modal"
 import { toast } from "@/hooks/use-toast"
-import { getLectures, updateLecture, deleteLecture, type Lecture } from "@/lib/api/lectures"
+import { getLectures, updateLecture, deleteLecture, createLecture, type Lecture } from "@/lib/api/lectures"
 
 export default function LectureManagement() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -18,6 +18,7 @@ export default function LectureManagement() {
   const [showFilters, setShowFilters] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showCopyModal, setShowCopyModal] = useState(false)
+  const [showAddModal, setShowAddModal] = useState(false)
   const [selectedLecture, setSelectedLecture] = useState<Lecture | null>(null)
   const [lecturesList, setLecturesList] = useState<Lecture[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -138,6 +139,28 @@ export default function LectureManagement() {
     }
   }
 
+  const handleAddLecture = async (lectureData: any) => {
+    try {
+      setIsLoading(true)
+      await createLecture(lectureData)
+      await loadLectures()
+      setShowAddModal(false)
+      toast({
+        title: "Lecture added",
+        description: "The lecture has been added successfully.",
+      })
+    } catch (error) {
+      console.error("Error adding lecture:", error)
+      toast({
+        title: "Error",
+        description: "Failed to add lecture",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   // Get unique categories for filter
   const categories = [...new Set(lecturesList.map((lecture) => lecture.category).filter(Boolean))]
 
@@ -153,12 +176,13 @@ export default function LectureManagement() {
     <div>
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-2xl font-semibold mb-2">Lecture Management</h1>
-        <AddLectureModal onSuccess={() => loadLectures()}>
-          <button className="flex items-center bg-black text-white px-4 py-2 text-sm rounded-md">
-            <Plus className="h-4 w-4 mr-2" />
-            Add New Lecture
-          </button>
-        </AddLectureModal>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center bg-black text-white px-4 py-2 text-sm rounded-md"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Add New Lecture
+        </button>
       </div>
 
       <div className="bg-white rounded-md shadow-sm overflow-hidden">
@@ -402,7 +426,7 @@ export default function LectureManagement() {
           isOpen={showEditModal}
           onClose={() => setShowEditModal(false)}
           lecture={selectedLecture}
-          onSave={handleSaveLecture}
+          onUpdate={handleSaveLecture}
         />
       )}
       {showCopyModal && selectedLecture && (
@@ -411,6 +435,9 @@ export default function LectureManagement() {
           onClose={() => setShowCopyModal(false)}
           onSuccess={() => loadLectures()}
         />
+      )}
+      {showAddModal && (
+        <AddLectureModal isOpen={showAddModal} onClose={() => setShowAddModal(false)} onAdd={handleAddLecture} />
       )}
     </div>
   )
