@@ -7,13 +7,13 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/hooks/use-toast"
-import { Save, Video, ImageIcon, AlertCircle, Info } from "lucide-react"
+import { Save, Video, ImageIcon, AlertCircle, Info, Database } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { createClient } from "@supabase/supabase-js"
 
-// 파일 크기 제한을 더 작게 설정
-const MAX_VIDEO_SIZE = 10 * 1024 * 1024 // 10MB로 줄임
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024 // 5MB로 줄임
+// 파일 크기 제한
+const MAX_VIDEO_SIZE = 10 * 1024 * 1024 // 10MB
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024 // 5MB
 
 // 기본 버킷 이름
 const DEFAULT_BUCKET = "uploads"
@@ -53,6 +53,7 @@ export default function AdminSettings() {
   const imageInputRef = useRef<HTMLInputElement>(null)
   const [bucketExists, setBucketExists] = useState<boolean | null>(null)
   const [showBucketWarning, setShowBucketWarning] = useState(false)
+  const [isCreatingBucket, setIsCreatingBucket] = useState(false)
 
   const [settings, setSettings] = useState({
     site_name: "",
@@ -93,6 +94,49 @@ export default function AdminSettings() {
       console.error("❌ 버킷 확인 중 오류:", error)
       setBucketExists(false)
       setShowBucketWarning(true)
+    }
+  }
+
+  // 서버를 통해 버킷 생성 요청
+  const createBucketViaServer = async () => {
+    try {
+      setIsCreatingBucket(true)
+      console.log(`🪣 서버를 통해 '${DEFAULT_BUCKET}' 버킷 생성 요청...`)
+
+      const response = await fetch("/api/create-bucket", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ bucketName: DEFAULT_BUCKET }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "버킷 생성 실패")
+      }
+
+      console.log(`✅ '${DEFAULT_BUCKET}' 버킷 생성 성공:`, data)
+      setBucketExists(true)
+      setShowBucketWarning(false)
+
+      toast({
+        title: "버킷 생성 완료",
+        description: `'${DEFAULT_BUCKET}' 버킷이 성공적으로 생성되었습니다.`,
+      })
+
+      return true
+    } catch (error) {
+      console.error("❌ 버킷 생성 요청 오류:", error)
+      toast({
+        title: "버킷 생성 실패",
+        description: `버킷 생성에 실패했습니다: ${error instanceof Error ? error.message : "알 수 없는 오류"}`,
+        variant: "destructive",
+      })
+      return false
+    } finally {
+      setIsCreatingBucket(false)
     }
   }
 
@@ -195,19 +239,6 @@ export default function AdminSettings() {
         return
       }
 
-      // 추가 안전 확인
-      if (file.size > 10 * 1024 * 1024) {
-        const errorMsg = "파일이 너무 큽니다. 10MB 이하의 파일을 선택해주세요."
-        console.error("❌ " + errorMsg)
-        setUploadError(errorMsg)
-        toast({
-          title: "파일 크기 초과",
-          description: errorMsg,
-          variant: "destructive",
-        })
-        return
-      }
-
       // 진행률 시뮬레이션
       const progressInterval = setInterval(() => {
         setUploadProgress((prev) => {
@@ -222,6 +253,7 @@ export default function AdminSettings() {
         const formData = new FormData()
         formData.append("file", file)
         formData.append("bucketName", DEFAULT_BUCKET)
+        formData.append("folder", "home")
 
         console.log("📤 서버 API로 업로드 요청...")
 
@@ -234,35 +266,28 @@ export default function AdminSettings() {
         clearInterval(progressInterval)
         setUploadProgress(100)
 
-        // 응답 처리 개선
-        let data: any
-        try {
-          const responseText = await response.text()
-          console.log("📄 서버 응답:", responseText.substring(0, 200))
+        // 응답 처리
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error("❌ 서버 응답 오류:", response.status, errorText)
 
           // JSON 파싱 시도
           try {
-            data = JSON.parse(responseText)
+            const errorData = JSON.parse(errorText)
+            throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
           } catch (parseError) {
-            console.error("❌ JSON 파싱 실패:", parseError)
-
             // HTML 오류 페이지인지 확인
-            if (responseText.includes("Request Entity Too Large") || responseText.includes("413")) {
+            if (errorText.includes("Request Entity Too Large") || errorText.includes("413")) {
               throw new Error("파일 크기가 너무 큽니다. 더 작은 파일을 선택해주세요.")
-            } else if (responseText.includes("500") || responseText.includes("Internal Server Error")) {
+            } else if (errorText.includes("500") || errorText.includes("Internal Server Error")) {
               throw new Error("서버 내부 오류가 발생했습니다.")
             } else {
               throw new Error(`서버 응답 오류: ${response.status} ${response.statusText}`)
             }
           }
-        } catch (networkError) {
-          console.error("❌ 네트워크 오류:", networkError)
-          throw new Error("네트워크 오류가 발생했습니다.")
         }
 
-        if (!response.ok) {
-          throw new Error(data?.error || `HTTP ${response.status}: ${response.statusText}`)
-        }
+        const data = await response.json()
 
         if (!data.success) {
           throw new Error(data.error || "업로드 실패")
@@ -406,12 +431,12 @@ export default function AdminSettings() {
         if (exists) {
           toast({
             title: "스토리지 상태 확인 완료",
-            description: `버킷 ${data.data.buckets.length}개, 파일 ${data.data.recentFiles.length}개 발견. 업로드 버튼이 활성화되었습니다.`,
+            description: `버킷 ${data.data.buckets.length}개, 파일 ${data.data.recentFiles?.length || 0}개 발견. 업로드 버튼이 활성화되었습니다.`,
           })
         } else {
           toast({
             title: "스토리지 상태 확인 완료",
-            description: `버킷 ${data.data.buckets.length}개, 파일 ${data.data.recentFiles.length}개 발견. uploads 버킷이 없습니다.`,
+            description: `버킷 ${data.data.buckets.length}개 발견. uploads 버킷이 없습니다. 버킷 생성 버튼을 클릭하세요.`,
           })
         }
       } else {
@@ -447,6 +472,25 @@ export default function AdminSettings() {
           Storage에 업로드됩니다.
         </AlertDescription>
       </Alert>
+
+      {showBucketWarning && (
+        <Alert variant="warning" className="bg-yellow-50 border-yellow-200">
+          <AlertCircle className="h-4 w-4 text-yellow-500" />
+          <AlertDescription className="text-yellow-700 flex items-center justify-between">
+            <span>업로드를 위한 스토리지 버킷이 없습니다. 파일 업로드를 위해 버킷을 생성해주세요.</span>
+            <Button
+              onClick={createBucketViaServer}
+              disabled={isCreatingBucket}
+              variant="outline"
+              size="sm"
+              className="ml-2 bg-white"
+            >
+              <Database className="w-4 h-4 mr-1" />
+              {isCreatingBucket ? "생성 중..." : "버킷 생성"}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {uploadError && (
         <Alert variant="destructive">
@@ -619,6 +663,10 @@ export default function AdminSettings() {
             <div className="flex gap-2">
               <Button onClick={checkStorageStatus} disabled={isDebugging} variant="outline" size="sm">
                 {isDebugging ? "확인 중..." : "스토리지 상태 확인 및 새로고침"}
+              </Button>
+              <Button onClick={createBucketViaServer} disabled={isCreatingBucket} variant="outline" size="sm">
+                <Database className="w-4 h-4 mr-1" />
+                {isCreatingBucket ? "생성/업데이트 중..." : "버킷 설정 업데이트"}
               </Button>
             </div>
             {storageDebug && (
